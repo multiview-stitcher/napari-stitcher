@@ -1,0 +1,48 @@
+name: napari-stitcher
+display_name: Stitchery
+contributions:
+  commands:
+    - id: napari-stitcher.get_reader
+      python_name: napari_stitcher._reader:napari_get_reader
+      title: Open data with Stitchery
+    - id: napari-stitcher.write_multiple
+      python_name: napari_stitcher._writer:write_multiple
+      title: Save multi-layer data with Stitchery
+    - id: napari-stitcher.write_single_image
+      python_name: napari_stitcher._writer:write_single_image
+      title: Save image data with Stitchery
+    - id: napari-stitcher.make_sample_data
+      python_name: napari_stitcher._sample_data:make_sample_data
+      title: Load sample data from Stitchery
+    - id: napari-stitcher.make_qwidget
+      python_name: napari_stitcher._widget:ExampleQWidget
+      title: Make example QWidget
+    - id: napari-stitcher.make_magic_widget
+      python_name: napari_stitcher._widget:example_magic_widget
+      title: Make example magic widget
+    - id: napari-stitcher.make_func_widget
+      python_name: napari_stitcher._widget:example_function_widget
+      title: Make example function widget
+  readers:
+    - command: napari-stitcher.get_reader
+      accepts_directories: false
+      filename_patterns: ['*.npy']
+  writers:
+    - command: napari-stitcher.write_multiple
+      layer_types: ['image*','labels*']
+      filename_extensions: []
+    - command: napari-stitcher.write_single_image
+      layer_types: ['image']
+      filename_extensions: ['.npy']
+  sample_data:
+    - command: napari-stitcher.make_sample_data
+      display_name: Stitchery
+      key: unique_id.1
+  widgets:
+    - command: napari-stitcher.make_qwidget
+      display_name: Example QWidget
+    - command: napari-stitcher.make_magic_widget
+      display_name: Example Magic Widget
+    - command: napari-stitcher.make_func_widget
+      autogenerate: true
+      display_name: Example Function Widget
