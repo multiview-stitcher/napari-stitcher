@@ -29,14 +29,14 @@ def napari_get_reader(path):
         path = path[0]
 
     # if we know we cannot read the file, we immediately return None.
-    if not path.endswith(".npy"):
+    # otherwise we return the *function* that can read ``path``.
+    if path.endswith(".czi"):
+        return czi_reader_function
+    else:
         return None
 
-    # otherwise we return the *function* that can read ``path``.
-    return reader_function
 
-
-def reader_function(path):
+def czi_reader_function(path):
     """Take a path or list of paths and return a list of LayerData tuples.
 
     Readers are expected to return data as a list of tuples, where each tuple
