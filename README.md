@@ -1,17 +1,19 @@
-# napari-stitcher
-
+<!--
 [![License BSD-3](https://img.shields.io/pypi/l/napari-stitcher.svg?color=green)](https://github.com/m-albert/napari-stitcher/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-stitcher.svg?color=green)](https://pypi.org/project/napari-stitcher)
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-stitcher.svg?color=green)](https://python.org)
 [![tests](https://github.com/m-albert/napari-stitcher/workflows/tests/badge.svg)](https://github.com/m-albert/napari-stitcher/actions)
 [![codecov](https://codecov.io/gh/m-albert/napari-stitcher/branch/main/graph/badge.svg)](https://codecov.io/gh/m-albert/napari-stitcher)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-stitcher)](https://napari-hub.org/plugins/napari-stitcher)
+-->
 
-A GUI for stitching 2-3D tiled image datasets
+# napari-stitcher
+A napari plugin for stitching 2-3D tiled image datasets using [MVRegFUS](https://github.com/m-albert/MVRegFus).
 
+Work in progress.
+
+![](misc-data/20221223_screenshot.png)
 ----------------------------------
-
-This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
 <!--
 Don't miss the full getting started guide to set up your new package:
@@ -21,13 +23,26 @@ and review the napari docs for plugin developers:
 https://napari.org/stable/plugins/index.html
 -->
 
+----------------------------------
 ## Installation
 
 You can install `napari-stitcher` via [pip]:
 
-    pip install napari-stitcher
+- on MacOS: Install PyQT
+- install anaconda
+- create a new conda environment and install napari
 
+    `conda create -y -n napari-env -c conda-forge python=3.9`
 
+    `conda activate napari-env`
+
+    `conda install -c conda-forge napari`
+
+- currently: download (e.g. clone) napari-stitcher and install using
+
+    `pip install -e napari-stitcher`
+
+This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
 
 ## Contributing
