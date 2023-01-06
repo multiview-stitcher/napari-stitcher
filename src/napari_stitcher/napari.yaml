@@ -37,7 +37,7 @@ contributions:
       key: unique_id.1
   widgets:
     - command: napari-stitcher.make_qwidget
-      display_name: Stitcher QWidget
+      display_name: Stitcher
     - command: napari-stitcher.reload_plugin_widget
       autogenerate: true
-      display_name: Reload Plugin Widget
+      display_name: Reload Stitcher Widget
