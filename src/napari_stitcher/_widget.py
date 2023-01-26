@@ -18,7 +18,6 @@ from napari.utils import notifications
 from magicgui import magic_factory
 from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget
 
-from magicgui.widgets import FileEdit
 from magicgui import magicgui
 
 from magicgui import widgets
@@ -89,6 +88,10 @@ class StitcherQWidget(QWidget):
                                         
         self.layout().addWidget(self.container.native)
 
+        # clear napari layers
+        # self.file_picker
+        @self.button_visualize_input.changed.connect
+
         @self.button_visualize_input.changed.connect
         def visualize_views(value: str):
 
@@ -98,7 +101,7 @@ class StitcherQWidget(QWidget):
 
             # napari_viewer.layers.clear()
 
-            filename = self.file_picker.value
+            # filename = self.file_picker.value
             max_project = self.dimension_rbuttons.value == '2D'
 
             view_stack_props = [self.view_dict[view] for view in self.views]

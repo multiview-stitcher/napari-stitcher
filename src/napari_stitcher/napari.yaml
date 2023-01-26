@@ -1,5 +1,5 @@
 name: napari-stitcher
-display_name: Stitchery
+display_name: napari-stitcher
 contributions:
   commands:
     - id: napari-stitcher.get_reader
@@ -23,7 +23,7 @@ contributions:
   readers:
     - command: napari-stitcher.get_reader
       accepts_directories: false
-      filename_patterns: ['*.npy']
+      filename_patterns: ['*.czi']
   writers:
     - command: napari-stitcher.write_multiple
       layer_types: ['image*','labels*']
@@ -33,7 +33,7 @@ contributions:
       filename_extensions: ['.npy']
   sample_data:
     - command: napari-stitcher.make_sample_data
-      display_name: Stitchery
+      display_name: napari-stitcher
       key: unique_id.1
   widgets:
     - command: napari-stitcher.make_qwidget
