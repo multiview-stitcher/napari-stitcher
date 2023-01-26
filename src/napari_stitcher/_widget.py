@@ -248,9 +248,10 @@ class StitcherQWidget(QWidget):
 # simple widget to reload the plugin during development
 def reload_plugin_widget(viewer: "napari.Viewer"):
     import importlib
-    from napari_stitcher import _widget, _utils
+    from napari_stitcher import _widget, _utils, _reader
     _widget = importlib.reload(_widget)
     _utils = importlib.reload(_utils)
+    _reader = importlib.reload(_reader)
 
     from mvregfus import mv_visualization, mv_utils, io_utils
     mv_visualization = importlib.reload(mv_visualization)
