@@ -41,7 +41,7 @@ from napari_stitcher import _utils
 import dask.array as da
 from dask import delayed
 import time
-def czi_reader_function(path):
+def czi_reader_function(path, sample=0):
     """Take a path or list of paths and return a list of LayerData tuples.
 
     Readers are expected to return data as a list of tuples, where each tuple
@@ -68,12 +68,24 @@ def czi_reader_function(path):
 
     max_project = True
     dims = io_utils.get_dims_from_multitile_czi(paths[0])
-    view_dict = io_utils.build_view_dict_from_multitile_czi(paths[0], max_project=max_project)
+    print(dims)
+
+    # ask for sample when several are available
+    # import pdb; pdb.set_trace()
+    if dims['S'][1] > 1:
+
+        from magicgui.widgets import request_values
+        sample = request_values(
+            sample=dict(annotation=int,
+                        label="Which sample should be loaded?",
+                        options={'min': 0, 'max': dims['S'][1] - 1}),
+            )['sample']
+
+    view_dict = io_utils.build_view_dict_from_multitile_czi(paths[0], max_project=max_project, S=sample)
     views = np.array([view for view in sorted(view_dict.keys())])
     pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
     ndim = [2, 3][int(dims['Z'][1] > 1)]
 
-    print(dims)
 
     channels = range(dims['C'][0], dims['C'][1])
     times = range(dims['T'][0], dims['T'][1])
@@ -103,6 +115,7 @@ def czi_reader_function(path):
                                     vdv['view'],
                                     ch,
                                     time_index=t,
+                                    sample_index=sample,
                                     max_project=max_project,
                                     origin=vdv['origin'],
                                     spacing=vdv['spacing'],
@@ -149,6 +162,8 @@ def czi_reader_function(path):
     layer_type = "image"
     file_id = time.time()
 
+    # import pdb; pdb.set_trace()
+
     return [(view_das[iview],
             {
              'contrast_limits': [[0, 100], [0,255]],
@@ -162,7 +177,7 @@ def czi_reader_function(path):
                           'view_dict': view_dict[iview]},
              },
             layer_type)
-                for iview, view in enumerate(views)][:]
+                for iview, view in enumerate(views)][:1]
 
     # construct dask array
 
@@ -179,6 +194,10 @@ def czi_reader_function(path):
 
 if __name__ == "__main__":
     # tmp = czi_reader_function("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi")
-    # fn = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st4+_x40_zoom0_5_5x5_488ZO1-568Sox2-647Tbra-max.czi"
-    fn = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    fn = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st4+_x40_zoom0_5_5x5_488ZO1-568Sox2-647Tbra-max.czi"
+    # fn = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     tmp = czi_reader_function(fn)
+
+    io_utils.build_view_dict_from_multitile_czi(fn, max_project=False, S=0)
+
+    ar = tmp[0][0].compute()
