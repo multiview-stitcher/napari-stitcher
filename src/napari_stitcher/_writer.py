@@ -30,4 +30,5 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
     # implement your writer logic here ...
 
     # return path to any file(s) that were successfully written
+
     return [path]

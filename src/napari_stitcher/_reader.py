@@ -175,7 +175,7 @@ def czi_reader_function(path, sample=0):
     return [(view_das[iview],
             {
             #  'contrast_limits': [[0, 100], [0,255]],
-             'contrast_limits': [[0,100]] * len(channels),
+             'contrast_limits': [[0,255]] * len(channels),
              'name': 'view_%s' %view,
              'colormap': 'gray_r',
              'colormap': ['red', 'green'][iview%2],

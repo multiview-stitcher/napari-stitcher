@@ -104,6 +104,38 @@ def register_tiles(
 
     return ps
 
+# get source file path from open layers
+def get_source_path_from_viewer(viewer):
+    for l in viewer.layers:
+        if l.source.path is not None and l.source.path.endswith('.czi'):
+            return l.source.path
+    return None
+
+
+# def transmit_params_to_viewer(viewer, params, channels, times, views):
+
+#     for ch in channels:
+#         for t in times:
+#             for view in views:
+#                 l = get_layer_from_view_and_ch(viewer, view, ch)
+
+#                 if l is not None:
+#                     l.params = params[t][view]
+
+#     for l in viewer.layers:
+
+#         if l.source.path is not None and l.source.path.endswith('.czi'):
+#             l.params = params
+
+
+def get_layer_from_view_and_ch(viewer, view, ch):
+    candidates = [l for l in viewer.layers if l.name.startswith('view_%s' %view)\
+                    and (l.name.endswith(f' [{ch}]')
+                    or (ch==0 and '[' not in l.name and l.name.endswith('view_%s' %view)))]
+    if not len(candidates):
+        return None
+    else:
+        return candidates[0]
 
 # def visualize_tiles():
 
