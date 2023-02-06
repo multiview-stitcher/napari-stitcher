@@ -66,7 +66,7 @@ def czi_reader_function(path, sample=0):
     # handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
-    max_project = True
+    max_project = False
     dims = io_utils.get_dims_from_multitile_czi(paths[0])
     print(dims)
 
@@ -84,7 +84,12 @@ def czi_reader_function(path, sample=0):
     view_dict = io_utils.build_view_dict_from_multitile_czi(paths[0], max_project=max_project, S=sample)
     views = np.array([view for view in sorted(view_dict.keys())])
     pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
-    ndim = [2, 3][int(dims['Z'][1] > 1)]
+
+    # ndim = [2, 3][int(dims['Z'][1] > 1)]
+    if max_project or int(dims['Z'][1] <= 1):
+        ndim = 2
+    else:
+        ndim = 3
 
 
     channels = range(dims['C'][0], dims['C'][1])
@@ -110,7 +115,10 @@ def czi_reader_function(path, sample=0):
         view_das.append(
                 da.stack([
                     da.stack([
-                        da.from_delayed(delayed(io_utils.read_tile_from_multitile_czi)
+                        da.from_delayed(delayed(
+                            # io_utils.read_tile_from_multitile_czi
+                            get_tile_from_multitile_czi
+                            )
                                 (vdv['filename'],
                                     vdv['view'],
                                     ch,
@@ -166,18 +174,21 @@ def czi_reader_function(path, sample=0):
 
     return [(view_das[iview],
             {
-             'contrast_limits': [[0, 100], [0,255]],
+            #  'contrast_limits': [[0, 100], [0,255]],
+             'contrast_limits': [[0,100]] * len(channels),
              'name': 'view_%s' %view,
              'colormap': 'gray_r',
+             'colormap': ['red', 'green'][iview%2],
              'gamma': 0.6,
              'channel_axis': 1,
              'affine': ps[iview],
              'cache': False,
              'metadata': {'load_id': file_id,
                           'view_dict': view_dict[iview]},
+             'blending': 'additive',
              },
             layer_type)
-                for iview, view in enumerate(views)][:1]
+                for iview, view in enumerate(views)][:]
 
     # construct dask array
 
@@ -192,9 +203,42 @@ def czi_reader_function(path, sample=0):
     # layer_type = "image"  # optional, default is "image"
     # return [(data, add_kwargs, layer_type)]
 
+from aicspylibczi import CziFile
+from mvregfus.image_array import ImageArray
+def get_tile_from_multitile_czi(filename,
+                                 tile_index, channel_index=0, time_index=0, sample_index=0,
+                                 origin=None, spacing=None,
+                                 max_project=True,
+                                 ):
+    """
+    Use czifile to read images (as there's a bug in aicspylibczi20221013, namely that
+    neighboring tiles are included (prestitching?) in a given read out tile).
+    """
+    czifileFile = CziFile(filename)
+
+    tile = czifileFile.read_image(M=tile_index,
+                                  S=sample_index,
+                                  T=time_index,
+                                  C=channel_index)[0].squeeze()
+
+    if max_project and tile.ndim == 3:
+        tile = tile.max(axis=0)
+
+    if origin is None:
+        origin = [0.] * tile.ndim
+
+    if spacing is None:
+        spacing = [1.] * tile.ndim
+
+    tile = ImageArray(tile, origin=origin, spacing=spacing)
+
+    return tile
+
+
 if __name__ == "__main__":
     # tmp = czi_reader_function("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi")
     fn = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st4+_x40_zoom0_5_5x5_488ZO1-568Sox2-647Tbra-max.czi"
+    
     # fn = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     tmp = czi_reader_function(fn)
 
