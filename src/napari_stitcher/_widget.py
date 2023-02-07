@@ -77,48 +77,96 @@ class StitcherQWidget(QWidget):
                                     self.times_slider,
                                     self.regch_slider,
                                     self.button_run,
-                                    self.visualization_type_rbuttons,
                                     ]
 
+        self.visualization_widgets = [
+                                      self.visualization_type_rbuttons,
+        ]
         # self.visualization_widgets = [self.button_visualize_input,
         #                               self.visualization_type_rbuttons,
         #                               self.vis_ch_slider,
         #                               self.vis_times_slider,
         #                               ]
 
+
         self.container = widgets.VBox(widgets=\
                             self.loading_widgets+
-                            self.reg_setting_widgets
-                            # self.visualization_widgets
+                            self.reg_setting_widgets+
+                            self.visualization_widgets
                             )
                                         
         self.layout().addWidget(self.container.native)
 
+        self.params = dict()
 
-        # def update_slider(event):
-        #     # only trigger if update comes from first axis (optional)
-        #     print(event)
-        #     # if event.axis == 0:
-        #     #     print('a')
-        #     #     ind = self.viewer.dims.indices[0]
-        #     #     if self.visualization_type_rbuttons.value == 'Registered':
-        #     #         for view in range(self.dims['M'][0], self.dims['M'][1]):
-        #     #             for ch in range(self.dims['C'][0], self.dims['C'][1]):
+        @self.visualization_type_rbuttons.changed.connect
+        @self.viewer.dims.events.connect
+        def update_slider(event):
+            """
+            set transformation for current timepoint
+            """
 
-        #     #                 _utils.transmit_params_to_viewer()
+            # get first view layer
+            l = None
+            for l in self.viewer.layers:
+                if 'source_file' in l.metadata:
+                    break
+            if l is None: return
 
-        # # self.viewer.dims.events.axis.connect(update_slider)
+            is_timelapse = len(l.metadata['times']) > 1
+            if not is_timelapse:
+                return
+            
+            # # if parameters already set, do nothing
+            # if l.metadata['parameter_type'] == \
+            #     self.visualization_type_rbuttons.value: return
+
+            curr_tp = self.viewer.dims.current_step[0]
+
+            if self.visualization_type_rbuttons.value == 'Registered'\
+                    and curr_tp not in self.params:
+                notifications.notification_manager.receive_info(
+                    'Timepoint %s: no parameters available' % curr_tp)
+                self.visualization_type_rbuttons.value == 'Metadata'
+                return
+
+            for l in self.viewer.layers:
+                if not 'source_file' in l.metadata: continue
+                view, _ch = _utils.get_view_and_ch_from_layer_name(l.name)
+                
+                if self.visualization_type_rbuttons.value == 'Registered':
+                    p = self.params[curr_tp][view]
+                else:
+                    p = mv_utils.matrix_to_params(np.eye(l.metadata['ndim'] + 1))
+
+                # print(self.visualization_type_rbuttons.value, view, ch)
+
+                p_napari = _utils.params_to_napari_affine(p,
+                    l.metadata['stack_props'],
+                    l.metadata['view_dict'])
+
+                # embed parameters into ndim + 2 matrix because of time axis
+                time_p = np.eye(l.metadata['ndim'] + 2)
+                time_p[-len(p_napari):, -len(p_napari):] = p_napari
+                
+                # print(p_napari, time_p)
+                l.affine.affine_matrix = time_p
+                l.refresh()
+           
+        # self.viewer.dims.events.axis.connect(update_slider)
         # self.viewer.dims.events.connect(update_slider)
 
 
         @self.button_run.clicked.connect
         def run_sitching(value: str):
 
-            max_project = self.dimension_rbuttons.value == '2D'
+            max_project = True if self.dimension_rbuttons.value == '2D' else False
 
             self.view_dict = io_utils.build_view_dict_from_multitile_czi(self.source_path, max_project=max_project)
             self.views = np.array([view for view in sorted(self.view_dict.keys())])
             self.pairs = mv_utils.get_registration_pairs_from_view_dict(self.view_dict)
+
+            print('lalalalal', self.view_dict)
 
             # if max_project or int(self.dims['Z'][1] <= 1):
             #     self.ndim = 2
@@ -146,15 +194,19 @@ class StitcherQWidget(QWidget):
 
             times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
             viewims = _utils.load_tiles(self.view_dict, [self.regch_slider.value],
-                            times, max_project=True)
+                            times, max_project=max_project)
 
             times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
+
+            # choose central view as reference
+            ref_view_index = len(self.views) // 2
             ps = _utils.register_tiles(
                                 viewims,
                                 self.pairs,
                                 reg_channel = self.regch_slider.value,
                                 times = times,
-                                registration_binning=[2, 2],
+                                registration_binning=[2] * len(self.view_dict[self.views[0]]['shape']),
+                                ref_view_index = ref_view_index,
                                 )
 
             from napari.utils import progress
@@ -173,16 +225,24 @@ class StitcherQWidget(QWidget):
             # enable widgets again
             for w, e in zip(self.container, enabled):
                 w.enabled = e
+
+            # this command raises a warning regarding accessing a private attribute
             # napari_viewer.window._status_bar._toggle_activity_dock(False)
 
-            self.params = psc
+            self.params.update(psc)
             self.visualization_type_rbuttons.enabled = True
 
         
         @self.button_load_metadata.clicked.connect
         def load_metadata(value: str):
 
-            self.source_path = _utils.get_source_path_from_viewer(self.viewer)
+            curr_source_path = _utils.get_source_path_from_viewer(self.viewer)
+            if self.source_path != curr_source_path:
+                self.params = dict()
+                self.visualization_type_rbuttons.value = 'Metadata'
+                self.visualization_type_rbuttons.enabled = False
+
+            self.source_path = curr_source_path
             if self.source_path is None:
                 notifications.notification_manager.receive_info('No CZI file loaded.')
                 return

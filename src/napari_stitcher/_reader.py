@@ -42,7 +42,11 @@ import dask.array as da
 from dask import delayed
 import time
 def czi_reader_function(path, sample=0):
-    """Take a path or list of paths and return a list of LayerData tuples.
+    """
+    
+    Read in tiles as layers.
+    
+    Take a path or list of paths and return a list of LayerData tuples.
 
     Readers are expected to return data as a list of tuples, where each tuple
     is (data, [add_kwargs, [layer_type]]), "add_kwargs" and "layer_type" are
@@ -117,55 +121,41 @@ def czi_reader_function(path, sample=0):
                 for t in times])
         )
 
+    # if ndim == 2:
+    #     view_das = [view_da[:, :, None] for view_da in view_das]
+
     # set target stack properties to those of first view
     stack_props = view_dict[0]
     view_stack_props = view_dict
 
     # assume identity transf parameters
     transf_params = [mv_utils.matrix_to_params(np.eye(ndim+1)) for i in range(len(views))]
-
-    # get affine parameters
-    ps = []
-    for iview in range(len(views)):
-
-        p = mv_utils.params_to_matrix(transf_params[iview])
-
-        """
-        y = Ax+c
-        y=sy*yp+oy
-        x=sx*xp+ox
-        sy*yp+oy = A(sx*xp+ox)+c
-        yp = syi * A*sx*xp + syi  *A*ox +syi*(c-oy)
-        A' = syi * A * sx
-        c' = syi  *A*ox +syi*(c-oy)
-        """
-        sx = np.diag(list((stack_props['spacing'])))
-        sy = np.diag(list((view_stack_props[iview]['spacing'])))
-        syi = np.linalg.inv(sy)
-        p[:ndim, ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], stack_props['origin'])) \
-                   + np.dot(syi, (p[:ndim, ndim] - view_stack_props[iview]['origin']))
-        p[:ndim, :ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], sx))
-        p = np.linalg.inv(p)
-
-        ps.append(p)
+    ps = [_utils.params_to_napari_affine(p, stack_props, view_stack_props[iview])
+            for iview, p in enumerate(transf_params)]  
 
     layer_type = "image"
     file_id = time.time()
 
-
-    return [(view_das[iview],
+    return [(view_das[iview], # (T, C, (Z,) Y, X)
             {
              'contrast_limits': [[0,255]] * len(channels),
-             'name': 'view_%s' %view,
+             'name': [_utils.get_layer_name_from_view_and_ch(iview, ch)
+                        for ch in channels],
              'colormap': 'gray_r',
              'colormap': ['red', 'green'][iview%2],
              'gamma': 0.6,
              'channel_axis': 1,
              'affine': ps[iview],
              'cache': False,
-             'metadata': {'load_id': file_id,
+             'metadata': {
+                          'load_id': file_id,
+                          'stack_props': stack_props,
                           'view_dict': view_dict[iview],
-                          'source_file': path},
+                          'ndim': ndim,
+                          'source_file': path,
+                        #   'parameter_type': 'metadata',
+                          'times': times,
+                          },
              'blending': 'additive',
              },
             layer_type)
@@ -206,8 +196,8 @@ def get_tile_from_multitile_czi(filename,
 
 if __name__ == "__main__":
     # tmp = czi_reader_function("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi")
-    fn = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st4+_x40_zoom0_5_5x5_488ZO1-568Sox2-647Tbra-max.czi"
-    
+    # fn = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st4+_x40_zoom0_5_5x5_488ZO1-568Sox2-647Tbra-max.czi"
+    fn = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
     # fn = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     tmp = czi_reader_function(fn)
 

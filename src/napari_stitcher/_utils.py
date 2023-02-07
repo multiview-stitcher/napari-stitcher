@@ -46,6 +46,7 @@ def register_tiles(
                    reg_channel: int,
                    times: list,
                    registration_binning = None,
+                   ref_view_index = 0,
                    ) -> dict:
     """
     Register tiles in a view_dict.
@@ -87,7 +88,7 @@ def register_tiles(
 
     # get final transform parameters
     ps = {t: delayed(multiview.get_params_from_pairs)(
-                                views[0],
+                                views[ref_view_index],
                                 pairs,
                                 [pair_ps[t][(v1,v2)] for v1, v2 in pairs],
                                 None, # time_alignment_params
@@ -114,14 +115,29 @@ def get_source_path_from_viewer(viewer):
     return None
 
 
+def get_layer_name_from_view_and_ch(view=0, ch=0):
+    return 'tile_%03d' %view + '_ch_%03d' %ch
+
+
 def get_layer_from_view_and_ch(viewer, view, ch):
-    candidates = [l for l in viewer.layers if l.name.startswith('view_%s' %view)\
-                    and (l.name.endswith(f' [{ch}]')
-                    or (ch==0 and '[' not in l.name and l.name.endswith('view_%s' %view)))]
+    # improve: use regexp to match view and channel from e.g. 'view_008_ch_002'
+    candidates = [l for l in viewer.layers
+        if l.name == get_layer_name_from_view_and_ch(view, ch)]
+    # candidates = [l for l in viewer.layers if l.name.startswith('view_%s' %view)\
+    #                 and (l.name.endswith(f' [{ch}]')
+    #                 or (ch==0 and '[' not in l.name and l.name.endswith('view_%s' %view)))]
     if not len(candidates):
         return None
     else:
         return candidates[0]
+
+
+def get_view_and_ch_from_layer_name(name):
+
+    view = int(name.split('_')[1])
+    ch = int(name.split('_')[-1])
+
+    return view, ch
 
 
 # def transmit_params_to_viewer(viewer, params, channels, times, views):
@@ -140,13 +156,26 @@ def get_layer_from_view_and_ch(viewer, view, ch):
 #             l.params = params
 
 
-def transmit_params_to_layer(viewer, params, ch, t, view, stack_props, view_stack_props):
-    l = get_layer_from_view_and_ch(viewer, view, ch)
-    l.affine = params_to_napari_affine(params[t][view], stack_props, view_stack_props)
-    return
+# def transmit_params_to_layer(viewer, params, ch, t, view, stack_props, view_stack_props):
+#     l = get_layer_from_view_and_ch(viewer, view, ch)
+#     l.affine = params_to_napari_affine(params[t][view], stack_props, view_stack_props)
+#     return
 
 
 def params_to_napari_affine(params, stack_props, view_stack_props):
+
+    """
+    y = Ax+c
+    y=sy*yp+oy
+    x=sx*xp+ox
+    sy*yp+oy = A(sx*xp+ox)+c
+    yp = syi * A*sx*xp + syi  *A*ox +syi*(c-oy)
+    A' = syi * A * sx
+    c' = syi  *A*ox +syi*(c-oy)
+    """
+
+    p = mv_utils.params_to_matrix(params)
+
     ndim = len(stack_props['spacing'])
 
     sx = np.diag(list((stack_props['spacing'])))
@@ -157,8 +186,6 @@ def params_to_napari_affine(params, stack_props, view_stack_props):
     p[:ndim, :ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], sx))
     p = np.linalg.inv(p)
 
-    p = mv_utils.params_to_matrix(params)
-    p = np.linalg.inv(p)
     return p
 
 # def visualize_tiles():
