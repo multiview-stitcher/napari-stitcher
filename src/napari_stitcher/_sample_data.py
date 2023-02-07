@@ -9,7 +9,10 @@ Replace code below according to your needs.
 from __future__ import annotations
 
 import numpy
+import pathlib
 
+from napari_stitcher._reader import czi_reader_function
+import napari_stitcher
 
 def make_sample_data():
     """Generates an image"""
@@ -18,4 +21,8 @@ def make_sample_data():
     # Check the documentation for more information about the
     # add_image_kwargs
     # https://napari.org/stable/api/napari.Viewer.html#napari.Viewer.add_image
-    return [(numpy.random.rand(512, 512), {})]
+
+    sample_path = pathlib.Path(napari_stitcher.__file__).parent.parent.parent\
+        / 'image-datasets' / 'arthur_20220621_premovie_dish2-max.czi'
+
+    return czi_reader_function([sample_path])

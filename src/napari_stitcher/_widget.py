@@ -94,70 +94,21 @@ class StitcherQWidget(QWidget):
                                         
         self.layout().addWidget(self.container.native)
 
-        # # clear napari layers
-        # # self.file_picker
-        # @self.button_visualize_input.changed.connect
-        # def visualize_views(value: str):
 
-        #     reset_view_at_end = False
-        #     if not len(napari_viewer.layers):
-        #         reset_view_at_end = True
+        # def update_slider(event):
+        #     # only trigger if update comes from first axis (optional)
+        #     print(event)
+        #     # if event.axis == 0:
+        #     #     print('a')
+        #     #     ind = self.viewer.dims.indices[0]
+        #     #     if self.visualization_type_rbuttons.value == 'Registered':
+        #     #         for view in range(self.dims['M'][0], self.dims['M'][1]):
+        #     #             for ch in range(self.dims['C'][0], self.dims['C'][1]):
 
-        #     # napari_viewer.layers.clear()
+        #     #                 _utils.transmit_params_to_viewer()
 
-        #     # filename = self.file_picker.value
-        #     max_project = self.dimension_rbuttons.value == '2D'
-
-        #     view_stack_props = [self.view_dict[view] for view in self.views]
-        #     # input_views = np.array([io_utils.read_tile_from_multitile_czi(filename, view,
-        #     #                         channel_index=self.vis_ch_slider.value,
-        #     #                         time_index=self.vis_times_slider.value,
-        #     #                         max_project=max_project)
-        #     #                             for view in self.views])
-
-        #     # load tiles lazily (not sure if this is working already)
-        #     ch = self.vis_ch_slider.value
-        #     t = self.vis_times_slider.value
-        #     input_views = _utils.load_tiles(self.view_dict, [ch],
-        #                         [t], max_project=max_project)[ch][t]
-
-        #     # debug whether tiles are loaded lazily
-        #     # def _print_load_tile(x):
-        #     #     print('loading tile')
-        #     #     return x
-        #     # input_views = _utils.apply_recursive_dict(_print_load_tile, input_views)
-
-        #     input_views = [da.from_delayed(input_views[iiv], shape=self.view_dict[iiv]['shape'],
-        #                                                      dtype=np.uint16)
-        #                                         for iiv in input_views.keys()]
-
-        #     if self.visualization_type_rbuttons.value == 'Metadata':
-        #         params = None
-        #     else:
-        #         params = np.array([self.params[self.vis_times_slider.value][view]
-        #                             for view in self.views])
-
-        #     mv_visualization.visualize_views(input_views, params, None,
-        #                                      view_stack_props,
-        #                                      viewer=napari_viewer,
-        #                                      clims=[0,255],
-        #                                      edge_width=5)
-        #     # self.button_reset_view.enabled=True
-        #     # reset view after first visualization
-        #     if reset_view_at_end:
-        #         napari_viewer.reset_view()
-
-
-        # @self.visualization_type_rbuttons.changed.connect
-        # @self.vis_ch_slider.changed.connect
-        # @self.vis_times_slider.changed.connect
-        # def update_vis(value: str):
-        #     if self.visualization_type_rbuttons.value == 'Metadata':
-        #         self.vis_times_slider.min, self.vis_times_slider.max = self.dims['T'][0], self.dims['T'][1]-1
-        #     else:
-        #         times = self.params.keys()
-        #         self.vis_times_slider.min, self.vis_times_slider.max = min(times), max(times)
-        #     visualize_views('')
+        # # self.viewer.dims.events.axis.connect(update_slider)
+        # self.viewer.dims.events.connect(update_slider)
 
 
         @self.button_run.clicked.connect
@@ -237,7 +188,6 @@ class StitcherQWidget(QWidget):
                 return
 
             self.dims = io_utils.get_dims_from_multitile_czi(self.source_path)
-            # self.channels = np.arange(self.dims['C'][0], self.dims['C'][1])
             print(self.dims)
 
             # self.view_dict = io_utils.build_view_dict_from_multitile_czi(self.source_path, max_project=True)
@@ -261,12 +211,10 @@ class StitcherQWidget(QWidget):
 
             # link channel layers
             from napari.experimental import link_layers
-
             for ch in range(self.dims['C'][0], self.dims['C'][1]):
 
                 layers_to_link = [_utils.get_layer_from_view_and_ch(self.viewer, view, ch)
                     for view in range(self.dims['M'][0], self.dims['M'][1])]
-
                 link_layers(layers_to_link, ('contrast_limits', 'visible'))
 
 

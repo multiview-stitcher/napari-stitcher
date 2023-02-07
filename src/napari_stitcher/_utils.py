@@ -107,9 +107,21 @@ def register_tiles(
 # get source file path from open layers
 def get_source_path_from_viewer(viewer):
     for l in viewer.layers:
-        if l.source.path is not None and l.source.path.endswith('.czi'):
-            return l.source.path
+        if 'source_file' in l.metadata and l.metadata['source_file'].endswith('.czi'):
+            return l.metadata['source_file']
+        # if l.source.path is not None and l.source.path.endswith('.czi'):
+        #     return l.source.path
     return None
+
+
+def get_layer_from_view_and_ch(viewer, view, ch):
+    candidates = [l for l in viewer.layers if l.name.startswith('view_%s' %view)\
+                    and (l.name.endswith(f' [{ch}]')
+                    or (ch==0 and '[' not in l.name and l.name.endswith('view_%s' %view)))]
+    if not len(candidates):
+        return None
+    else:
+        return candidates[0]
 
 
 # def transmit_params_to_viewer(viewer, params, channels, times, views):
@@ -128,14 +140,26 @@ def get_source_path_from_viewer(viewer):
 #             l.params = params
 
 
-def get_layer_from_view_and_ch(viewer, view, ch):
-    candidates = [l for l in viewer.layers if l.name.startswith('view_%s' %view)\
-                    and (l.name.endswith(f' [{ch}]')
-                    or (ch==0 and '[' not in l.name and l.name.endswith('view_%s' %view)))]
-    if not len(candidates):
-        return None
-    else:
-        return candidates[0]
+def transmit_params_to_layer(viewer, params, ch, t, view, stack_props, view_stack_props):
+    l = get_layer_from_view_and_ch(viewer, view, ch)
+    l.affine = params_to_napari_affine(params[t][view], stack_props, view_stack_props)
+    return
+
+
+def params_to_napari_affine(params, stack_props, view_stack_props):
+    ndim = len(stack_props['spacing'])
+
+    sx = np.diag(list((stack_props['spacing'])))
+    sy = np.diag(list((view_stack_props['spacing'])))
+    syi = np.linalg.inv(sy)
+    p[:ndim, ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], stack_props['origin'])) \
+                + np.dot(syi, (p[:ndim, ndim] - view_stack_props['origin']))
+    p[:ndim, :ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], sx))
+    p = np.linalg.inv(p)
+
+    p = mv_utils.params_to_matrix(params)
+    p = np.linalg.inv(p)
+    return p
 
 # def visualize_tiles():
 

@@ -71,7 +71,6 @@ def czi_reader_function(path, sample=0):
     print(dims)
 
     # ask for sample when several are available
-    # import pdb; pdb.set_trace()
     if dims['S'][1] > 1:
 
         from magicgui.widgets import request_values
@@ -85,30 +84,13 @@ def czi_reader_function(path, sample=0):
     views = np.array([view for view in sorted(view_dict.keys())])
     pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
 
-    # ndim = [2, 3][int(dims['Z'][1] > 1)]
     if max_project or int(dims['Z'][1] <= 1):
         ndim = 2
     else:
         ndim = 3
 
-
     channels = range(dims['C'][0], dims['C'][1])
     times = range(dims['T'][0], dims['T'][1])
-
-    # view_das = []
-    # for vdv in view_dict.values():
-    #     view_das.append(da.from_delayed([[
-    #         delayed(io_utils.read_tile_from_multitile_czi)
-    #                     (vdv['filename'],
-    #                         vdv['view'],
-    #                         ch,
-    #                         time_index=t,
-    #                         max_project=max_project,
-    #                         origin=vdv['origin'],
-    #                         spacing=vdv['spacing'],
-    #                         )
-    #         for ch in channels]
-    #             for t in times], shape=(len(times), len(channels)) + tuple(vdv['shape'])))
 
     view_das = []
     for vdv in view_dict.values():
@@ -170,11 +152,9 @@ def czi_reader_function(path, sample=0):
     layer_type = "image"
     file_id = time.time()
 
-    # import pdb; pdb.set_trace()
 
     return [(view_das[iview],
             {
-            #  'contrast_limits': [[0, 100], [0,255]],
              'contrast_limits': [[0,255]] * len(channels),
              'name': 'view_%s' %view,
              'colormap': 'gray_r',
@@ -184,24 +164,13 @@ def czi_reader_function(path, sample=0):
              'affine': ps[iview],
              'cache': False,
              'metadata': {'load_id': file_id,
-                          'view_dict': view_dict[iview]},
+                          'view_dict': view_dict[iview],
+                          'source_file': path},
              'blending': 'additive',
              },
             layer_type)
                 for iview, view in enumerate(views)][:]
 
-    # construct dask array
-
-    # # load all files into array
-    # arrays = [np.load(_path) for _path in paths]
-    # # stack arrays into single array
-    # data = np.squeeze(np.stack(arrays))
-
-    # # optional kwargs for the corresponding viewer.add_* method
-    # add_kwargs = {}
-
-    # layer_type = "image"  # optional, default is "image"
-    # return [(data, add_kwargs, layer_type)]
 
 from aicspylibczi import CziFile
 from mvregfus.image_array import ImageArray
