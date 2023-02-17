@@ -24,7 +24,7 @@ from magicgui import widgets
 
 from mvregfus import io_utils, mv_utils, mv_visualization
 
-from napari_stitcher import _utils
+from napari_stitcher import _utils, _registration, _fusion
 
 if TYPE_CHECKING:
     import napari
@@ -42,23 +42,28 @@ class StitcherQWidget(QWidget):
         self.setLayout(QVBoxLayout())
         
         self.source_path = _utils.get_source_path_from_viewer(napari_viewer)
-        if self.source_path is not None:
-            default_outdir = self.source_path+'_stitched'
-        else:
-            default_outdir = os.path.join('.', 'napari_stitcher_output')
-        self.outdir_picker = widgets.FileEdit(label='Output dir:',
-                value=default_outdir, mode='r')
 
-        self.button_load_metadata = widgets.Button(text='Load metadata')
+        # if self.source_path is not None:
+        #     default_outdir = self.source_path+'_stitched'
+        # else:
+        #     default_outdir = os.path.join('.', 'napari_stitcher_output')
 
-        self.dimension_rbuttons = widgets.RadioButtons(
-            choices=['2D', '3D'], label="Process in:", value="2D", enabled=False, orientation='horizontal')
+        # self.outdir_picker = widgets.FileEdit(label='Output dir:',
+        #         value=default_outdir, mode='r')
+
+        # self.button_load_metadata = widgets.Button(text='Load metadata')
+        self.source_path_picker = widgets.ComboBox(
+            label='Input file: ',
+            choices=_utils.get_list_of_source_paths_from_layers(napari_viewer.layers))
+
+        # self.dimension_rbuttons = widgets.RadioButtons(
+        #     choices=['2D', '3D'], label="Process in:", value="2D", enabled=False, orientation='horizontal')
         
         self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints', enabled=False)
         self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel', enabled=False)
 
         # self.button_visualize_input = widgets.Button(text='Visualize input', enabled=False)
-        self.button_run = widgets.Button(text='Stitch', enabled=False)
+        self.button_register = widgets.Button(text='Register', enabled=False)
 
         self.visualization_type_rbuttons = widgets.RadioButtons(
             choices=['Metadata', 'Registered'], label="Show:", value="Metadata", enabled=False,
@@ -67,20 +72,23 @@ class StitcherQWidget(QWidget):
         # self.vis_ch_slider = widgets.Slider(min=0, max=1, label='Channel', enabled=False)
         # self.vis_times_slider = widgets.Slider(min=0, max=1, label='Timepoint', enabled=False)
 
-        self.loading_widgets = [
-                                
-                                self.button_load_metadata,
-                                self.outdir_picker,
-                                ]
+        self.button_stitch = widgets.Button(text='Fuse', enabled=False)
 
-        self.reg_setting_widgets = [self.dimension_rbuttons,
-                                    self.times_slider,
-                                    self.regch_slider,
-                                    self.button_run,
-                                    ]
+        self.loading_widgets = [
+                            self.source_path_picker,
+                            # self.button_load_metadata,
+                            # self.outdir_picker,
+                            ]
+
+        self.reg_widgets = [
+                            # self.dimension_rbuttons,
+                            self.times_slider,
+                            self.regch_slider,
+                            self.button_register,
+                            ]
 
         self.visualization_widgets = [
-                                      self.visualization_type_rbuttons,
+                            self.visualization_type_rbuttons,
         ]
         # self.visualization_widgets = [self.button_visualize_input,
         #                               self.visualization_type_rbuttons,
@@ -88,16 +96,31 @@ class StitcherQWidget(QWidget):
         #                               self.vis_times_slider,
         #                               ]
 
+        self.fusion_widgets = [
+                            self.button_stitch,
+                            ]
+
 
         self.container = widgets.VBox(widgets=\
                             self.loading_widgets+
-                            self.reg_setting_widgets+
-                            self.visualization_widgets
+                            self.reg_widgets+
+                            self.visualization_widgets+
+                            self.fusion_widgets
                             )
-                                        
+
+        # self.container.native.maximumWidth = 50
+        self.container.native.setMinimumWidth = 50
+
+
         self.layout().addWidget(self.container.native)
 
         self.params = dict()
+
+
+        # if self.viewer.dims.events.callbacks
+        # remove callback if already exists?
+        # otherwise old callbacks produce invalid behavior
+        # ignore so far
 
         @self.visualization_type_rbuttons.changed.connect
         @self.viewer.dims.events.connect
@@ -109,9 +132,13 @@ class StitcherQWidget(QWidget):
             # get first view layer
             l = None
             for l in self.viewer.layers:
-                if 'source_file' in l.metadata:
+                if l.source is not None and l.source.path == self.source_path:
                     break
-            if l is None: return
+                #     break
+            if l is None:
+                notifications.notification_manager.receive_info(
+                    'No suitable layer found.')
+                return
 
             is_timelapse = len(l.metadata['times']) > 1
             if not is_timelapse:
@@ -126,13 +153,14 @@ class StitcherQWidget(QWidget):
             if self.visualization_type_rbuttons.value == 'Registered'\
                     and curr_tp not in self.params:
                 notifications.notification_manager.receive_info(
-                    'Timepoint %s: no parameters available' % curr_tp)
+                    'Timepoint %s: no parameters available, register first.' % curr_tp)
                 self.visualization_type_rbuttons.value == 'Metadata'
                 return
 
             for l in self.viewer.layers:
-                if not 'source_file' in l.metadata: continue
-                view, _ch = _utils.get_view_and_ch_from_layer_name(l.name)
+                if l.source is None or l.source.path != self.source_path: continue
+                # view, _ch = _utils.get_view_and_ch_from_layer_name(l.name)
+                view = l.metadata['view']
                 
                 if self.visualization_type_rbuttons.value == 'Registered':
                     p = self.params[curr_tp][view]
@@ -156,11 +184,17 @@ class StitcherQWidget(QWidget):
         # self.viewer.dims.events.axis.connect(update_slider)
         # self.viewer.dims.events.connect(update_slider)
 
+        @self.viewer.layers.events.inserted.connect
+        @self.viewer.layers.events.removed.connect
+        def on_layer_inserted(event):
+            self.source_path_picker.choices = _utils.get_list_of_source_paths_from_layers(napari_viewer.layers)
 
-        @self.button_run.clicked.connect
-        def run_sitching(value: str):
 
-            max_project = True if self.dimension_rbuttons.value == '2D' else False
+        @self.button_register.clicked.connect
+        def run_registration(value: str):
+
+            # max_project = True if self.dimension_rbuttons.value == '2D' else False
+            max_project = False
 
             self.view_dict = io_utils.build_view_dict_from_multitile_czi(self.source_path, max_project=max_project)
             self.views = np.array([view for view in sorted(self.view_dict.keys())])
@@ -199,14 +233,14 @@ class StitcherQWidget(QWidget):
             times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
 
             # choose central view as reference
-            ref_view_index = len(self.views) // 2
-            ps = _utils.register_tiles(
+            self.ref_view_index = len(self.views) // 2
+            ps = _registration.register_tiles(
                                 viewims,
                                 self.pairs,
                                 reg_channel = self.regch_slider.value,
                                 times = times,
                                 registration_binning=[2] * len(self.view_dict[self.views[0]]['shape']),
-                                ref_view_index = ref_view_index,
+                                ref_view_index = self.ref_view_index,
                                 )
 
             from napari.utils import progress
@@ -232,11 +266,39 @@ class StitcherQWidget(QWidget):
             self.params.update(psc)
             self.visualization_type_rbuttons.enabled = True
 
+        @self.button_stitch.clicked.connect
+        def run_fusion(value: str):
+
+            # assume view_dict, pairs and params are already defined
+
+            times = sorted(self.params.keys())
+
+            viewims = _utils.load_tiles(self.view_dict, [self.regch_slider.value],
+                            times, max_project=False)
+
+            from napari.utils import progress
+            from tqdm.dask import TqdmCallback
+
+            fused_da = _fusion.fuse_tiles(viewims, self.params, self.view_dict)
+
+            with TqdmCallback(tqdm_class=progress, desc="Fusing tiles"):
+                fused = dask.compute(fused_da, scheduler='threading')[0]
+
+            self.viewer.add_image(fused,
+                channel_axis=0,
+                name=os.path.basename(self.source_path)[:-4] + '_fused', colormap='gray',
+                metadata=dict(view_dict=self.view_dict,
+                              view=-1,
+                              times=times)
+            )
+
         
-        @self.button_load_metadata.clicked.connect
+        # @self.button_load_metadata.clicked.connect
+        @self.source_path_picker.changed.connect
         def load_metadata(value: str):
 
-            curr_source_path = _utils.get_source_path_from_viewer(self.viewer)
+            # curr_source_path = _utils.get_source_path_from_viewer(self.viewer)
+            curr_source_path = self.source_path_picker.value
             if self.source_path != curr_source_path:
                 self.params = dict()
                 self.visualization_type_rbuttons.value = 'Metadata'
@@ -255,10 +317,10 @@ class StitcherQWidget(QWidget):
             # self.pairs = mv_utils.get_registration_pairs_from_view_dict(self.view_dict)
             # self.ndim = [2, 3][int(self.dims['Z'][1] > 1)]
 
-            if self.dims['Z'][1] > 1:
-                self.dimension_rbuttons.enabled = True
-            else:
-                self.dimension_rbuttons.enabled = False
+            # if self.dims['Z'][1] > 1:
+            #     self.dimension_rbuttons.enabled = True
+            # else:
+            #     self.dimension_rbuttons.enabled = False
             
             self.times_slider.min, self.times_slider.max = self.dims['T'][0] - 1, self.dims['T'][1] - 1
             self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][0])
@@ -266,25 +328,34 @@ class StitcherQWidget(QWidget):
             self.regch_slider.min, self.regch_slider.max = self.dims['C'][0], self.dims['C'][1] - 1
             # self.regch_slider.value = self.dims['C'][0]
 
-            for w in self.reg_setting_widgets:
+            for w in self.reg_widgets + self.fusion_widgets:
                 w.enabled = True
 
             # link channel layers
             from napari.experimental import link_layers
             for ch in range(self.dims['C'][0], self.dims['C'][1]):
 
-                layers_to_link = [_utils.get_layer_from_view_and_ch(self.viewer, view, ch)
-                    for view in range(self.dims['M'][0], self.dims['M'][1])]
+                layers_to_link = [_utils.get_layer_from_source_path_view_and_ch(
+                    self.viewer.layers, self.source_path, view, ch)
+                        for view in range(self.dims['M'][0], self.dims['M'][1])]
                 link_layers(layers_to_link, ('contrast_limits', 'visible'))
 
+        # run on startup
+        load_metadata(None)
+
+    def __del__(self):
+        print('deleting widget')
+        # self.viewer.layers.events.changed.disconnect(self.update_metadata)
 
 # simple widget to reload the plugin during development
 def reload_plugin_widget(viewer: "napari.Viewer"):
     import importlib
-    from napari_stitcher import _widget, _utils, _reader
+    from napari_stitcher import _widget, _utils, _reader, _fusion, _registration
     _widget = importlib.reload(_widget)
     _utils = importlib.reload(_utils)
     _reader = importlib.reload(_reader)
+    _fusion = importlib.reload(_fusion)
+    _registration = importlib.reload(_registration)
 
     from mvregfus import mv_visualization, mv_utils, io_utils
     mv_visualization = importlib.reload(mv_visualization)
