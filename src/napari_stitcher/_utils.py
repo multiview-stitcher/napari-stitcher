@@ -160,6 +160,7 @@ def params_to_napari_affine(params, stack_props, view_stack_props):
 
     return p
 
+
 # def visualize_tiles():
 
 

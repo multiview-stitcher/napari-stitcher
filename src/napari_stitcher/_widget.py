@@ -54,7 +54,8 @@ class StitcherQWidget(QWidget):
         # self.button_load_metadata = widgets.Button(text='Load metadata')
         self.source_path_picker = widgets.ComboBox(
             label='Input file: ',
-            choices=_utils.get_list_of_source_paths_from_layers(napari_viewer.layers))
+            choices=[(os.path.basename(p), p)
+                for p in _utils.get_list_of_source_paths_from_layers(napari_viewer.layers)])
 
         # self.dimension_rbuttons = widgets.RadioButtons(
         #     choices=['2D', '3D'], label="Process in:", value="2D", enabled=False, orientation='horizontal')
@@ -72,7 +73,7 @@ class StitcherQWidget(QWidget):
         # self.vis_ch_slider = widgets.Slider(min=0, max=1, label='Channel', enabled=False)
         # self.vis_times_slider = widgets.Slider(min=0, max=1, label='Timepoint', enabled=False)
 
-        self.button_stitch = widgets.Button(text='Fuse', enabled=False)
+        self.button_fuse = widgets.Button(text='Fuse', enabled=False)
 
         self.loading_widgets = [
                             self.source_path_picker,
@@ -97,7 +98,7 @@ class StitcherQWidget(QWidget):
         #                               ]
 
         self.fusion_widgets = [
-                            self.button_stitch,
+                            self.button_fuse,
                             ]
 
 
@@ -115,6 +116,7 @@ class StitcherQWidget(QWidget):
         self.layout().addWidget(self.container.native)
 
         self.params = dict()
+        self.translation_fusion_rel_to_metadata = dict()
 
 
         # if self.viewer.dims.events.callbacks
@@ -124,65 +126,185 @@ class StitcherQWidget(QWidget):
 
         @self.visualization_type_rbuttons.changed.connect
         @self.viewer.dims.events.connect
-        def update_slider(event):
+        def update_viewer_transformations(event):
             """
-            set transformation for current timepoint
+            set transformations for current timepoint
             """
 
-            # get first view layer
-            l = None
-            for l in self.viewer.layers:
-                if l.source is not None and l.source.path == self.source_path:
-                    break
-                #     break
-            if l is None:
-                notifications.notification_manager.receive_info(
-                    'No suitable layer found.')
-                return
-
-            is_timelapse = len(l.metadata['times']) > 1
-            if not is_timelapse:
-                return
-            
-            # # if parameters already set, do nothing
-            # if l.metadata['parameter_type'] == \
-            #     self.visualization_type_rbuttons.value: return
-
-            curr_tp = self.viewer.dims.current_step[0]
-
-            if self.visualization_type_rbuttons.value == 'Registered'\
-                    and curr_tp not in self.params:
-                notifications.notification_manager.receive_info(
-                    'Timepoint %s: no parameters available, register first.' % curr_tp)
-                self.visualization_type_rbuttons.value == 'Metadata'
-                return
+            # # get first view layer
+            # l = None
+            # for l in self.viewer.layers:
+            #     if l.source is not None and l.source.path == self.source_path:
+            #         break
+            #     #     break
+            # if l is None:
+            #     notifications.notification_manager.receive_info(
+            #         'No suitable layer found.')
+            #     return
 
             for l in self.viewer.layers:
-                if l.source is None or l.source.path != self.source_path: continue
-                # view, _ch = _utils.get_view_and_ch_from_layer_name(l.name)
-                view = l.metadata['view']
+
+                # if l.visible is False: continue
+
+                # unfused layers
+                if (l.source is not None and (l.source.path == self.source_path)):
+
+                    if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
+                        curr_tp = self.viewer.dims.current_step[0]
+                    else:
+                        curr_tp = 0
+
+                    if self.visualization_type_rbuttons.value == 'Registered'\
+                            and curr_tp not in self.params:
+                        notifications.notification_manager.receive_info(
+                            'Timepoint %s: no parameters available, register first.' % curr_tp)
+                        self.visualization_type_rbuttons.value == 'Metadata'
+                        return
+
+                    view = l.metadata['view']
+                    
+                    if self.visualization_type_rbuttons.value == 'Registered':
+                        p = self.params[curr_tp][view]
+                    else:
+                        p = mv_utils.matrix_to_params(np.eye(l.metadata['ndim'] + 1))
+
+                    # print(self.visualization_type_rbuttons.value, view, ch)
+
+                    p_napari = _utils.params_to_napari_affine(p,
+                        l.metadata['stack_props'],
+                        l.metadata['view_dict'])
+
+                    # embed parameters into ndim + 2 matrix because of time axis
+                    time_p = np.eye(l.metadata['ndim'] + 2)
+                    time_p[-len(p_napari):, -len(p_napari):] = p_napari
+
+                    l.affine.affine_matrix = time_p
+                    l.refresh()
+
+                # fused layers
+                elif ('processing_state' in l.metadata.keys()):
+                    
+                    if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
+                        curr_tp = self.viewer.dims.current_step[0]
+                    else:
+                        curr_tp = 0
+
+                    if curr_tp not in l.metadata['times']:
+                        continue
+
+                    ndim = l.metadata['ndim']
+                    # M = np.eye(ndim + 1)
+                    # M[:-1,-1] = self.translation_fusion_rel_to_metadata[curr_tp]
+                    # p = mv_utils.matrix_to_params(M)
+
+                    # print('la23', l.metadata['view_dict'][0], l.metadata['stack_props'])
+
+                    p_napari = _utils.params_to_napari_affine(
+                        # p,
+                        mv_utils.matrix_to_params(np.eye(ndim + 1)),
+                        l.metadata['view_dict'][0],
+                        l.metadata['field_stack_props'][curr_tp],
+                        # l.metadata['stack_props'],
+                          
+                        )
+
+                    # embed parameters into ndim + 2 matrix because of time axis
+                    time_p = np.eye(l.metadata['ndim'] + 2)
+                    time_p[-len(p_napari):, -len(p_napari):] = p_napari
+
+                    l.affine.affine_matrix = time_p
+
+                    # print('triggered', time_p)
+
+                    l.refresh()
+
+                else: continue
+
+
+
+
+            # for l in self.viewer.layers:
+            #     if l.source is None or l.source.path != self.source_path: continue
+            #     # view, _ch = _utils.get_view_and_ch_from_layer_name(l.name)
+
+
+            #     view = l.metadata['view']
                 
-                if self.visualization_type_rbuttons.value == 'Registered':
-                    p = self.params[curr_tp][view]
-                else:
-                    p = mv_utils.matrix_to_params(np.eye(l.metadata['ndim'] + 1))
+            #     if self.visualization_type_rbuttons.value == 'Registered':
+            #         p = self.params[curr_tp][view]
+            #     else:
+            #         p = mv_utils.matrix_to_params(np.eye(l.metadata['ndim'] + 1))
 
-                # print(self.visualization_type_rbuttons.value, view, ch)
+            #     # print(self.visualization_type_rbuttons.value, view, ch)
 
-                p_napari = _utils.params_to_napari_affine(p,
-                    l.metadata['stack_props'],
-                    l.metadata['view_dict'])
+            #     p_napari = _utils.params_to_napari_affine(p,
+            #         l.metadata['stack_props'],
+            #         l.metadata['view_dict'])
 
-                # embed parameters into ndim + 2 matrix because of time axis
-                time_p = np.eye(l.metadata['ndim'] + 2)
-                time_p[-len(p_napari):, -len(p_napari):] = p_napari
+            #     # embed parameters into ndim + 2 matrix because of time axis
+            #     time_p = np.eye(l.metadata['ndim'] + 2)
+            #     time_p[-len(p_napari):, -len(p_napari):] = p_napari
                 
-                # print(p_napari, time_p)
-                l.affine.affine_matrix = time_p
-                l.refresh()
+            #     # print(p_napari, time_p)
+            #     l.affine.affine_matrix = time_p
+            #     l.refresh()
            
-        # self.viewer.dims.events.axis.connect(update_slider)
-        # self.viewer.dims.events.connect(update_slider)
+
+        # @self.visualization_type_rbuttons.changed.connect
+        # @self.viewer.dims.events.connect
+        # def update_viewer_transformations(event):
+        #     """
+        #     set transformation for current timepoint
+        #     """
+
+        #     # get first view layer
+        #     l = None
+        #     for l in self.viewer.layers:
+        #         if l.source is not None and l.source.path == self.source_path:
+        #             break
+        #         #     break
+        #     if l is None:
+        #         notifications.notification_manager.receive_info(
+        #             'No suitable layer found.')
+        #         return
+
+        #     is_timelapse = len(l.metadata['times']) > 1
+        #     if not is_timelapse:
+        #         curr_tp = 0
+        #     else:
+        #         curr_tp = self.viewer.dims.current_step[0]
+
+        #     if self.visualization_type_rbuttons.value == 'Registered'\
+        #             and curr_tp not in self.params:
+        #         notifications.notification_manager.receive_info(
+        #             'Timepoint %s: no parameters available, register first.' % curr_tp)
+        #         self.visualization_type_rbuttons.value == 'Metadata'
+        #         return
+
+        #     for l in self.viewer.layers:
+        #         if l.source is None or l.source.path != self.source_path: continue
+        #         # view, _ch = _utils.get_view_and_ch_from_layer_name(l.name)
+        #         view = l.metadata['view']
+                
+        #         if self.visualization_type_rbuttons.value == 'Registered':
+        #             p = self.params[curr_tp][view]
+        #         else:
+        #             p = mv_utils.matrix_to_params(np.eye(l.metadata['ndim'] + 1))
+
+        #         # print(self.visualization_type_rbuttons.value, view, ch)
+
+        #         p_napari = _utils.params_to_napari_affine(p,
+        #             l.metadata['stack_props'],
+        #             l.metadata['view_dict'])
+
+        #         # embed parameters into ndim + 2 matrix because of time axis
+        #         time_p = np.eye(l.metadata['ndim'] + 2)
+        #         time_p[-len(p_napari):, -len(p_napari):] = p_napari
+                
+        #         # print(p_napari, time_p)
+        #         l.affine.affine_matrix = time_p
+        #         l.refresh()
+
 
         @self.viewer.layers.events.inserted.connect
         @self.viewer.layers.events.removed.connect
@@ -200,7 +322,7 @@ class StitcherQWidget(QWidget):
             self.views = np.array([view for view in sorted(self.view_dict.keys())])
             self.pairs = mv_utils.get_registration_pairs_from_view_dict(self.view_dict)
 
-            print('lalalalal', self.view_dict)
+            # print('lalalalal', self.view_dict)
 
             # if max_project or int(self.dims['Z'][1] <= 1):
             #     self.ndim = 2
@@ -266,31 +388,58 @@ class StitcherQWidget(QWidget):
             self.params.update(psc)
             self.visualization_type_rbuttons.enabled = True
 
-        @self.button_stitch.clicked.connect
+        @self.button_fuse.clicked.connect
         def run_fusion(value: str):
 
             # assume view_dict, pairs and params are already defined
 
             times = sorted(self.params.keys())
+            channels = range(self.dims['C'][0], self.dims['C'][1])
 
-            viewims = _utils.load_tiles(self.view_dict, [self.regch_slider.value],
+            viewims = _utils.load_tiles(
+                            self.view_dict,
+                            channels,
                             times, max_project=False)
 
             from napari.utils import progress
             from tqdm.dask import TqdmCallback
 
-            fused_da = _fusion.fuse_tiles(viewims, self.params, self.view_dict)
+            fused_da, fusion_stack_props_d, field_stack_props_d = \
+                _fusion.fuse_tiles(viewims, self.params, self.view_dict)
 
             with TqdmCallback(tqdm_class=progress, desc="Fusing tiles"):
-                fused = dask.compute(fused_da, scheduler='threading')[0]
+                fused, fusion_stack_props, field_stack_props = \
+                    dask.compute([fused_da, fusion_stack_props_d, field_stack_props_d],
+                    scheduler='threading')[0]
+
+            # print('fused shape', fused.shape)
+
+            self.translation_fusion_rel_to_metadata.update(
+                {t: fusion_stack_props['origin'] - \
+                    np.min([self.view_dict[v]['origin'] for v in self.view_dict.keys()], 0)
+                        for t in times})
+
+            # print(self.translation_fusion_rel_to_metadata)
 
             self.viewer.add_image(fused,
                 channel_axis=0,
-                name=os.path.basename(self.source_path)[:-4] + '_fused', colormap='gray',
-                metadata=dict(view_dict=self.view_dict,
+                name=[os.path.basename(self.source_path)[:-4] + '_fused_ch_%03d' %ch
+                        for ch in channels],
+                colormap='gray',
+                blending='additive',
+                metadata=dict(
+                              view_dict=self.view_dict,
+                              stack_props=fusion_stack_props,
+                              field_stack_props={t: field_stack_props[it]
+                                    for it, t in enumerate(times)},
                               view=-1,
-                              times=times)
+                              times=times,
+                              processing_state='fused',
+                              ndim=len(fusion_stack_props['origin']),
+                              )
             )
+
+            update_viewer_transformations(None)
 
         
         # @self.button_load_metadata.clicked.connect
@@ -301,6 +450,7 @@ class StitcherQWidget(QWidget):
             curr_source_path = self.source_path_picker.value
             if self.source_path != curr_source_path:
                 self.params = dict()
+                self.translation_fusion_rel_to_metadata = dict()
                 self.visualization_type_rbuttons.value = 'Metadata'
                 self.visualization_type_rbuttons.enabled = False
 
@@ -310,7 +460,7 @@ class StitcherQWidget(QWidget):
                 return
 
             self.dims = io_utils.get_dims_from_multitile_czi(self.source_path)
-            print(self.dims)
+            # print(self.dims)
 
             # self.view_dict = io_utils.build_view_dict_from_multitile_czi(self.source_path, max_project=True)
             # self.views = np.array([view for view in sorted(self.view_dict.keys())])
@@ -338,6 +488,7 @@ class StitcherQWidget(QWidget):
                 layers_to_link = [_utils.get_layer_from_source_path_view_and_ch(
                     self.viewer.layers, self.source_path, view, ch)
                         for view in range(self.dims['M'][0], self.dims['M'][1])]
+                # import pdb; pdb.set_trace()
                 link_layers(layers_to_link, ('contrast_limits', 'visible'))
 
         # run on startup
@@ -363,6 +514,18 @@ def reload_plugin_widget(viewer: "napari.Viewer"):
     io_utils = importlib.reload(io_utils)
     
     # viewer.window.remove_dock_widget('all')
+    # viewer.events.disconnect()
+    viewer.dims.events.disconnect()
     viewer.window.add_dock_widget(_widget.StitcherQWidget(viewer))
     
 
+if __name__ == "__main__":
+    import napari
+
+    viewer = napari.Viewer()
+    viewer.open("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi")
+    # viewer.open("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220609_WT_emb2_5X_part1_max.czi")
+
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+    napari.run()

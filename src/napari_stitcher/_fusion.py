@@ -15,8 +15,8 @@ def combine_stack_props(stack_props_list):
     combined_stack_props = {}
     combined_stack_props['origin'] = np.min([sp['origin'] for sp in stack_props_list], axis=0)
     combined_stack_props['spacing'] = np.min([sp['spacing'] for sp in stack_props_list], axis=0)
-    combined_stack_props['size'] = np.max([(sp['origin'] + sp['size'] * sp['spacing']\
-                                    - combined_stack_props['origin']) / combined_stack_props['spacing']
+    combined_stack_props['size'] = np.max([np.ceil((sp['origin'] + sp['size'] * sp['spacing']\
+                                    - combined_stack_props['origin']) / combined_stack_props['spacing'])
                                     for sp in stack_props_list], axis=0)
     # import pdb; pdb.set_trace()
     return combined_stack_props
@@ -41,8 +41,6 @@ def fuse_tiles(viewims: dict,
             )
         for t in input_times]
 
-    # import pdb; pdb.set_trace()
-
     fusion_stack_props = delayed(combine_stack_props)(field_stack_props)
 
     fused_da = \
@@ -60,7 +58,18 @@ def fuse_tiles(viewims: dict,
             for t in input_times])
         for ch in input_channels])
 
-    return fused_da
+    # params_fusion_rel_to_raw = {}
+    # for t in input_times:
+
+    #     params_fusion_rel_to_raw[t] = 
+
+    #     params_rel_to_raw[t] = {}
+    #     for view in views:
+    #         params_rel_to_raw[t][view] = {}
+    #         params_rel_to_raw[t][view]['matrix'] = params_to_matrix(params[t][view])
+    #         params_rel_to_raw[t][view]['offset'] = params[t][view][6:]
+
+    return fused_da, fusion_stack_props, field_stack_props
 
 
 def fuse_field(field_ims, params, view_dict, out_stack_props):

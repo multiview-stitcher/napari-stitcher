@@ -72,7 +72,7 @@ def czi_reader_function(path, sample=0):
 
     max_project = False
     dims = io_utils.get_dims_from_multitile_czi(paths[0])
-    print(dims)
+    # print(dims)
 
     # ask for sample when several are available
     if dims['S'][1] > 1:
