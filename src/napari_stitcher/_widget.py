@@ -116,7 +116,6 @@ class StitcherQWidget(QWidget):
         self.layout().addWidget(self.container.native)
 
         self.params = dict()
-        self.translation_fusion_rel_to_metadata = dict()
 
 
         # if self.viewer.dims.events.callbacks
@@ -193,17 +192,12 @@ class StitcherQWidget(QWidget):
                         continue
 
                     ndim = l.metadata['ndim']
-                    # M = np.eye(ndim + 1)
-                    # M[:-1,-1] = self.translation_fusion_rel_to_metadata[curr_tp]
-                    # p = mv_utils.matrix_to_params(M)
-
-                    # print('la23', l.metadata['view_dict'][0], l.metadata['stack_props'])
-
                     p_napari = _utils.params_to_napari_affine(
                         # p,
                         mv_utils.matrix_to_params(np.eye(ndim + 1)),
                         l.metadata['view_dict'][0],
-                        l.metadata['field_stack_props'][curr_tp],
+                        l.metadata['stack_props'],
+                        # l.metadata['field_stack_props'][curr_tp],
                         # l.metadata['stack_props'],
                           
                         )
@@ -214,96 +208,9 @@ class StitcherQWidget(QWidget):
 
                     l.affine.affine_matrix = time_p
 
-                    # print('triggered', time_p)
-
                     l.refresh()
 
                 else: continue
-
-
-
-
-            # for l in self.viewer.layers:
-            #     if l.source is None or l.source.path != self.source_path: continue
-            #     # view, _ch = _utils.get_view_and_ch_from_layer_name(l.name)
-
-
-            #     view = l.metadata['view']
-                
-            #     if self.visualization_type_rbuttons.value == 'Registered':
-            #         p = self.params[curr_tp][view]
-            #     else:
-            #         p = mv_utils.matrix_to_params(np.eye(l.metadata['ndim'] + 1))
-
-            #     # print(self.visualization_type_rbuttons.value, view, ch)
-
-            #     p_napari = _utils.params_to_napari_affine(p,
-            #         l.metadata['stack_props'],
-            #         l.metadata['view_dict'])
-
-            #     # embed parameters into ndim + 2 matrix because of time axis
-            #     time_p = np.eye(l.metadata['ndim'] + 2)
-            #     time_p[-len(p_napari):, -len(p_napari):] = p_napari
-                
-            #     # print(p_napari, time_p)
-            #     l.affine.affine_matrix = time_p
-            #     l.refresh()
-           
-
-        # @self.visualization_type_rbuttons.changed.connect
-        # @self.viewer.dims.events.connect
-        # def update_viewer_transformations(event):
-        #     """
-        #     set transformation for current timepoint
-        #     """
-
-        #     # get first view layer
-        #     l = None
-        #     for l in self.viewer.layers:
-        #         if l.source is not None and l.source.path == self.source_path:
-        #             break
-        #         #     break
-        #     if l is None:
-        #         notifications.notification_manager.receive_info(
-        #             'No suitable layer found.')
-        #         return
-
-        #     is_timelapse = len(l.metadata['times']) > 1
-        #     if not is_timelapse:
-        #         curr_tp = 0
-        #     else:
-        #         curr_tp = self.viewer.dims.current_step[0]
-
-        #     if self.visualization_type_rbuttons.value == 'Registered'\
-        #             and curr_tp not in self.params:
-        #         notifications.notification_manager.receive_info(
-        #             'Timepoint %s: no parameters available, register first.' % curr_tp)
-        #         self.visualization_type_rbuttons.value == 'Metadata'
-        #         return
-
-        #     for l in self.viewer.layers:
-        #         if l.source is None or l.source.path != self.source_path: continue
-        #         # view, _ch = _utils.get_view_and_ch_from_layer_name(l.name)
-        #         view = l.metadata['view']
-                
-        #         if self.visualization_type_rbuttons.value == 'Registered':
-        #             p = self.params[curr_tp][view]
-        #         else:
-        #             p = mv_utils.matrix_to_params(np.eye(l.metadata['ndim'] + 1))
-
-        #         # print(self.visualization_type_rbuttons.value, view, ch)
-
-        #         p_napari = _utils.params_to_napari_affine(p,
-        #             l.metadata['stack_props'],
-        #             l.metadata['view_dict'])
-
-        #         # embed parameters into ndim + 2 matrix because of time axis
-        #         time_p = np.eye(l.metadata['ndim'] + 2)
-        #         time_p[-len(p_napari):, -len(p_napari):] = p_napari
-                
-        #         # print(p_napari, time_p)
-        #         l.affine.affine_matrix = time_p
-        #         l.refresh()
 
 
         @self.viewer.layers.events.inserted.connect
@@ -321,13 +228,6 @@ class StitcherQWidget(QWidget):
             self.view_dict = io_utils.build_view_dict_from_multitile_czi(self.source_path, max_project=max_project)
             self.views = np.array([view for view in sorted(self.view_dict.keys())])
             self.pairs = mv_utils.get_registration_pairs_from_view_dict(self.view_dict)
-
-            # print('lalalalal', self.view_dict)
-
-            # if max_project or int(self.dims['Z'][1] <= 1):
-            #     self.ndim = 2
-            # else:
-            #     self.ndim = 3
 
             pair_requires_registration = []
             for pair in self.pairs:
@@ -412,14 +312,10 @@ class StitcherQWidget(QWidget):
                     dask.compute([fused_da, fusion_stack_props_d, field_stack_props_d],
                     scheduler='threading')[0]
 
-            # print('fused shape', fused.shape)
-
-            self.translation_fusion_rel_to_metadata.update(
-                {t: fusion_stack_props['origin'] - \
-                    np.min([self.view_dict[v]['origin'] for v in self.view_dict.keys()], 0)
-                        for t in times})
-
-            # print(self.translation_fusion_rel_to_metadata)
+            # self.translation_fusion_rel_to_metadata.update(
+            #     {t: fusion_stack_props['origin'] - \
+            #         np.min([self.view_dict[v]['origin'] for v in self.view_dict.keys()], 0)
+            #             for t in times})
 
             self.viewer.add_image(fused,
                 channel_axis=0,
@@ -450,7 +346,6 @@ class StitcherQWidget(QWidget):
             curr_source_path = self.source_path_picker.value
             if self.source_path != curr_source_path:
                 self.params = dict()
-                self.translation_fusion_rel_to_metadata = dict()
                 self.visualization_type_rbuttons.value = 'Metadata'
                 self.visualization_type_rbuttons.enabled = False
 

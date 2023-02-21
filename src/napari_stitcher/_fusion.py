@@ -58,17 +58,6 @@ def fuse_tiles(viewims: dict,
             for t in input_times])
         for ch in input_channels])
 
-    # params_fusion_rel_to_raw = {}
-    # for t in input_times:
-
-    #     params_fusion_rel_to_raw[t] = 
-
-    #     params_rel_to_raw[t] = {}
-    #     for view in views:
-    #         params_rel_to_raw[t][view] = {}
-    #         params_rel_to_raw[t][view]['matrix'] = params_to_matrix(params[t][view])
-    #         params_rel_to_raw[t][view]['offset'] = params[t][view][6:]
-
     return fused_da, fusion_stack_props, field_stack_props
 
 
@@ -97,13 +86,15 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
         offset_prime = np.dot(np.linalg.inv(Sy),
             offset - view_dict[view]['origin'] + np.dot(matrix, out_stack_props['origin']))
 
-        field_ims_t.append(ndinterp.affine_transform(field_ims[view],
+        field_ims_t.append(ndinterp.affine_transform(
+                                            field_ims[view] + 1, # add 1 so that 0 indicates no data
                                             matrix=matrix_prime,
                                             offset=offset_prime,
                                             order=1,
                                             output_shape=tuple(out_stack_props['size']),
-                                        #  output_chunks=tuple([200 for _ in out_stack_props['size']]),
+                                        #  output_chunks=tuple([100 for _ in out_stack_props['size']]),
                                             output_chunks=None,
+                                            mode='constant',
                                             )
         )
 
@@ -113,12 +104,29 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
 
     field_weights = da.map_blocks(get_sigmoidal_border_weights_ndim_only_one,
         field_ims_t,
-        dtype=np.float32)
+        dtype=np.float32,
+        **{'width': 10},
+        )
+    # field_weights = da.map_blocks(get_sigmoidal_border_weights_ndim_mask,
+    #     field_ims_t,
+    #     dtype=np.float32,
+    #     **{'width': 20},
+    #     )
+
+    # field_weights = da.map_overlap(get_sigmoidal_border_weights_ndim_only_one,
+    #     field_ims_t,
+    #     dtype=np.float32,
+    #     depth={idim: ([0] + [10] * ndim)[idim] for idim in range(ndim + 1)},
+    #     trim=True,
+    #     boundary='none',
+    #     )
 
     wsum = da.sum(field_weights, axis=0)
     wsum[wsum==0] = 1
 
     fused_field = da.sum(field_ims_t * field_weights, axis=0)
     fused_field /= wsum
+
+    fused_field = fused_field - 1  # subtract 1 because of earlier addition
 
     return fused_field
