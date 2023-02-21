@@ -280,13 +280,11 @@ class StitcherQWidget(QWidget):
             from napari.utils import progress
             from tqdm.dask import TqdmCallback
 
-            fused_da, fusion_stack_props_d, field_stack_props_d = \
+            fused_da, fusion_stack_props, field_stack_props = \
                 _fusion.fuse_tiles(viewims, self.params, self.view_dict)
 
             with TqdmCallback(tqdm_class=progress, desc="Fusing tiles"):
-                fused, fusion_stack_props, field_stack_props = \
-                    dask.compute([fused_da, fusion_stack_props_d, field_stack_props_d],
-                    scheduler='threading')[0]
+                fused = dask.compute(fused_da, scheduler='threading')
 
             # self.translation_fusion_rel_to_metadata.update(
             #     {t: fusion_stack_props['origin'] - \
@@ -345,6 +343,7 @@ class StitcherQWidget(QWidget):
             
             self.times_slider.min, self.times_slider.max = self.dims['T'][0] - 1, self.dims['T'][1] - 1
             self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][0])
+            # self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][-1] - 1)
 
             self.regch_slider.min, self.regch_slider.max = self.dims['C'][0], self.dims['C'][1] - 1
             # self.regch_slider.value = self.dims['C'][0]
@@ -365,9 +364,11 @@ class StitcherQWidget(QWidget):
         # run on startup
         load_metadata(None)
 
+
     def __del__(self):
         print('deleting widget')
         # self.viewer.layers.events.changed.disconnect(self.update_metadata)
+
 
 # simple widget to reload the plugin during development
 def reload_plugin_widget(viewer: "napari.Viewer"):
