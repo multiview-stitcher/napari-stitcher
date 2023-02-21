@@ -70,9 +70,6 @@ class StitcherQWidget(QWidget):
             choices=['Metadata', 'Registered'], label="Show:", value="Metadata", enabled=False,
             orientation='horizontal')
 
-        # self.vis_ch_slider = widgets.Slider(min=0, max=1, label='Channel', enabled=False)
-        # self.vis_times_slider = widgets.Slider(min=0, max=1, label='Timepoint', enabled=False)
-
         self.button_fuse = widgets.Button(text='Fuse', enabled=False)
 
         self.loading_widgets = [
@@ -112,16 +109,10 @@ class StitcherQWidget(QWidget):
         # self.container.native.maximumWidth = 50
         self.container.native.setMinimumWidth = 50
 
-
         self.layout().addWidget(self.container.native)
 
+        # initialize registration parameter dict
         self.params = dict()
-
-
-        # if self.viewer.dims.events.callbacks
-        # remove callback if already exists?
-        # otherwise old callbacks produce invalid behavior
-        # ignore so far
 
         @self.visualization_type_rbuttons.changed.connect
         @self.viewer.dims.events.connect
@@ -129,17 +120,6 @@ class StitcherQWidget(QWidget):
             """
             set transformations for current timepoint
             """
-
-            # # get first view layer
-            # l = None
-            # for l in self.viewer.layers:
-            #     if l.source is not None and l.source.path == self.source_path:
-            #         break
-            #     #     break
-            # if l is None:
-            #     notifications.notification_manager.receive_info(
-            #         'No suitable layer found.')
-            #     return
 
             for l in self.viewer.layers:
 
@@ -193,13 +173,9 @@ class StitcherQWidget(QWidget):
 
                     ndim = l.metadata['ndim']
                     p_napari = _utils.params_to_napari_affine(
-                        # p,
                         mv_utils.matrix_to_params(np.eye(ndim + 1)),
                         l.metadata['view_dict'][0],
                         l.metadata['stack_props'],
-                        # l.metadata['field_stack_props'][curr_tp],
-                        # l.metadata['stack_props'],
-                          
                         )
 
                     # embed parameters into ndim + 2 matrix because of time axis
