@@ -3,9 +3,7 @@ import numpy as np
 import dask.array as da
 from dask import delayed
 
-from mvregfus.mv_utils import get_sigmoidal_border_weights_ndim_only_one
 from mvregfus.multiview import calc_stack_properties_from_views_and_params
-from mvregfus.mv_utils import params_to_matrix
 
 from scipy import ndimage
 from dask_image import ndinterp
@@ -19,13 +17,13 @@ def combine_stack_props(stack_props_list):
     combined_stack_props['size'] = np.max([np.ceil((sp['origin'] + sp['size'] * sp['spacing']\
                                     - combined_stack_props['origin']) / combined_stack_props['spacing'])
                                     for sp in stack_props_list], axis=0).astype(np.uint16)
-    # import pdb; pdb.set_trace()
     return combined_stack_props
 
 
 def fuse_tiles(viewims: dict,
                params: dict,
                view_dict: dict,
+            #    blending_widths: list,
 ):
 
     input_channels = sorted(viewims.keys())
@@ -34,16 +32,6 @@ def fuse_tiles(viewims: dict,
 
     for view in views:
         view_dict[view]['size'] = view_dict[view]['shape']
-
-    # field_stack_props = [delayed(calc_stack_properties_from_views_and_params)(
-    #             [view_dict[view] for view in views],
-    #             params[t],
-    #             view_dict[views[0]]['spacing'],
-    #             mode='union',
-    #         )
-    #     for t in input_times]
-
-    # fusion_stack_props = delayed(combine_stack_props)(field_stack_props)
 
     field_stack_props = [calc_stack_properties_from_views_and_params(
                 [view_dict[view] for view in views],
@@ -64,7 +52,6 @@ def fuse_tiles(viewims: dict,
                         view_dict,
                         fusion_stack_props,
                         ),
-                # shape=tuple(viewims[ch][t][views[0]].shape),
                 shape=tuple(fusion_stack_props['size']),
                 dtype=np.uint16,
                 )
@@ -79,12 +66,11 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
     fuse tiles from single timepoint and channel
     """
 
-    # return field_ims[0]
-
     views = sorted(field_ims.keys())
 
     ndim = field_ims[0].ndim
     field_ims_t = []
+    field_ws_t = []
     for view in views:
 
         p = np.array(params[view])
@@ -107,6 +93,25 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
                                             output_shape=tuple(out_stack_props['size']),
                                             output_chunks=tuple([600 for _ in out_stack_props['size']]),
                                             # output_chunks=tuple(out_stack_props['size']),
+                                            mode='constant',
+                                            cval=0.,
+                                            )
+        )
+
+        if ndim == 2:
+            blending_widths = [10] * 2
+        else:
+            blending_widths = [3] + [10] * 2
+
+        field_ws = get_smooth_border_weight_from_shape(field_ims[view].shape[-ndim:], widths=blending_widths)
+
+        field_ws_t.append(ndinterp.affine_transform(
+                                            field_ws, # add 1 so that 0 indicates no data
+                                            matrix=matrix_prime,
+                                            offset=offset_prime,
+                                            order=1,
+                                            output_shape=tuple(out_stack_props['size']),
+                                            output_chunks=tuple([600 for _ in out_stack_props['size']]),
                                             # output_chunks=tuple(out_stack_props['size']),
                                             mode='constant',
                                             cval=0.,
@@ -114,10 +119,11 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
         )
 
     field_ims_t = da.stack(field_ims_t)
+    field_ws_t = da.stack(field_ws_t)
 
     # field_ims_t = field_ims_t.rechunk((len(views), ) + field_ims_t[0].shape)
 
-    border_width_px = 30
+    # border_width_px = 30
 
     # field_weights = da.map_blocks(
     #     lambda x, *args, **kwargs: get_smooth_border_weight_im_from_mask(x[0], *args, **kwargs)[None],
@@ -126,33 +132,27 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
     #     **{'width': border_width_px},
     #     )
 
-    overlap_per_dim = {dim + 1: np.min([field_ims_t.shape[dim] // 2, (border_width_px + 1)])
-        for dim in range(ndim)}
-    overlap_per_dim[0] = 0
+    # overlap_per_dim = {dim + 1: np.min([field_ims_t.shape[dim] // 2, (border_width_px + 1)])
+    #     for dim in range(ndim)}
+    # overlap_per_dim[0] = 0
 
-    # use overlap to ensure proper border weights
-    field_weights = da.map_overlap(
-        lambda x, *args, **kwargs: get_smooth_border_weight_im_from_mask(x[0], *args, **kwargs)[None],
-        field_ims_t,
-        dtype=np.float16,
-        depth=overlap_per_dim,
-        trim=True,
-        boundary='none',
-        **{'width': border_width_px},
-        )
+    # # use overlap to ensure proper border weights
+    # field_weights = da.map_overlap(
+    #     lambda x, *args, **kwargs: get_smooth_border_weight_im_from_mask(x[0], *args, **kwargs)[None],
+    #     field_ims_t,
+    #     dtype=np.float16,
+    #     depth=overlap_per_dim,
+    #     trim=True,
+    #     boundary='none',
+    #     **{'width': border_width_px},
+    #     )
 
-    wsum = da.sum(field_weights, axis=0)
+    wsum = da.sum(field_ws_t, axis=0)
     wsum[wsum==0] = 1
 
-    field_weights = field_weights / wsum
+    field_ws_t = field_ws_t / wsum
 
-    import tifffile
-    tifffile.imwrite('delme.tif', field_weights.compute().astype(np.float32))
-
-    import pdb; pdb.set_trace()
-
-    # fused_field = da.sum(field_ims_t * field_weights, axis=0)
-    fused_field = da.sum(field_ims_t * field_weights, axis=0)
+    fused_field = da.sum(field_ims_t * field_ws_t, axis=0)
 
     fused_field = fused_field - 1  # subtract 1 because of earlier addition
 
@@ -183,51 +183,50 @@ def smooth_transition(x, x_offset=0.5, x_stretch=None, k=3):
     return w
 
 
-def get_smooth_border_weight_im_from_mask(mask, width=10):
+def get_smooth_border_weight_from_shape(shape, widths=None):
     """
-    Get a weight image for blending from a mask image.
+    Get a weight image for blending that is 0 at the border and 1 at the center.
+    Transition widths can be specified for each dimension.
     """
 
-    # width is the total width of the transition
-    # weights are at 0.5 at width/2 from the border
+    ndim = len(shape)
 
-    if np.all(mask):
-        return np.ones(mask.shape, dtype=np.float16)
-    if not np.any(mask):
-        return np.zeros(mask.shape, dtype=np.float16)
+    # get distance to border for each dim
+    dim_dists = [ndimage.distance_transform_edt(
+                    ndimage.binary_erosion(
+                        np.ones(shape[dim]).astype(bool)))
+                            for dim in range(ndim)]
 
-    b = mask>0
-    # distance transform is zero at the border, so we need to dilate to distinguish the border from the interior
-    # b = ndimage.binary_erosion(b)
-    b = ndimage.binary_dilation(b)
-    a = 1*width
-    b2 = ndimage.binary_erosion(b, iterations=a)
-    b3 = ndimage.binary_erosion(b2, iterations=a)
-    b = b ^ b3
-    dist = ndimage.distance_transform_edt(b)
-    # dist = dist + 1 * b
-    dist[b2] = a
+    dim_ws = [smooth_transition(dim_dists[dim],
+                                x_offset=widths[dim],
+                                x_stretch=widths[dim]) for dim in range(ndim)]
 
-    # import tifffile
-    # tifffile.imwrite('dist.tif', dist.astype(np.float32))
+    # get product of weights for each dim
+    w = np.ones(shape).astype(np.float32)
+    for dim in range(len(shape)):
+        tmp_dim_w = dim_ws[dim]
+        for _ in range(ndim - dim - 1):
+            tmp_dim_w = tmp_dim_w[:, None]
+        w *= tmp_dim_w
 
-    # import tifffile
-    # tifffile.imwrite('b.tif', b.astype(np.float32))
-    # tifffile.imwrite('b2.tif', b.astype(np.float32))
-    # tifffile.imwrite('b3.tif', b.astype(np.float32))
+    # # get min of weights for each dim
+    # ws = []
+    # for dim in range(len(shape)):
+    #     tmp_dim_w = dim_ws[dim]
+    #     for _ in range(ndim - dim - 1):
+    #         tmp_dim_w = tmp_dim_w[:, None]
+    #     w *= tmp_dim_w
+    #     ws.append(w)
+    # w = np.min(ws, axis=0)
 
-    # sigmoid
-    # w = 1 / (1 + np.exp(-(dist-width)/(width/7)))
-
-    w = smooth_transition(dist, x_offset=width / 2.)
-
-    return w.astype(np.float16)
+    return w
 
 
 if __name__ == "__main__":
 
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
 
     from napari_stitcher import _utils
     from mvregfus import io_utils, mv_utils

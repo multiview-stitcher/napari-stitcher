@@ -358,7 +358,7 @@ class StitcherQWidget(QWidget):
                 layers_to_link = [_utils.get_layer_from_source_path_view_and_ch(
                     self.viewer.layers, self.source_path, view, ch)
                         for view in range(self.dims['M'][0], self.dims['M'][1])]
-                # import pdb; pdb.set_trace()
+                import pdb; pdb.set_trace()
                 link_layers(layers_to_link, ('contrast_limits', 'visible'))
 
         # run on startup
@@ -394,8 +394,11 @@ def reload_plugin_widget(viewer: "napari.Viewer"):
 if __name__ == "__main__":
     import napari
 
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+
     viewer = napari.Viewer()
-    viewer.open("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi")
+    viewer.open(filename)
     # viewer.open("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220609_WT_emb2_5X_part1_max.czi")
 
     wdg = StitcherQWidget(viewer)
