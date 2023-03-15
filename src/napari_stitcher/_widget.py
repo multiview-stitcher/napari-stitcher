@@ -30,6 +30,11 @@ if TYPE_CHECKING:
     import napari
 
 
+# define labels for visualization choices
+CHOICE_METADATA = 'Original'
+CHOICE_REGISTERED = 'Registered'
+
+
 class StitcherQWidget(QWidget):
     # your QWidget.__init__ can optionally request the napari viewer instance
     # in one of two ways:
@@ -60,14 +65,14 @@ class StitcherQWidget(QWidget):
         # self.dimension_rbuttons = widgets.RadioButtons(
         #     choices=['2D', '3D'], label="Process in:", value="2D", enabled=False, orientation='horizontal')
         
-        self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints', enabled=False)
-        self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel', enabled=False)
+        self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints:', enabled=False)
+        self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel:', enabled=False)
 
         # self.button_visualize_input = widgets.Button(text='Visualize input', enabled=False)
         self.button_register = widgets.Button(text='Register', enabled=False)
 
         self.visualization_type_rbuttons = widgets.RadioButtons(
-            choices=['Metadata', 'Registered'], label="Show:", value="Metadata", enabled=False,
+            choices=[CHOICE_METADATA, CHOICE_REGISTERED], label="Show:", value=CHOICE_METADATA, enabled=False,
             orientation='horizontal')
 
         self.button_fuse = widgets.Button(text='Fuse', enabled=False)
@@ -137,12 +142,12 @@ class StitcherQWidget(QWidget):
                             and curr_tp not in self.params:
                         notifications.notification_manager.receive_info(
                             'Timepoint %s: no parameters available, register first.' % curr_tp)
-                        self.visualization_type_rbuttons.value == 'Metadata'
+                        self.visualization_type_rbuttons.value == CHOICE_METADATA
                         return
 
                     view = l.metadata['view']
                     
-                    if self.visualization_type_rbuttons.value == 'Registered':
+                    if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
                         p = self.params[curr_tp][view]
                     else:
                         p = mv_utils.matrix_to_params(np.eye(l.metadata['ndim'] + 1))
@@ -314,13 +319,13 @@ class StitcherQWidget(QWidget):
         
         # @self.button_load_metadata.clicked.connect
         @self.source_path_picker.changed.connect
-        def load_metadata(value: str):
+        def load_metadata():
 
             # curr_source_path = _utils.get_source_path_from_viewer(self.viewer)
             curr_source_path = self.source_path_picker.value
             if self.source_path != curr_source_path:
                 self.params = dict()
-                self.visualization_type_rbuttons.value = 'Metadata'
+                self.visualization_type_rbuttons.value = CHOICE_METADATA
                 self.visualization_type_rbuttons.enabled = False
 
             self.source_path = curr_source_path
@@ -351,6 +356,13 @@ class StitcherQWidget(QWidget):
             for w in self.reg_widgets + self.fusion_widgets:
                 w.enabled = True
 
+
+        @self.viewer.layers.events.inserted.connect
+        def link_channel_layers():
+
+            if self.source_path is None:
+                return
+
             # link channel layers
             from napari.experimental import link_layers
             for ch in range(self.dims['C'][0], self.dims['C'][1]):
@@ -358,11 +370,16 @@ class StitcherQWidget(QWidget):
                 layers_to_link = [_utils.get_layer_from_source_path_view_and_ch(
                     self.viewer.layers, self.source_path, view, ch)
                         for view in range(self.dims['M'][0], self.dims['M'][1])]
-                import pdb; pdb.set_trace()
-                link_layers(layers_to_link, ('contrast_limits', 'visible'))
+                # import pdb; pdb.set_trace()
+                layers_to_link = [l for l in layers_to_link if l is not None]
+                # print([l is None for l in layers_to_link if l is not None])
+                if len(layers_to_link):
+                    link_layers(layers_to_link, ('contrast_limits', 'visible'))
+
 
         # run on startup
-        load_metadata(None)
+        load_metadata()
+        link_channel_layers()
 
 
     def __del__(self):
@@ -387,6 +404,7 @@ def reload_plugin_widget(viewer: "napari.Viewer"):
     
     # viewer.window.remove_dock_widget('all')
     # viewer.events.disconnect()
+    viewer.layers.events.disconnect()
     viewer.dims.events.disconnect()
     viewer.window.add_dock_widget(_widget.StitcherQWidget(viewer))
     
@@ -394,7 +412,9 @@ def reload_plugin_widget(viewer: "napari.Viewer"):
 if __name__ == "__main__":
     import napari
 
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
+
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
 
     viewer = napari.Viewer()

@@ -97,6 +97,7 @@ def get_layer_from_source_path_view_and_ch(layers, source_path, view, ch):
     for l in view_layers:
         if get_ch_from_layer(l) == ch:
             return l
+    # print('HELLO', [(l, get_ch_from_layer(l)) for l in layers], ch, view, source_path)
 
 
 # def get_layer_from_view_and_ch(viewer, view, ch):

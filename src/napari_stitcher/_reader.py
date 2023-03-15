@@ -72,7 +72,7 @@ def czi_reader_function(path, sample=0):
 
     max_project = False
     dims = io_utils.get_dims_from_multitile_czi(paths[0])
-    # print(dims)
+
 
     # ask for sample when several are available
     if dims['S'][1] > 1:
@@ -86,7 +86,7 @@ def czi_reader_function(path, sample=0):
 
     view_dict = io_utils.build_view_dict_from_multitile_czi(paths[0], max_project=max_project, S=sample)
     views = np.array([view for view in sorted(view_dict.keys())])
-    pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
+    # pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
 
     if max_project or int(dims['Z'][1] <= 1):
         ndim = 2
