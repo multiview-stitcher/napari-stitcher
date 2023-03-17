@@ -53,7 +53,8 @@ def fuse_tiles(viewims: dict,
                         fusion_stack_props,
                         ),
                 shape=tuple(fusion_stack_props['size']),
-                dtype=np.uint16,
+                # dtype=np.uint16,
+                dtype=viewims[ch][t][views[0]].dtype,
                 )
             for t in input_times])
         for ch in input_channels])
@@ -67,6 +68,7 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
     """
 
     views = sorted(field_ims.keys())
+    input_dtype = field_ims[views[0]].dtype
 
     ndim = field_ims[0].ndim
     field_ims_t = []
@@ -86,10 +88,10 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
             offset - view_dict[view]['origin'] + np.dot(matrix, out_stack_props['origin']))
 
         field_ims_t.append(ndinterp.affine_transform(
-                                            field_ims[view] + 1, # add 1 so that 0 indicates no data
+                                            field_ims[view].astype(np.uint16) + 1, # add 1 so that 0 indicates no data
                                             matrix=matrix_prime,
                                             offset=offset_prime,
-                                            order=1,
+                                            order=3,
                                             output_shape=tuple(out_stack_props['size']),
                                             output_chunks=tuple([600 for _ in out_stack_props['size']]),
                                             # output_chunks=tuple(out_stack_props['size']),
@@ -155,6 +157,52 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
     fused_field = da.sum(field_ims_t * field_ws_t, axis=0)
 
     fused_field = fused_field - 1  # subtract 1 because of earlier addition
+
+    fill_empty_spaces_from_neighbouring_pixels = True
+    if fill_empty_spaces_from_neighbouring_pixels:
+
+        # find empty spaces
+        empty_mask = fused_field < 0
+        # empty_coords = delayed(lambda x: np.array(np.where(x)))(empty_mask)
+        # empty_coords = da.where(empty_mask)
+
+        # convert to smaller dtype
+        fused_field = fused_field.astype(input_dtype)
+
+        # empty_intensities = da.from_delayed(delayed(ndimage.map_coordinates)(fused_field, empty_coords, order=0),
+        #                                     shape=(np.nan, ),
+        #                                     dtype=input_dtype)
+
+        # fused_field[(empty_mask,)] = empty_intensities
+        # fused_field[empty_mask] = empty_intensities
+
+        # def fill(field, coords, intensities):
+        #     field = np.copy(field)
+        #     # field[(coords,)] = intensities
+        #     field[tuple(coords)] = intensities
+        #     return field
+        
+        # print('OKOKOKOK', fused_field.shape)
+        
+        # fused_field = da.from_delayed(delayed(fill)(fused_field, empty_coords, empty_intensities),
+        #                               shape=fused_field.shape,
+        #                               dtype=fused_field.dtype)
+
+        fused_field = da.from_delayed(delayed(interpolate_missing_pixels)(
+                                fused_field, empty_mask),
+                            shape=fused_field.shape,
+                            dtype=fused_field.dtype)
+
+    else:
+        fused_field = fused_field * (fused_field >= 0)
+        fused_field = fused_field.astype(input_dtype)
+
+
+    # fused_field = fused_field.astype(input_dtype)
+
+    # fill empty space with nearest neighbor
+    # fused_field
+    # fused_field = ndinterp.map_coordinates(fused_field, np.indices(fused_field.shape), order=0)
 
     return fused_field
 
@@ -222,11 +270,53 @@ def get_smooth_border_weight_from_shape(shape, widths=None):
     return w
 
 
+from scipy import interpolate
+def interpolate_missing_pixels(
+        image: np.ndarray,
+        mask: np.ndarray,
+        method: str = 'nearest',
+        fill_value: int = 0
+):
+    """
+    :param image: a 2D image
+    :param mask: a 2D boolean image, True indicates missing values
+    :param method: interpolation method, one of
+        'nearest', 'linear', 'cubic'.
+    :param fill_value: which value to use for filling up data outside the
+        convex hull of known pixel values.
+        Default is 0, Has no effect for 'nearest'.
+    :return: the image with missing values interpolated
+    """
+    from scipy import interpolate
+
+    h, w = image.shape[:2]
+    xx, yy = np.meshgrid(np.arange(w), np.arange(h))
+
+    # np.meshgrid(*tuple([np.arange(s) for s in [2,3,4]]))
+
+    known_x = xx[~mask]
+    known_y = yy[~mask]
+    known_v = image[~mask]
+    missing_x = xx[mask]
+    missing_y = yy[mask]
+
+    interp_values = interpolate.griddata(
+        (known_x, known_y), known_v, (missing_x, missing_y),
+        method=method, fill_value=fill_value
+    )
+
+    interp_image = image.copy()
+    interp_image[missing_y, missing_x] = interp_values
+
+    return interp_image
+
+
 if __name__ == "__main__":
 
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
 
     from napari_stitcher import _utils
     from mvregfus import io_utils, mv_utils
@@ -245,8 +335,8 @@ if __name__ == "__main__":
 
     fused = fused_da.compute()
 
-    import tifffile
-    tifffile.imwrite('delme1.tif', fused.astype(np.float32))
+    # import tifffile
+    # tifffile.imwrite('delme1.tif', fused.astype(np.float32))
 
     # for view in views:
     #     tifffile.imwrite('delme_%s.tif' % view, viewims[0][0][view].compute().astype(np.float32))

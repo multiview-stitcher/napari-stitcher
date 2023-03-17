@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy
 import pathlib
 
-from napari_stitcher._reader import czi_reader_function
+from napari_stitcher._reader import read_mosaic_czi
 import napari_stitcher
 
 def make_sample_data():
@@ -25,4 +25,4 @@ def make_sample_data():
     sample_path = pathlib.Path(napari_stitcher.__file__).parent.parent.parent\
         / 'image-datasets' / 'arthur_20220621_premovie_dish2-max.czi'
 
-    return czi_reader_function([sample_path])
+    return read_mosaic_czi([sample_path])

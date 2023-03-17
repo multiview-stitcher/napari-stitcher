@@ -7,6 +7,18 @@ https://napari.org/stable/plugins/guides.html?#readers
 """
 import numpy as np
 
+from mvregfus.image_array import ImageArray
+from mvregfus import io_utils, mv_utils
+
+import dask.array as da
+from dask import delayed
+
+from aicspylibczi import CziFile
+
+from napari_stitcher import _utils, _file_utils
+
+import time
+
 
 def napari_get_reader(path):
     """A basic implementation of a Reader contribution.
@@ -31,17 +43,12 @@ def napari_get_reader(path):
     # if we know we cannot read the file, we immediately return None.
     # otherwise we return the *function* that can read ``path``.
     if path.endswith(".czi"):
-        return czi_reader_function
+        return read_mosaic_czi
     else:
         return None
 
 
-from mvregfus import io_utils, mv_utils
-from napari_stitcher import _utils
-import dask.array as da
-from dask import delayed
-import time
-def czi_reader_function(path, sample=0):
+def read_mosaic_czi(path, sample_index=None):
     """
     
     Read in tiles as layers.
@@ -71,22 +78,36 @@ def czi_reader_function(path, sample=0):
     paths = [path] if isinstance(path, str) else path
 
     max_project = False
-    dims = io_utils.get_dims_from_multitile_czi(paths[0])
+    # dims = io_utils.get_dims_from_multitile_czi(paths[0])
+    czi = CziFile(paths[0])
 
+    if czi.pixel_type == 'gray8':
+        input_dtype = 'uint8'
+    else:
+        input_dtype = 'uint16'
 
-    # ask for sample when several are available
-    if dims['S'][1] > 1:
+    # determine number of samples
+    dims = czi.get_dims_shape()
+    n_samples = 0
+    for dim in dims:
+        n_samples = dim['S'][1]
 
-        from magicgui.widgets import request_values
-        sample = request_values(
-            sample=dict(annotation=int,
-                        label="Which sample should be loaded?",
-                        options={'min': 0, 'max': dims['S'][1] - 1}),
-            )['sample']
+    # ask for sample_index when several are available
+    if sample_index is None:
+        if n_samples == 1:
+            sample_index = 0
+        else:
+            from magicgui.widgets import request_values
+            sample_index = request_values(
+                sample_index=dict(annotation=int,
+                            label="Which sample should be loaded?",
+                            options={'min': 0, 'max': n_samples - 1}),
+                )['sample_index']
+        
+    dims = _file_utils.get_dims_from_multitile_czi(paths[0], sample_index=sample_index)
 
-    view_dict = io_utils.build_view_dict_from_multitile_czi(paths[0], max_project=max_project, S=sample)
+    view_dict = io_utils.build_view_dict_from_multitile_czi(paths[0], max_project=max_project, S=sample_index)
     views = np.array([view for view in sorted(view_dict.keys())])
-    # pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
 
     if max_project or int(dims['Z'][1] <= 1):
         ndim = 2
@@ -109,13 +130,13 @@ def czi_reader_function(path, sample=0):
                                     vdv['view'],
                                     ch,
                                     time_index=t,
-                                    sample_index=sample,
+                                    sample_index=sample_index,
                                     max_project=max_project,
                                     origin=vdv['origin'],
                                     spacing=vdv['spacing'],
                                     ),
                         shape=tuple(vdv['shape']),
-                        dtype=np.uint16,
+                        dtype=np.dtype(input_dtype),
                         )
                     for ch in channels])
                 for t in times])
@@ -148,6 +169,7 @@ def czi_reader_function(path, sample=0):
              'affine': ps[iview],
              'cache': False,
              'metadata': {
+                          'napari_stitcher_reader_function': 'read_mosaic_czi',
                           'load_id': file_id,
                           'stack_props': stack_props,
                           'view_dict': view_dict[iview],
@@ -155,7 +177,9 @@ def czi_reader_function(path, sample=0):
                           'ndim': ndim,
                         #   'source_file': path,
                         #   'parameter_type': 'metadata',
+                          'sample_index': sample_index,
                           'times': times,
+                          'dtype': input_dtype,
                           },
              'blending': 'additive',
              },
@@ -163,8 +187,6 @@ def czi_reader_function(path, sample=0):
                 for iview, view in enumerate(views)][:]
 
 
-from aicspylibczi import CziFile
-from mvregfus.image_array import ImageArray
 def get_tile_from_multitile_czi(filename,
                                  tile_index, channel_index=0, time_index=0, sample_index=0,
                                  origin=None, spacing=None,
@@ -200,7 +222,7 @@ if __name__ == "__main__":
     # fn = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st4+_x40_zoom0_5_5x5_488ZO1-568Sox2-647Tbra-max.czi"
     fn = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
     # fn = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
-    tmp = czi_reader_function(fn)
+    tmp = read_mosaic_czi(fn)
 
     io_utils.build_view_dict_from_multitile_czi(fn, max_project=False, S=0)
 

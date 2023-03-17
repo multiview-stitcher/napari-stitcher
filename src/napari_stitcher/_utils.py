@@ -1,5 +1,8 @@
+import os
+
 import numpy as np
-from mvregfus import mv_utils, io_utils, multiview
+from mvregfus import mv_utils, io_utils
+from mvregfus.image_array import ImageArray
 
 from dask import delayed
 import dask.array as da
@@ -50,6 +53,58 @@ def load_tiles(view_dict: dict,
     return view_ims
 
 
+def load_tiles_from_layers(
+                            layers: list,
+                            view_dict: dict,
+                            channels: int,
+                            times: list,
+                            source_identifier: tuple = None,
+                            ) -> dict:
+    
+    """
+    Return: dict of delayed dask arrays
+      - directly from layer data
+      - format: nested dict of channels, times, views (outer -> inner)
+    """
+    
+    view_ims = {ch: {t: {vdv['view']: 
+                            # delayed(lambda x, origin, spacing:
+                            #         image_array.ImageArray(x, origin=origin, spacing=spacing))(
+                                get_layer_from_source_identifier_view_and_ch(
+                                    layers=layers,
+                                    source_identifier=source_identifier,
+                                    view=vdv['view'],
+                                    ch=ch
+                                ).data[t]
+                                # origin=vdv['origin'],
+                                # spacing=vdv['spacing'])
+                        for vdv in view_dict.values()}
+                    for t in times}
+                for ch in channels}
+
+    return view_ims
+
+
+def add_metadata_to_tiles(viewims, view_dict):
+
+    channels = list(viewims.keys())
+    times = list(viewims[channels[0]].keys())
+
+    viewims =   {ch:
+                    {t: {vdv['view']:
+                            delayed(lambda x, origin, spacing:
+                                    ImageArray(x, origin=origin, spacing=spacing))(
+                        
+                                        viewims[ch][t][vdv['view']],
+                                        vdv['origin'],
+                                        vdv['spacing'])
+                        for vdv in view_dict.values()}
+                    for t in times}
+                for ch in channels}
+
+    return viewims
+
+
 # get source file path from open layers
 def get_source_path_from_viewer(viewer):
     for l in viewer.layers:
@@ -60,14 +115,55 @@ def get_source_path_from_viewer(viewer):
     return None
 
 
-def get_list_of_source_paths_from_layers(layers):
+def source_identifier_to_str(source_identifier):
+    return f"File: {os.path.basename(source_identifier['filename'])} (Sample: {source_identifier['sample_index']})"
 
-    sources = []
+
+def str_to_source_identifier(string):
+    # use regex to extract filename and sample index
+    # regex to match filename from e.g. 'File: /home/.../sample_1.czi (Sample: 1)'
+    filename = re.search(r'File: (.*) \(Sample: \d+\)', string).group(1)
+    sample_index = int(re.search(r'File: .*\ \(Sample: (\d+)\)', string).group(1))
+
+    return {'filename': filename, 'sample_index': sample_index}
+
+
+# def get_list_of_source_paths_from_layers(layers):
+
+#     sources = []
+#     for l in layers:
+#         if l.source.path is not None and l.source.path.endswith('.czi'):
+#             sources.append(l.source.path)
+
+#     return sources
+
+
+def layer_was_loaded_by_own_reader(layer):
+    if 'napari_stitcher_reader_function' in layer.metadata and\
+        layer.metadata['napari_stitcher_reader_function'] == 'read_mosaic_czi':
+        return True
+    else:
+        False
+
+
+def layer_coincides_with_source_identifier(layer, source_identifier):
+    if layer.source.path == source_identifier['filename'] and\
+        layer.metadata['sample_index'] == source_identifier['sample_index']:
+        return True
+    else:
+        return False
+
+
+def get_list_of_source_identifiers_from_layers(layers):
+
+    source_identifiers = []
     for l in layers:
-        if l.source.path is not None and l.source.path.endswith('.czi'):
-            sources.append(l.source.path)
+        if layer_was_loaded_by_own_reader(l):
+            source_identifier = {'filename': l.source.path,
+                                 'sample_index': l.metadata['sample_index']}
+            source_identifiers.append(source_identifier)
 
-    return sources
+    return source_identifiers
 
 
 def get_layer_name_from_view_and_ch(view=0, ch=0):
@@ -85,19 +181,20 @@ def get_ch_from_layer(layer):
     return int(re.search(r'_ch_(\d+)', layer.name).group(1))
 
 
-def get_layers_from_source_path_and_view(layers, source_path, view):
+def get_layers_from_source_identifier_and_view(layers, source_identifier, view):
     for l in layers:
-        if l.source.path == source_path and get_view_from_layer(l) == view:
+        if layer_was_loaded_by_own_reader(l) and\
+            layer_coincides_with_source_identifier(l, source_identifier) and\
+                get_view_from_layer(l) == view:
             yield l
 
 
-def get_layer_from_source_path_view_and_ch(layers, source_path, view, ch):
+def get_layer_from_source_identifier_view_and_ch(layers, source_identifier, view, ch):
 
-    view_layers = get_layers_from_source_path_and_view(layers, source_path, view)
+    view_layers = get_layers_from_source_identifier_and_view(layers, source_identifier, view)
     for l in view_layers:
         if get_ch_from_layer(l) == ch:
             return l
-    # print('HELLO', [(l, get_ch_from_layer(l)) for l in layers], ch, view, source_path)
 
 
 # def get_layer_from_view_and_ch(viewer, view, ch):

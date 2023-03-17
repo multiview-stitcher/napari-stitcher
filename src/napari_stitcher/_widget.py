@@ -24,7 +24,7 @@ from magicgui import widgets
 
 from mvregfus import io_utils, mv_utils, mv_visualization
 
-from napari_stitcher import _utils, _registration, _fusion
+from napari_stitcher import _utils, _registration, _fusion, _file_utils
 
 if TYPE_CHECKING:
     import napari
@@ -46,25 +46,18 @@ class StitcherQWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
         
-        self.source_path = _utils.get_source_path_from_viewer(napari_viewer)
-
-        # if self.source_path is not None:
-        #     default_outdir = self.source_path+'_stitched'
-        # else:
-        #     default_outdir = os.path.join('.', 'napari_stitcher_output')
+        self.source_identifier = None
 
         # self.outdir_picker = widgets.FileEdit(label='Output dir:',
         #         value=default_outdir, mode='r')
 
         # self.button_load_metadata = widgets.Button(text='Load metadata')
-        self.source_path_picker = widgets.ComboBox(
+        self.source_identifier_picker = widgets.ComboBox(
             label='Input file: ',
-            choices=[(os.path.basename(p), p)
-                for p in _utils.get_list_of_source_paths_from_layers(napari_viewer.layers)])
+            # choices=[(os.path.basename(p), p)
+            choices=[_utils.source_identifier_to_str(p)
+                for p in _utils.get_list_of_source_identifiers_from_layers(napari_viewer.layers)])
 
-        # self.dimension_rbuttons = widgets.RadioButtons(
-        #     choices=['2D', '3D'], label="Process in:", value="2D", enabled=False, orientation='horizontal')
-        
         self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints:', enabled=False)
         self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel:', enabled=False)
 
@@ -78,7 +71,7 @@ class StitcherQWidget(QWidget):
         self.button_fuse = widgets.Button(text='Fuse', enabled=False)
 
         self.loading_widgets = [
-                            self.source_path_picker,
+                            self.source_identifier_picker,
                             # self.button_load_metadata,
                             # self.outdir_picker,
                             ]
@@ -131,7 +124,8 @@ class StitcherQWidget(QWidget):
                 # if l.visible is False: continue
 
                 # unfused layers
-                if (l.source is not None and (l.source.path == self.source_path)):
+                if _utils.layer_was_loaded_by_own_reader(l) and\
+                    _utils.layer_coincides_with_source_identifier(l, self.source_identifier):
 
                     if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
                         curr_tp = self.viewer.dims.current_step[0]
@@ -142,7 +136,8 @@ class StitcherQWidget(QWidget):
                             and curr_tp not in self.params:
                         notifications.notification_manager.receive_info(
                             'Timepoint %s: no parameters available, register first.' % curr_tp)
-                        self.visualization_type_rbuttons.value == CHOICE_METADATA
+                        
+                        self.visualization_type_rbuttons.value = CHOICE_METADATA
                         return
 
                     view = l.metadata['view']
@@ -197,17 +192,16 @@ class StitcherQWidget(QWidget):
         @self.viewer.layers.events.inserted.connect
         @self.viewer.layers.events.removed.connect
         def on_layer_inserted(event):
-            self.source_path_picker.choices = _utils.get_list_of_source_paths_from_layers(napari_viewer.layers)
+            available_source_identifiers =\
+                _utils.get_list_of_source_identifiers_from_layers(napari_viewer.layers)
+            self.source_identifier_picker.choices = [_utils.source_identifier_to_str(si)
+                for si in available_source_identifiers]
+            self.source_identifier_values = available_source_identifiers
 
 
         @self.button_register.clicked.connect
         def run_registration(value: str):
 
-            # max_project = True if self.dimension_rbuttons.value == '2D' else False
-            max_project = False
-
-            self.view_dict = io_utils.build_view_dict_from_multitile_czi(self.source_path, max_project=max_project)
-            self.views = np.array([view for view in sorted(self.view_dict.keys())])
             self.pairs = mv_utils.get_registration_pairs_from_view_dict(self.view_dict)
 
             pair_requires_registration = []
@@ -223,28 +217,60 @@ class StitcherQWidget(QWidget):
                 else: nonzero_overlap = True
 
                 pair_requires_registration.append(nonzero_overlap)
-            
+
+            times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
+
             if not max(pair_requires_registration):
-                message = 'No overlap between views, so no registration needs to be performed.'
+            # if 1:
+
+                if len(times) < 5:
+                    message = 'No overlap between views and not enough time points to perform stabilization'
+                    notifications.notification_manager.receive_info(message)
+                    return
+
+                # message = 'No overlap between views, so no registration needs to be performed.'
+                message = 'No overlap between views, so stabilization over time is performed instead of tile registration.'
                 notifications.notification_manager.receive_info(message)
-                return
+                # return
 
-            times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
-            viewims = _utils.load_tiles(self.view_dict, [self.regch_slider.value],
-                            times, max_project=max_project)
+                ndim = len(self.view_dict[self.views[0]]['origin'])
 
-            times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
+                ps = {view: _registration.get_stabilization_parameters(
+                        _utils.get_layer_from_source_identifier_view_and_ch(self.viewer.layers,
+                                                                            self.source_identifier,
+                                                                            view,
+                                                                            self.regch_slider.value)\
+                                                                                .data[slice(times[0], times[-1] + 1)])
+                        for view in self.views}
+            
+                ps = {t: {view: da.concatenate([da.eye(ndim).flatten(),
+                                                ps[view][it] * self.view_dict[view]['spacing']], axis=0)
+                          for view in self.views} for it, t in enumerate(times)}
+            
+            else:
 
-            # choose central view as reference
-            self.ref_view_index = len(self.views) // 2
-            ps = _registration.register_tiles(
-                                viewims,
-                                self.pairs,
-                                reg_channel = self.regch_slider.value,
-                                times = times,
-                                registration_binning=[2] * len(self.view_dict[self.views[0]]['shape']),
-                                ref_view_index = self.ref_view_index,
-                                )
+                viewims = _utils.load_tiles_from_layers(
+                    self.viewer.layers,
+                    self.view_dict,
+                    [self.regch_slider.value],
+                    times,
+                    source_identifier=self.source_identifier
+                    )
+                
+                viewims = _utils.add_metadata_to_tiles(viewims, self.view_dict)
+
+                # choose central view as reference
+                self.ref_view_index = len(self.views) // 2
+                ps = _registration.register_tiles(
+                                    viewims,
+                                    self.view_dict,
+                                    self.pairs,
+                                    reg_channel = self.regch_slider.value,
+                                    times = times,
+                                    registration_binning=[2] * len(self.view_dict[self.views[0]]['shape']),
+                                    # registration_binning=None,
+                                    ref_view_index = self.ref_view_index,
+                                    )
 
             from napari.utils import progress
             from tqdm.dask import TqdmCallback
@@ -258,6 +284,7 @@ class StitcherQWidget(QWidget):
 
             with TqdmCallback(tqdm_class=progress, desc="Registering tiles"):
                 psc = dask.compute(ps, scheduler='threading')[0]
+                # psc = dask.compute(ps, scheduler='single-threaded')[0]
 
             # enable widgets again
             for w, e in zip(self.container, enabled):
@@ -277,10 +304,18 @@ class StitcherQWidget(QWidget):
             times = sorted(self.params.keys())
             channels = range(self.dims['C'][0], self.dims['C'][1])
 
-            viewims = _utils.load_tiles(
-                            self.view_dict,
-                            channels,
-                            times, max_project=False)
+            # viewims = _utils.load_tiles(
+            #                 self.view_dict,
+            #                 channels,
+            #                 times, max_project=False)
+            
+            viewims = _utils.load_tiles_from_layers(
+                self.viewer.layers,
+                self.view_dict,
+                channels,
+                times,
+                source_identifier=self.source_identifier
+                )
 
             from napari.utils import progress
             from tqdm.dask import TqdmCallback
@@ -298,7 +333,8 @@ class StitcherQWidget(QWidget):
 
             self.viewer.add_image(fused,
                 channel_axis=0,
-                name=[os.path.basename(self.source_path)[:-4] + '_fused_ch_%03d' %ch
+                name=[_utils.source_identifier_to_str(self.source_identifier) + '_fused_ch_%03d' %ch
+                # name=[os.path.basename(self.source_identifier['filename'])[:-4] + '_fused_ch_%03d' %ch
                         for ch in channels],
                 colormap='gray',
                 blending='additive',
@@ -318,33 +354,25 @@ class StitcherQWidget(QWidget):
 
         
         # @self.button_load_metadata.clicked.connect
-        @self.source_path_picker.changed.connect
+        @self.source_identifier_picker.changed.connect
         def load_metadata():
+            if self.source_identifier_picker.value is None: return
 
-            # curr_source_path = _utils.get_source_path_from_viewer(self.viewer)
-            curr_source_path = self.source_path_picker.value
-            if self.source_path != curr_source_path:
+            curr_source_identifier = [si for si in _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)
+                if _utils.source_identifier_to_str(si) == self.source_identifier_picker.value][0]
+            
+            if self.source_identifier != curr_source_identifier:
                 self.params = dict()
                 self.visualization_type_rbuttons.value = CHOICE_METADATA
                 self.visualization_type_rbuttons.enabled = False
 
-            self.source_path = curr_source_path
-            if self.source_path is None:
+            self.source_identifier = curr_source_identifier
+            if self.source_identifier is None:
                 notifications.notification_manager.receive_info('No CZI file loaded.')
                 return
 
-            self.dims = io_utils.get_dims_from_multitile_czi(self.source_path)
-            # print(self.dims)
-
-            # self.view_dict = io_utils.build_view_dict_from_multitile_czi(self.source_path, max_project=True)
-            # self.views = np.array([view for view in sorted(self.view_dict.keys())])
-            # self.pairs = mv_utils.get_registration_pairs_from_view_dict(self.view_dict)
-            # self.ndim = [2, 3][int(self.dims['Z'][1] > 1)]
-
-            # if self.dims['Z'][1] > 1:
-            #     self.dimension_rbuttons.enabled = True
-            # else:
-            #     self.dimension_rbuttons.enabled = False
+            self.dims = _file_utils.get_dims_from_multitile_czi(self.source_identifier['filename'],
+                                                                self.source_identifier['sample_index'])
             
             self.times_slider.min, self.times_slider.max = self.dims['T'][0] - 1, self.dims['T'][1] - 1
             self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][0])
@@ -356,23 +384,31 @@ class StitcherQWidget(QWidget):
             for w in self.reg_widgets + self.fusion_widgets:
                 w.enabled = True
 
+            # max_project = True if self.dimension_rbuttons.value == '2D' else False
+            max_project = False
+
+            self.view_dict = _file_utils.build_view_dict_from_multitile_czi(
+                filename=self.source_identifier['filename'],
+                sample_index=self.source_identifier['sample_index'],
+                max_project=max_project)
+            self.views = np.array([view for view in sorted(self.view_dict.keys())])
+
 
         @self.viewer.layers.events.inserted.connect
         def link_channel_layers():
 
-            if self.source_path is None:
+            if self.source_identifier is None:
                 return
 
             # link channel layers
             from napari.experimental import link_layers
             for ch in range(self.dims['C'][0], self.dims['C'][1]):
 
-                layers_to_link = [_utils.get_layer_from_source_path_view_and_ch(
-                    self.viewer.layers, self.source_path, view, ch)
+                layers_to_link = [_utils.get_layer_from_source_identifier_view_and_ch(
+                    self.viewer.layers, self.source_identifier, view, ch)
                         for view in range(self.dims['M'][0], self.dims['M'][1])]
-                # import pdb; pdb.set_trace()
+
                 layers_to_link = [l for l in layers_to_link if l is not None]
-                # print([l is None for l in layers_to_link if l is not None])
                 if len(layers_to_link):
                     link_layers(layers_to_link, ('contrast_limits', 'visible'))
 
@@ -413,14 +449,17 @@ if __name__ == "__main__":
     import napari
 
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
 
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
 
     viewer = napari.Viewer()
+    
     viewer.open(filename)
     # viewer.open("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220609_WT_emb2_5X_part1_max.czi")
 
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
+
     napari.run()

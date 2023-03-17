@@ -3,10 +3,11 @@ from scipy import ndimage
 import skimage
 from tqdm import tqdm
 
-from dask import delayed
+from dask import delayed, compute
 import dask.array as da
 
 from mvregfus import mv_utils, io_utils, multiview
+from mvregfus.image_array import ImageArray
 
 
 def apply_recursive_dict(func, d):
@@ -21,6 +22,7 @@ def apply_recursive_dict(func, d):
 
 def register_tiles(
                    viewims: dict,
+                   view_dict: dict,
                    pairs: list,
                    reg_channel: int,
                    times: list,
@@ -45,17 +47,33 @@ def register_tiles(
     # view_reg_ims = load_tiles(view_dict, times, [reg_channel], max_project)
     view_reg_ims = viewims
 
+    # print('LALALA', view_reg_ims, registration_binning)
+
     if registration_binning is not None:
 
         view_reg_ims = apply_recursive_dict(
             lambda x: delayed(mv_utils.bin_stack)(x, registration_binning),
             view_reg_ims)
 
+    # import tifffile
+    # apply_recursive_dict(lambda x: tifffile.imwrite('test%s.tif' %int(np.random.random()*10000), x.compute()), view_reg_ims)
+
+    apply_recursive_dict(lambda x: print(x.compute().get_info()), view_reg_ims)
+
+
+    # import pdb; pdb.set_trace()
     # perform pairwise registrations
     pair_ps = {t: {(view1, view2):
                         delayed(multiview.register_linear_elastix)
                                  (view_reg_ims[reg_channel][t][view1],
                                   view_reg_ims[reg_channel][t][view2],
+                                #  (
+                                # delayed(ImageArray)(view_reg_ims[reg_channel][t][view1],
+                                #         spacing=view_dict[view1]['spacing'],
+                                #         origin=view_dict[view1]['origin']),
+                                #   delayed(ImageArray)(view_reg_ims[reg_channel][t][view2],
+                                #              spacing=view_dict[view2]['spacing'],
+                                #              origin=view_dict[view2]['origin']),
                                   -1, #degree
                                   None,
                                   '',
@@ -87,11 +105,9 @@ def register_tiles(
 
 def stabilize_tiles(
                    viewims: dict,
-                   pairs: list,
                    reg_channel: int,
                    times: list,
                    registration_binning = None,
-                   ref_view_index = 0,
                    ) -> dict:
     """
     Stabilize tiles in a view_dict.
@@ -112,6 +128,8 @@ def stabilize_tiles(
         view_reg_ims = apply_recursive_dict(
             lambda x: delayed(mv_utils.bin_stack)(x, registration_binning),
             view_reg_ims)
+        
+    # view_
 
     # perform pairwise registrations
     pair_ps = {t: {(view1, view2):
@@ -228,3 +246,41 @@ def correct_random_drift(ims, reg_ch=0, zoom_factor=10, particle_reinstantiation
                     for t in tqdm(range(len(ims)))])
 
     return imst, devs
+
+
+import dask_image
+def get_stabilization_parameters(tl, sigma=2):
+    """
+    Assume first dimension is time
+    """
+
+    ndim = tl[0].ndim
+
+    ps = da.stack([da.from_delayed(delayed(skimage.registration.phase_cross_correlation)(
+            tl[t-1],
+            tl[t],
+            upsample_factor=3,
+            normalization=None)[0], shape=(ndim, ), dtype=float)
+            for t in range(1, tl.shape[0])])
+    
+    ps = da.concatenate([da.zeros((1, ndim)), ps], axis=0)
+
+    ps_cum = da.cumsum(ps, axis=0)
+    ps_cum_filtered = dask_image.ndfilters.gaussian_filter(ps_cum, [sigma, 0], mode='nearest')
+
+    # deltas = ps_cum - ps_cum_filtered
+    deltas = ps_cum_filtered - ps_cum
+
+    # imst = da.stack([da.from_delayed(delayed(ndimage.affine_transform)(tl[t],
+    #                                         matrix=np.eye(2),
+    #                                         offset=-ps[t-1] if t else np.zeros(2), order=1), shape=tl[0].shape, dtype=tl[0].dtype)
+
+
+    return deltas
+
+
+
+if __name__ == "__main__":
+
+    viewer = napari.Viewer()
+    viewer.open(filename)
