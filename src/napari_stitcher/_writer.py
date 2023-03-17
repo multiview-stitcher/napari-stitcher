@@ -35,8 +35,6 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
 
     # implement your writer logic here ...
 
-    print('DATAAAA', data[0][1])
-
     if not np.all([d[1]['metadata']['view'] == -1 for d in data]):
         raise ValueError('Only saving of fused images is supported.')
         return
@@ -60,7 +58,7 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
         imagej=True,
         resolution=tuple([1. / s for s in spacing]),
         metadata={
-            'spacing': 1.,
+            # 'spacing': spacing[0],
             'unit': 'um',
             'finterval': 1/10,
             'axes': axes,
@@ -77,12 +75,12 @@ if __name__ == "__main__":
     import napari
     viewer = napari.Viewer()
 
-    viewer.add_image(np.random.random((10, 10, 10)).astype(np.uint8), metadata={'view':-1,
+    viewer.add_image(np.random.random((10, 10, 10)).astype(np.uint8), metadata={'metadata':{'view':-1,
                                                                'stack_props': {'spacing': [0.1, 0.1]},
-                                                               'times': range(10)}, name='image1_ch000')
-    viewer.add_image(np.random.random((10, 10, 10)).astype(np.uint8), metadata={'view':-1,
+                                                               'times': range(10)}}, name='image1_ch000')
+    viewer.add_image(np.random.random((10, 10, 10)).astype(np.uint8), metadata={'metadata':{'view':-1,
                                                                'stack_props': {'spacing': [0.1, 0.1]},
-                                                               'times': range(10)}, name='image1_ch001')
+                                                               'times': range(10)}}, name='image1_ch001')
 
     # viewer.add_image(np.random.random((10, 10)).astype(np.uint8), metadata={'view':-1,
     #                                                            'stack_props': {'spacing': [0.1, 0.1]},
