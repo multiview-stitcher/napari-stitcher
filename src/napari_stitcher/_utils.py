@@ -4,8 +4,11 @@ import numpy as np
 from mvregfus import mv_utils, io_utils
 from mvregfus.image_array import ImageArray
 
-from dask import delayed
+from dask import delayed, compute
 import dask.array as da
+from tqdm.dask import TqdmCallback
+
+from napari.utils import progress
 
 
 def load_tiles(view_dict: dict,
@@ -16,20 +19,6 @@ def load_tiles(view_dict: dict,
     """
     Return: dict of delayed dask arrays
     """
-
-    # # load views
-    # view_ims = {ch: {t: {vdv['view']: delayed(io_utils.read_tile_from_multitile_czi)
-    #                                (vdv['filename'],
-    #                                 vdv['view'],
-    #                                 ch,
-    #                                 time_index=t,
-    #                                 max_project=max_project,
-    #                                 origin=vdv['origin'],
-    #                                 spacing=vdv['spacing'],
-    #                                 )
-    #                     for vdv in view_dict.values()}
-    #                 for t in times}
-    #             for ch in channels}
 
     # load views
     view_ims = {ch: {t: {vdv['view']: 
@@ -85,6 +74,52 @@ def load_tiles_from_layers(
     return view_ims
 
 
+class TemporarilyDisabledWidgets(object):
+    """
+    Conext manager to temporarily disable widgets during long computation
+    """
+    def __init__(self, widgets):
+        self.widgets = widgets
+        self.enabled_states = {w: True if w.enabled else False for w in widgets}
+    def __enter__(self):
+        for w in self.widgets:
+            w.enabled = False
+    def __exit__(self, type, value, traceback):
+        for w in self.widgets:
+            w.enabled = self.enabled_states[w]
+
+
+class VisibleActivityDock(object):
+    """
+    Conext manager to temporarily disable widgets during long computation
+    """
+    def __init__(self, viewer):
+        self.viewer = viewer
+    def __enter__(self):
+        self.viewer.window._status_bar._toggle_activity_dock(True)
+    def __exit__(self, type, value, traceback):
+        self.viewer.window._status_bar._toggle_activity_dock(False)
+
+
+def compute_dask_object(dask_object,
+                        viewer,
+                        widgets_to_disable=None,
+                        message="Registering tiles",
+                        scheduler='threading',
+                        ):
+    """
+    Compute dask object. While doing so:
+     - show progress bar
+     - disable widgets temporarily
+    """
+    with TemporarilyDisabledWidgets(widgets_to_disable),\
+         VisibleActivityDock(viewer),\
+         TqdmCallback(tqdm_class=progress, desc=message, bar_format=" "):
+        result = compute(dask_object, scheduler=scheduler)[0]
+
+    return result
+
+
 def add_metadata_to_tiles(viewims, view_dict):
 
     channels = list(viewims.keys())
@@ -108,8 +143,6 @@ def add_metadata_to_tiles(viewims, view_dict):
 # get source file path from open layers
 def get_source_path_from_viewer(viewer):
     for l in viewer.layers:
-        # if 'source_file' in l.metadata and l.metadata['source_file'].endswith('.czi'):
-        #     return l.metadata['source_file']
         if l.source.path is not None and l.source.path.endswith('.czi'):
             return l.source.path
     return None
@@ -126,16 +159,6 @@ def str_to_source_identifier(string):
     sample_index = int(re.search(r'File: .*\ \(Sample: (\d+)\)', string).group(1))
 
     return {'filename': filename, 'sample_index': sample_index}
-
-
-# def get_list_of_source_paths_from_layers(layers):
-
-#     sources = []
-#     for l in layers:
-#         if l.source.path is not None and l.source.path.endswith('.czi'):
-#             sources.append(l.source.path)
-
-#     return sources
 
 
 def layer_was_loaded_by_own_reader(layer):
@@ -197,41 +220,6 @@ def get_layer_from_source_identifier_view_and_ch(layers, source_identifier, view
             return l
 
 
-# def get_layer_from_view_and_ch(viewer, view, ch):
-#     # improve: use regexp to match view and channel from e.g. 'view_008_ch_002'
-#     candidates = [l for l in viewer.layers
-#         if l.name == get_layer_name_from_view_and_ch(view, ch)]
-#     # candidates = [l for l in viewer.layers if l.name.startswith('view_%s' %view)\
-#     #                 and (l.name.endswith(f' [{ch}]')
-#     #                 or (ch==0 and '[' not in l.name and l.name.endswith('view_%s' %view)))]
-#     if not len(candidates):
-#         return None
-#     else:
-#         return candidates[0]
-
-
-# def transmit_params_to_viewer(viewer, params, channels, times, views):
-
-#     for ch in channels:
-#         for t in times:
-#             for view in views:
-#                 l = get_layer_from_view_and_ch(viewer, view, ch)
-
-#                 if l is not None:
-#                     l.params = params[t][view]
-
-#     for l in viewer.layers:
-
-#         if l.source.path is not None and l.source.path.endswith('.czi'):
-#             l.params = params
-
-
-# def transmit_params_to_layer(viewer, params, ch, t, view, stack_props, view_stack_props):
-#     l = get_layer_from_view_and_ch(viewer, view, ch)
-#     l.affine = params_to_napari_affine(params[t][view], stack_props, view_stack_props)
-#     return
-
-
 def params_to_napari_affine(params, stack_props, view_stack_props):
 
     """
@@ -257,39 +245,3 @@ def params_to_napari_affine(params, stack_props, view_stack_props):
     p = np.linalg.inv(p)
 
     return p
-
-
-# def visualize_tiles():
-
-
-
-# def transform_tiles(viewims: dict,
-#                     ps: dict,
-#                     reg_channel: int,
-#                     ) -> dict:
-#     """
-#     Transform tiles in a view_dict.
-
-#     Use dask.distributed in combination with dask.delayed to do so.
-
-#     Return: dict of transformed images for each tp and view
-#     """
-
-#     ndim = len(viewims[0][0][0]['spacing'])
-#     views = sorted(viewims[0][0].keys())
-
-#     # load views
-#     # view_reg_ims = load_tiles(view_dict, times, [reg_channel], max_project)
-#     view_reg_ims = viewims
-
-#     # transform views
-#     view_reg_ims = {t: {vdv['view']: delayed(multiview.transform_stack)
-#                                    (view_reg_ims[reg_channel][t][vdv['view']],
-#                                     ps[t][vdv['view']],
-#                                     ndim,
-#                                     )
-#                 for vdv in view_dict.values()}
-#             for t in times}
-
-#     return view_reg_ims
-

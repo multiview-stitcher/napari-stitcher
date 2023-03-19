@@ -26,11 +26,11 @@ contributions:
       filename_patterns: ['*.czi']
   writers:
     - command: napari-stitcher.write_multiple
-      layer_types: ['image*','labels*']
-      filename_extensions: []
-    - command: napari-stitcher.write_single_image
-      layer_types: ['image']
-      filename_extensions: ['.npy']
+      layer_types: ['image*']
+      filename_extensions: ['.tif']
+    # - command: napari-stitcher.write_single_image
+    #   layer_types: ['image']
+    #   filename_extensions: ['.npy']
   sample_data:
     - command: napari-stitcher.make_sample_data
       display_name: napari-stitcher

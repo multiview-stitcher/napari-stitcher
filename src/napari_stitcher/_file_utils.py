@@ -1,5 +1,6 @@
 import numpy as np
 from aicspylibczi import CziFile
+from aicsimageio import AICSImage
 
 
 def get_dims_from_multitile_czi(filename, sample_index=0):
@@ -17,7 +18,6 @@ def get_dims_from_multitile_czi(filename, sample_index=0):
 
 def build_view_dict_from_multitile_czi(filename, sample_index=0, max_project=True):
 
-    # import pdb; pdb.set_trace()
     czi = CziFile(filename)
     dims = get_dims_from_multitile_czi(filename, sample_index=sample_index)
 
@@ -25,8 +25,10 @@ def build_view_dict_from_multitile_czi(filename, sample_index=0, max_project=Tru
     z_shape = dims['Z'][1]
     ndim = 2 if z_shape == 1 else 3
 
-    # spacing = AICSImage(filename).physical_pixel_sizes
-    # spacing = np.array([spacing.Y, spacing.X])
+    physical_pixel_sizes = AICSImage(filename).physical_pixel_sizes
+    physical_pixel_sizes = np.array([physical_pixel_sizes.Y,
+                                     physical_pixel_sizes.X])
+
     spacing = np.array([1., 1.])
     shape = np.array([dims[dim_s][1] for dim_s in ['Z', 'Y', 'X']])
 
@@ -48,6 +50,7 @@ def build_view_dict_from_multitile_czi(filename, sample_index=0, max_project=Tru
                   'origin': o,
                   'rotation': 0,
                   'spacing': spacing,
+                  'physical_pixel_sizes': physical_pixel_sizes,
                   'filename': filename,
                   'view': itile,
                   'sample_index': sample_index,

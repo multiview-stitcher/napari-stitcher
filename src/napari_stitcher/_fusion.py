@@ -46,16 +46,17 @@ def fuse_tiles(viewims: dict,
     fused_da = \
         da.stack([
             da.stack([
-                da.from_delayed(delayed(fuse_field)(
+                # da.from_delayed(delayed(fuse_field)(
+                    fuse_field(
                         viewims[ch][t],
                         params[t],
                         view_dict,
                         fusion_stack_props,
-                        ),
-                shape=tuple(fusion_stack_props['size']),
+                        )
+                # shape=tuple(fusion_stack_props['size']),
                 # dtype=np.uint16,
-                dtype=viewims[ch][t][views[0]].dtype,
-                )
+                # dtype=viewims[ch][t][views[0]].dtype,
+                
             for t in input_times])
         for ch in input_channels])
 
@@ -123,32 +124,6 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
     field_ims_t = da.stack(field_ims_t)
     field_ws_t = da.stack(field_ws_t)
 
-    # field_ims_t = field_ims_t.rechunk((len(views), ) + field_ims_t[0].shape)
-
-    # border_width_px = 30
-
-    # field_weights = da.map_blocks(
-    #     lambda x, *args, **kwargs: get_smooth_border_weight_im_from_mask(x[0], *args, **kwargs)[None],
-    #     field_ims_t > 0,
-    #     dtype=np.float16,
-    #     **{'width': border_width_px},
-    #     )
-
-    # overlap_per_dim = {dim + 1: np.min([field_ims_t.shape[dim] // 2, (border_width_px + 1)])
-    #     for dim in range(ndim)}
-    # overlap_per_dim[0] = 0
-
-    # # use overlap to ensure proper border weights
-    # field_weights = da.map_overlap(
-    #     lambda x, *args, **kwargs: get_smooth_border_weight_im_from_mask(x[0], *args, **kwargs)[None],
-    #     field_ims_t,
-    #     dtype=np.float16,
-    #     depth=overlap_per_dim,
-    #     trim=True,
-    #     boundary='none',
-    #     **{'width': border_width_px},
-    #     )
-
     wsum = da.sum(field_ws_t, axis=0)
     wsum[wsum==0] = 1
 
@@ -158,35 +133,14 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
 
     fused_field = fused_field - 1  # subtract 1 because of earlier addition
 
-    fill_empty_spaces_from_neighbouring_pixels = True
-    if fill_empty_spaces_from_neighbouring_pixels:
+    do_interpolate_missing_pixels = True
+    if do_interpolate_missing_pixels:
 
         # find empty spaces
         empty_mask = fused_field < 0
-        # empty_coords = delayed(lambda x: np.array(np.where(x)))(empty_mask)
-        # empty_coords = da.where(empty_mask)
 
-        # convert to smaller dtype
+        # convert to input dtype
         fused_field = fused_field.astype(input_dtype)
-
-        # empty_intensities = da.from_delayed(delayed(ndimage.map_coordinates)(fused_field, empty_coords, order=0),
-        #                                     shape=(np.nan, ),
-        #                                     dtype=input_dtype)
-
-        # fused_field[(empty_mask,)] = empty_intensities
-        # fused_field[empty_mask] = empty_intensities
-
-        # def fill(field, coords, intensities):
-        #     field = np.copy(field)
-        #     # field[(coords,)] = intensities
-        #     field[tuple(coords)] = intensities
-        #     return field
-        
-        # print('OKOKOKOK', fused_field.shape)
-        
-        # fused_field = da.from_delayed(delayed(fill)(fused_field, empty_coords, empty_intensities),
-        #                               shape=fused_field.shape,
-        #                               dtype=fused_field.dtype)
 
         fused_field = da.from_delayed(delayed(interpolate_missing_pixels)(
                                 fused_field, empty_mask),
@@ -196,13 +150,6 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
     else:
         fused_field = fused_field * (fused_field >= 0)
         fused_field = fused_field.astype(input_dtype)
-
-
-    # fused_field = fused_field.astype(input_dtype)
-
-    # fill empty space with nearest neighbor
-    # fused_field
-    # fused_field = ndinterp.map_coordinates(fused_field, np.indices(fused_field.shape), order=0)
 
     return fused_field
 
@@ -256,16 +203,6 @@ def get_smooth_border_weight_from_shape(shape, widths=None):
         for _ in range(ndim - dim - 1):
             tmp_dim_w = tmp_dim_w[:, None]
         w *= tmp_dim_w
-
-    # # get min of weights for each dim
-    # ws = []
-    # for dim in range(len(shape)):
-    #     tmp_dim_w = dim_ws[dim]
-    #     for _ in range(ndim - dim - 1):
-    #         tmp_dim_w = tmp_dim_w[:, None]
-    #     w *= tmp_dim_w
-    #     ws.append(w)
-    # w = np.min(ws, axis=0)
 
     return w
 

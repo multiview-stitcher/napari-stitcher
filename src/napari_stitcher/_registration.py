@@ -3,11 +3,11 @@ from scipy import ndimage
 import skimage
 from tqdm import tqdm
 
-from dask import delayed, compute
+from dask import delayed
 import dask.array as da
 
-from mvregfus import mv_utils, io_utils, multiview
-from mvregfus.image_array import ImageArray
+from mvregfus import mv_utils, multiview
+# from mvregfus.image_array import ImageArray
 
 
 def apply_recursive_dict(func, d):
@@ -20,8 +20,14 @@ def apply_recursive_dict(func, d):
     return res
 
 
+def bin_views(view_ims, registration_binning):
+        return apply_recursive_dict(
+            lambda x: delayed(mv_utils.bin_stack)(x, registration_binning),
+            view_ims)
+
+
 def register_tiles(
-                   viewims: dict,
+                   view_reg_ims: dict,
                    view_dict: dict,
                    pairs: list,
                    reg_channel: int,
@@ -39,29 +45,15 @@ def register_tiles(
 
 
     # ndim = len(view_dict[list(view_dict.keys())[0]]['spacing'])
-    input_channels = sorted(viewims.keys())
-    input_times = sorted(viewims[input_channels[0]].keys())
-    views = sorted(viewims[input_channels[0]][input_times[0]].keys())
-
-    # load views
-    # view_reg_ims = load_tiles(view_dict, times, [reg_channel], max_project)
-    view_reg_ims = viewims
-
-    # print('LALALA', view_reg_ims, registration_binning)
+    input_channels = sorted(view_reg_ims.keys())
+    input_times = sorted(view_reg_ims[input_channels[0]].keys())
+    views = sorted(view_reg_ims[input_channels[0]][input_times[0]].keys())
 
     if registration_binning is not None:
-
-        view_reg_ims = apply_recursive_dict(
-            lambda x: delayed(mv_utils.bin_stack)(x, registration_binning),
-            view_reg_ims)
-
-    # import tifffile
-    # apply_recursive_dict(lambda x: tifffile.imwrite('test%s.tif' %int(np.random.random()*10000), x.compute()), view_reg_ims)
+        view_reg_ims = bin_views(view_reg_ims, registration_binning)
 
     apply_recursive_dict(lambda x: print(x.compute().get_info()), view_reg_ims)
 
-
-    # import pdb; pdb.set_trace()
     # perform pairwise registrations
     pair_ps = {t: {(view1, view2):
                         delayed(multiview.register_linear_elastix)
@@ -93,69 +85,6 @@ def register_tiles(
                                 [view_reg_ims[reg_channel][t][view] for view in views],
                                 {view: iview for iview, view in enumerate(views)}
                                 )
-                # for vdv in view_dict.values()}
-            for t in times}
-
-    ps = {t: delayed(lambda x: {view: x[iview] for iview, view in enumerate(views)})
-                (ps[t])
-            for t in times}
-
-    return ps
-
-
-def stabilize_tiles(
-                   viewims: dict,
-                   reg_channel: int,
-                   times: list,
-                   registration_binning = None,
-                   ) -> dict:
-    """
-    Stabilize tiles in a view_dict.
-
-    Return: dict of transform parameters for each tp and view
-    """
-
-    input_channels = sorted(viewims.keys())
-    input_times = sorted(viewims[input_channels[0]].keys())
-    views = sorted(viewims[input_channels[0]][input_times[0]].keys())
-
-    # load views
-    # view_reg_ims = load_tiles(view_dict, times, [reg_channel], max_project)
-    view_reg_ims = viewims
-
-    if registration_binning is not None:
-
-        view_reg_ims = apply_recursive_dict(
-            lambda x: delayed(mv_utils.bin_stack)(x, registration_binning),
-            view_reg_ims)
-        
-    # view_
-
-    # perform pairwise registrations
-    pair_ps = {t: {(view1, view2):
-                        delayed(multiview.register_linear_elastix)
-                                 (view_reg_ims[reg_channel][t][view1],
-                                  view_reg_ims[reg_channel][t][view2],
-                                  -1, #degree
-                                  None,
-                                  '',
-                                  f'{view1}_{view2}',
-                                  None
-                                 )
-                for view1, view2 in pairs}
-            for t in times}
-
-    # get final transform parameters
-    ps = {t: delayed(multiview.get_params_from_pairs)(
-                                views[ref_view_index],
-                                pairs,
-                                [pair_ps[t][(v1,v2)] for v1, v2 in pairs],
-                                None, # time_alignment_params
-                                True, # consider_reg_quality
-                                [view_reg_ims[reg_channel][t][view] for view in views],
-                                {view: iview for iview, view in enumerate(views)}
-                                )
-                # for vdv in view_dict.values()}
             for t in times}
 
     ps = {t: delayed(lambda x: {view: x[iview] for iview, view in enumerate(views)})
@@ -274,7 +203,6 @@ def get_stabilization_parameters(tl, sigma=2):
     # imst = da.stack([da.from_delayed(delayed(ndimage.affine_transform)(tl[t],
     #                                         matrix=np.eye(2),
     #                                         offset=-ps[t-1] if t else np.zeros(2), order=1), shape=tl[0].shape, dtype=tl[0].dtype)
-
 
     return deltas
 
