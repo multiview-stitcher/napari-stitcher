@@ -47,18 +47,17 @@ class StitcherQWidget(QWidget):
         # self.outdir_picker = widgets.FileEdit(label='Output dir:',
         #         value=default_outdir, mode='r')
 
-        # self.button_load_metadata = widgets.Button(text='Load metadata')
         self.source_identifier_picker = widgets.ComboBox(
             label='Input file: ',
-            # choices=[(os.path.basename(p), p)
             choices=[_utils.source_identifier_to_str(p)
-                for p in _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)])
+                for p in _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)],
+                tooltip='Choose a file to process using napari-stitcher.')
 
-        self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints:', enabled=False)
-        self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel:', enabled=False)
+        self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints:', enabled=False,
+            tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\(3, 5) means timepoints 4 and 5 are processed')
+        self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel:', enabled=False,
+            tooltip='Channel to use for computing stitching and stabilization.')
 
-        # self.button_visualize_input = widgets.Button(text='Visualize input', enabled=False)
-        # self.button_register = widgets.Button(text='Register', enabled=False)
         self.button_stitch = widgets.Button(text='Stitch', enabled=False,
             tooltip='Use the overlaps between tiles to determine their relative positions.')
         self.button_stabilize = widgets.Button(text='Stabilize', enabled=False,

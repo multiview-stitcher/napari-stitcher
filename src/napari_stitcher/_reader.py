@@ -180,6 +180,7 @@ def read_mosaic_czi(path, sample_index=None):
                           'sample_index': sample_index,
                           'times': times,
                           'dtype': input_dtype,
+                        #   'axis_labels': 'TCZYX',
                           },
              'blending': 'additive',
              },
