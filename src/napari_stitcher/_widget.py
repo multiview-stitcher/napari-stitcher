@@ -395,8 +395,8 @@ class StitcherQWidget(QWidget):
                                                             self.source_identifier['sample_index'])
         
         self.times_slider.min, self.times_slider.max = self.dims['T'][0] - 1, self.dims['T'][1] - 1
-        self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][0])
-        # self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][-1] - 1)
+        # self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][0])
+        self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][-1] - 1)
 
         self.regch_slider.min, self.regch_slider.max = self.dims['C'][0], self.dims['C'][1] - 1
         # self.regch_slider.value = self.dims['C'][0]
