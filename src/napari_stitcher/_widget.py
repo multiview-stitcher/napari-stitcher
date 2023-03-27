@@ -126,14 +126,14 @@ class StitcherQWidget(QWidget):
 
         # link callbacks
         self.button_fuse.clicked.connect(self.run_fusion)
-        self.viewer.layers.events.inserted.connect(self.link_channel_layers)
         self.source_identifier_picker.changed.connect(self.load_metadata)
+        self.viewer.layers.events.inserted.connect(self.link_channel_layers)
         
         self.visualization_type_rbuttons.changed.connect(self.update_viewer_transformations)
         self.viewer.dims.events.connect(self.update_viewer_transformations)
 
-        self.viewer.layers.events.inserted.connect(self.on_layer_inserted)
-        self.viewer.layers.events.removed.connect(self.on_layer_inserted)
+        self.viewer.layers.events.inserted.connect(self.on_layers_change)
+        self.viewer.layers.events.removed.connect(self.on_layers_change)
 
         self.button_stitch.clicked.connect(self.run_stitching)
         self.button_stabilize.clicked.connect(self.run_stabilization)
@@ -143,6 +143,8 @@ class StitcherQWidget(QWidget):
         """
         set transformations for current timepoint
         """
+
+        if self.source_identifier is None: return
 
         for l in self.viewer.layers:
 
@@ -214,7 +216,7 @@ class StitcherQWidget(QWidget):
             else: continue
 
 
-    def on_layer_inserted(self):
+    def on_layers_change(self):
         available_source_identifiers =\
             _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)
         self.source_identifier_picker.choices = [_utils.source_identifier_to_str(si)
@@ -376,7 +378,11 @@ class StitcherQWidget(QWidget):
 
 
     def load_metadata(self):
-        if self.source_identifier_picker.value is None: return
+        
+        if self.source_identifier_picker.value is None:
+            # self.container.enabled = False
+            # notifications.notification_manager.receive_info('No CZI file loaded.')
+            return
 
         curr_source_identifier = [si for si in _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)
             if _utils.source_identifier_to_str(si) == self.source_identifier_picker.value][0]
@@ -442,8 +448,8 @@ class StitcherQWidget(QWidget):
         self.viewer.layers.events.changed.disconnect(self.update_metadata)
         self.viewer.layers.events.inserted.disconnect(self.link_channel_layers)
         self.viewer.dims.events.disconnect(self.update_viewer_transformations)
-        self.viewer.layers.events.inserted.disconnect(self.on_layer_inserted)
-        self.viewer.layers.events.removed.disconnect(self.on_layer_inserted)
+        self.viewer.layers.events.inserted.disconnect(self.on_layers_change)
+        self.viewer.layers.events.removed.disconnect(self.on_layers_change)
 
 
 # simple widget to reload the plugin during development
@@ -479,10 +485,11 @@ if __name__ == "__main__":
 
     viewer = napari.Viewer()
     
-    viewer.open(filename)
     # viewer.open("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220609_WT_emb2_5X_part1_max.czi")
 
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
+
+    viewer.open(filename)
 
     napari.run()
