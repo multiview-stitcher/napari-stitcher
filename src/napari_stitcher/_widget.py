@@ -54,7 +54,7 @@ class StitcherQWidget(QWidget):
                 tooltip='Choose a file to process using napari-stitcher.')
 
         self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints:', enabled=False,
-            tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\(3, 5) means timepoints 4 and 5 are processed')
+            tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\n(3, 5) means timepoints 4 and 5 are processed')
         self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel:', enabled=False,
             tooltip='Channel to use for computing stitching and stabilization.')
 
@@ -445,7 +445,6 @@ class StitcherQWidget(QWidget):
         print('deleting widget')
 
         # clean up callbacks
-        self.viewer.layers.events.changed.disconnect(self.update_metadata)
         self.viewer.layers.events.inserted.disconnect(self.link_channel_layers)
         self.viewer.dims.events.disconnect(self.update_viewer_transformations)
         self.viewer.layers.events.inserted.disconnect(self.on_layers_change)

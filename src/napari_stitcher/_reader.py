@@ -159,7 +159,8 @@ def read_mosaic_czi(path, sample_index=None):
 
     return [(view_das[iview], # (T, C, (Z,) Y, X)
             {
-             'contrast_limits': [[0,255]] * len(channels),
+             'contrast_limits': [[np.iinfo(input_dtype).min,
+                                  np.iinfo(input_dtype).max]] * len(channels),
              'name': [_utils.get_layer_name_from_view_and_ch(iview, ch)
                         for ch in channels],
              'colormap': 'gray_r',
