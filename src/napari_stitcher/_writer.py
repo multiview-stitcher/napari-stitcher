@@ -45,28 +45,14 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
         raise ValueError('Only saving of fused images is supported.')
 
     # spacing = data[0][1]['metadata']['stack_props']['spacing']
-    times = data[0][1]['metadata']['times']
-    channels = range(len(data))
+    # times = data[0][1]['metadata']['times']
+    # channels = range(len(data))
 
     # suboptimal way of handling the physical pixel sizes
     views = list(data[0][1]['metadata']['view_dict'].keys())
     physical_pixel_sizes = data[0][1]['metadata']['view_dict'][views[0]]["physical_pixel_sizes"]
 
     array_to_write = da.stack([d[0].squeeze() for d in data])
-
-    # axes = 'TCYX'[-array_to_write.ndim:]
-    # # chunk_shape = tuple([1] * (array_to_write.ndim - 2)) + array_to_write.shape[-2:]
-    # chunk_shape = tuple([1] * (array_to_write.ndim - 2)) + array_to_write.shape[-2:]
-
-    # axes = 'YX'
-    # if len(channels) > 1:
-    #     axes = 'C' + axes
-    #     chunk_shape = array_to_write.shape
-    #     chunk_shape = (1, ) + array_to_write.shape[1:]
-    # if len(times) > 1:
-    #     array_to_write = da.swapaxes(array_to_write, 0, 1)
-    #     axes = 'T' + axes
-    #     chunk_shape = (1, ) + array_to_write.shape[1:]
 
     # currently hard coded and only 2d supported
     if array_to_write[0].ndim > 2:
@@ -90,8 +76,6 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
     # input dask array contains axes order 'ctyx'
     # output tiff file should have axes order 'tcyx'
     array_to_write = array_to_write.rechunk(chunk_shape)
-
-    # import pdb; pdb.set_trace()
 
     imwrite(
         path,
