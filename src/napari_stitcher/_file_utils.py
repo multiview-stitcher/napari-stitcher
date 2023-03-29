@@ -3,23 +3,23 @@ from aicspylibczi import CziFile
 from aicsimageio import AICSImage
 
 
-def get_dims_from_multitile_czi(filename, sample_index=0):
+def get_dims_from_multitile_czi(filename, scene_index=0):
 
     czi = CziFile(filename)
     dims_list = czi.get_dims_shape()
 
     # https://allencellmodeling.github.io/aicspylibczi/_modules/aicspylibczi/CziFile.html#CziFile.get_dims_shape
     for dims in dims_list:
-        if sample_index in range(*dims['S']):
+        if scene_index in range(*dims['S']):
             return dims
     else:
-        raise ValueError('sample_index out of range')
+        raise ValueError('scene_index out of range')
 
 
-def build_view_dict_from_multitile_czi(filename, sample_index=0, max_project=True):
+def build_view_dict_from_multitile_czi(filename, scene_index=0, max_project=True):
 
     czi = CziFile(filename)
-    dims = get_dims_from_multitile_czi(filename, sample_index=sample_index)
+    dims = get_dims_from_multitile_czi(filename, scene_index=scene_index)
 
     ntiles = dims['M'][1]
     z_shape = dims['Z'][1]
@@ -53,7 +53,7 @@ def build_view_dict_from_multitile_czi(filename, sample_index=0, max_project=Tru
                   'physical_pixel_sizes': physical_pixel_sizes,
                   'filename': filename,
                   'view': itile,
-                  'sample_index': sample_index,
+                  'scene_index': scene_index,
                   }
             for itile, o in zip(range(ntiles), origins)}
 

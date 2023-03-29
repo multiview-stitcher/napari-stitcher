@@ -6,6 +6,7 @@ implement multiple readers or even other plugin contributions. see:
 https://napari.org/stable/plugins/guides.html?#readers
 """
 import numpy as np
+import xarray as xr
 
 from mvregfus.image_array import ImageArray
 from mvregfus import io_utils, mv_utils
@@ -14,6 +15,7 @@ import dask.array as da
 from dask import delayed
 
 from aicspylibczi import CziFile
+from aicsimageio import AICSImage
 
 from napari_stitcher import _utils, _file_utils
 
@@ -46,9 +48,72 @@ def napari_get_reader(path):
         return read_mosaic_czi
     else:
         return None
+    
+
+def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
+    """
+    Read CZI mosaic dataset into xarray containing all information needed for stitching.
+    Could eventually be based on https://github.com/spatial-image/spatial-image.
+    Use list instead of dict to make sure xarray metadata (coordinates + perhaps attrs)
+    are self explanatory for downstream code (and don't depend e.g. on view/tile numbering).
+    """
+
+    aicsim = AICSImage(path, reconstruct_mosaic=False)
+
+    if len(aicsim.scenes) > 1:
+        from magicgui.widgets import request_values
+        scene_index = request_values(
+            scene_index=dict(annotation=int,
+                        label="Which scene should be loaded?",
+                        options={'min': 0, 'max': len(aicsim.scenes) - 1}),
+            )['scene_index']
+        aicsim.set_scene(scene_index)
+    else:
+        scene_index = 0
+
+    xim =  aicsim.get_xarray_dask_stack()
+    xim = xim.sel(I=scene_index)
+
+    for axis in ['Z', 'T']:
+        if axis in xim.dims and len(xim.coords[axis]) < 2:
+            xim = xim.sel({axis: 0}, drop=True)
+
+    views = range(len(xim.coords['M']))
+    
+    pixel_sizes = aicsim.physical_pixel_sizes._asdict()
+
+    spatial_axes = [axis for axis in ['Z','Y','X'] if axis in xim.dims]
+
+    view_xims = []
+    for view in views:
+
+        view_xim = xim.sel(M=view)
+
+        tile_mosaic_position = aicsim.get_mosaic_tile_position(view)
+        origin = {mosaic_axis: tile_mosaic_position[ima]
+                  for ima, mosaic_axis in enumerate(['Y', 'X'])}
+        if 'Z' in spatial_axes:
+            origin['Z'] = 0
+        
+        spacing = {axis: pixel_sizes[axis] for axis in spatial_axes}
+
+        for axis in spatial_axes:
+            view_xim.assign_coords({axis: view_xim.coords[axis] + origin[axis]})
+            view_xim.assign_coords({axis: view_xim.coords[axis] * spacing[axis]})
+
+        view_xim.attrs.update(dict(
+            spacing = spacing,
+            origin = origin,
+            scene_index=scene_index,
+            spatial_axes=spatial_axes,
+        ))
+
+        view_xims.append(view_xim)
+
+    return view_xims
 
 
-def read_mosaic_czi(path, sample_index=None):
+def read_mosaic_czi(path, scene_index=None):
     """
     
     Read in tiles as layers.
@@ -77,116 +142,122 @@ def read_mosaic_czi(path, sample_index=None):
     # handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
-    max_project = False
-    # dims = io_utils.get_dims_from_multitile_czi(paths[0])
-    czi = CziFile(paths[0])
-
-    if czi.pixel_type == 'gray8':
-        input_dtype = 'uint8'
-    else:
-        input_dtype = 'uint16'
-
-    # determine number of samples
-    dims = czi.get_dims_shape()
-    n_samples = 0
-    for dim in dims:
-        n_samples = dim['S'][1]
-
-    # ask for sample_index when several are available
-    if sample_index is None:
-        if n_samples == 1:
-            sample_index = 0
-        else:
-            from magicgui.widgets import request_values
-            sample_index = request_values(
-                sample_index=dict(annotation=int,
-                            label="Which sample should be loaded?",
-                            options={'min': 0, 'max': n_samples - 1}),
-                )['sample_index']
+    view_xims = read_mosaic_czi_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
         
-    dims = _file_utils.get_dims_from_multitile_czi(paths[0], sample_index=sample_index)
-
-    view_dict = io_utils.build_view_dict_from_multitile_czi(paths[0], max_project=max_project, S=sample_index)
-    views = np.array([view for view in sorted(view_dict.keys())])
-
-    if max_project or int(dims['Z'][1] <= 1):
-        ndim = 2
-    else:
-        ndim = 3
-
-    channels = range(dims['C'][0], dims['C'][1])
-    times = range(dims['T'][0], dims['T'][1])
-
-    view_das = []
-    for vdv in view_dict.values():
-        view_das.append(
-                da.stack([
-                    da.stack([
-                        da.from_delayed(delayed(
-                            # io_utils.read_tile_from_multitile_czi
-                            get_tile_from_multitile_czi
-                            )
-                                (vdv['filename'],
-                                    vdv['view'],
-                                    ch,
-                                    time_index=t,
-                                    sample_index=sample_index,
-                                    max_project=max_project,
-                                    origin=vdv['origin'],
-                                    spacing=vdv['spacing'],
-                                    ),
-                        shape=tuple(vdv['shape']),
-                        dtype=np.dtype(input_dtype),
-                        )
-                    for ch in channels])
-                for t in times])
-        )
-
-    # if ndim == 2:
-    #     view_das = [view_da[:, :, None] for view_da in view_das]
-
-    # set target stack properties to those of first view
-    stack_props = view_dict[0]
-    view_stack_props = view_dict
-
-    # assume identity transf parameters
-    transf_params = [mv_utils.matrix_to_params(np.eye(ndim+1)) for i in range(len(views))]
-    ps = [_utils.params_to_napari_affine(p, stack_props, view_stack_props[iview])
-            for iview, p in enumerate(transf_params)]  
-
     layer_type = "image"
-    file_id = time.time()
 
-    return [(view_das[iview], # (T, C, (Z,) Y, X)
-            {
-             'contrast_limits': [[np.iinfo(input_dtype).min,
-                                  np.iinfo(input_dtype).max]] * len(channels),
-             'name': [_utils.get_layer_name_from_view_and_ch(iview, ch)
-                        for ch in channels],
-             'colormap': 'gray_r',
-             'colormap': ['red', 'green'][iview%2],
-             'gamma': 0.6,
-             'channel_axis': 1,
-             'affine': ps[iview],
-             'cache': False,
-             'metadata': {
-                          'napari_stitcher_reader_function': 'read_mosaic_czi',
-                          'load_id': file_id,
-                          'stack_props': stack_props,
-                          'view_dict': view_dict[iview],
-                          'view': iview,
-                          'ndim': ndim,
-                        #   'source_file': path,
-                        #   'parameter_type': 'metadata',
-                          'sample_index': sample_index,
-                          'times': times,
-                          'dtype': input_dtype,
-                        #   'axis_labels': 'TCZYX',
-                          },
-             'blending': 'additive',
-             },
-            layer_type)
-                for iview, view in enumerate(views)][:]
+    out_layers = []
+    for iview, view_xim in enumerate(view_xims):
+
+        for ch_coord in view_xim.coords['C']:
+
+            view_ch_xim = view_xim.sel(C=ch_coord)
+
+            out_layers.append(
+                (view_ch_xim,
+                {
+                'contrast_limits': [np.iinfo(view_ch_xim.dtype).min,
+                                    np.iinfo(view_ch_xim.dtype).max],
+                'name': _utils.get_layer_name_from_view_and_ch_name(iview,
+                                                                    str(ch_coord.data)),
+                'colormap': 'gray_r',
+                'colormap': ['red', 'green'][iview%2],
+                'gamma': 0.6,
+                'scale': [view_ch_xim.attrs['spacing'][ax] for ax in view_ch_xim.attrs['spatial_axes']],
+                'translate': [view_ch_xim.attrs['origin'][ax] * view_ch_xim.attrs['spacing'][ax]
+                            for ax in view_ch_xim.attrs['spatial_axes']],
+                'cache': True,
+                'metadata': {
+                            'napari_stitcher_reader_function': 'read_mosaic_czi',
+                            'scene_index': scene_index,
+                            'channel_name': str(ch_coord.data),
+                            },
+                'blending': 'additive',
+                },
+                layer_type)
+            )
+
+    return out_layers
+
+    # for view in views:
+
+    #     aff = xr.DataArray(
+    #         data=np.diag([pixel_sizes[axis] for axis in spatial_axes] + [1]),
+    #         dims=['x_out', 'x_in'],
+    #         coords=dict(
+    #             x_in=affine_coords,
+    #             x_out=affine_coords,
+    #         )
+    #     )
+
+    #     tile_mosaic_position = aicsim.get_mosaic_tile_position(view)
+    #     for ima, mosaic_axis in enumerate(['Y', 'X']):
+
+    #         aff[
+    #             dict(x_in=np.where(aff.coords['x_in'].data=='offset')[0][0],
+    #                  x_out=np.where(aff.coords['x_out'].data==mosaic_axis)[0][0])
+    #                  ] = tile_mosaic_position[ima] * pixel_sizes[mosaic_axis]
+
+    #     affine_transforms[view] = aff
+
+    # world_transforms = dict()
+    # from napari.utils.transforms import Affine
+    # world_transforms = {view: Affine(affine_matrix=affine_transforms[view].data)
+    #                     for view in views}
+
+
+    # layer_type = "image"
+    # file_id = time.time()
+
+    # out_layers = []
+    # for view in views:
+    #     for ch_coord in xim.coords['C']:
+
+    #         layer_xim = xim.sel(M=view, C=ch_coord)
+    #         layer_xim.attrs.update(dict(
+    #             spacing={pixel_sizes[axis] for axis in spatial_axes},
+    #             origin={},
+    #         )
+    #         )
+
+    #         # import pdb; pdb.set_trace()
+
+    #         out_layers.append(
+    #             (layer_xim,
+    #         {
+    #          'contrast_limits': [np.iinfo(xim.dtype).min,
+    #                              np.iinfo(xim.dtype).max],
+    #          'name': _utils.get_layer_name_from_view_and_ch_name(view,
+    #                                                              str(ch_coord.data)),
+    #          'colormap': 'gray_r',
+    #          'colormap': ['red', 'green'][view%2],
+    #          'gamma': 0.6,
+    #          'affine': world_transforms[view].expand_dims(
+    #             layer_xim.get_axis_num([axis for axis in layer_xim.dims
+    #                               if axis not in spatial_axes])),
+    #          'cache': False,
+    #          'metadata': {
+    #                       'napari_stitcher_reader_function': 'read_mosaic_czi',
+    #                       'load_id': file_id,
+    #                     #   'stack_props': stack_props,
+    #                     #   'view_dict': view_dict[view],
+    #                     #   'view': view,
+    #                     #   'ndim': ndim,
+    #                     #   'source_file': path,
+    #                     #   'parameter_type': 'metadata',
+    #                       'scene_index': scene_index,
+    #                     #   'times': times,
+    #                     #   'dtype': input_dtype,
+    #                     #   'axis_labels': 'TCZYX',
+    #                       'channel_name': str(ch_coord.data),
+    #                       'data2world': affine_transforms[view],
+    #                       },
+    #          'blending': 'additive',
+    #          },
+    #         layer_type)
+    #         )
+
+    # return out_layers
 
 
 def get_tile_from_multitile_czi(filename,
@@ -220,12 +291,22 @@ def get_tile_from_multitile_czi(filename,
 
 
 if __name__ == "__main__":
-    # tmp = czi_reader_function("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi")
-    # fn = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st4+_x40_zoom0_5_5x5_488ZO1-568Sox2-647Tbra-max.czi"
-    fn = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
-    # fn = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
-    tmp = read_mosaic_czi(fn)
 
-    io_utils.build_view_dict_from_multitile_czi(fn, max_project=False, S=0)
+    import napari
+    # from napari_stitcher import StitcherQWidget
 
-    ar = tmp[0][0].compute()
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
+
+    viewer = napari.Viewer()
+    
+    # viewer.open("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220609_WT_emb2_5X_part1_max.czi")
+
+    # wdg = StitcherQWidget(viewer)
+    # viewer.window.add_dock_widget(wdg)
+
+    viewer.open(filename)
+
+    napari.run()

@@ -109,7 +109,6 @@ class StitcherQWidget(QWidget):
                             self.fusion_widgets
                             )
 
-        # self.container.native.maximumWidth = 50
         self.container.native.setMinimumWidth = 50
 
         self.layout().addWidget(self.container.native)
@@ -125,7 +124,6 @@ class StitcherQWidget(QWidget):
         self.link_channel_layers()
 
         # link callbacks
-        self.button_fuse.clicked.connect(self.run_fusion)
         self.source_identifier_picker.changed.connect(self.load_metadata)
         self.viewer.layers.events.inserted.connect(self.link_channel_layers)
         
@@ -137,6 +135,7 @@ class StitcherQWidget(QWidget):
 
         self.button_stitch.clicked.connect(self.run_stitching)
         self.button_stabilize.clicked.connect(self.run_stabilization)
+        self.button_fuse.clicked.connect(self.run_fusion)
 
 
     def update_viewer_transformations(self):
@@ -260,6 +259,7 @@ class StitcherQWidget(QWidget):
 
     def run_stitching(self):
 
+        
         pairs = mv_utils.get_registration_pairs_from_view_dict(self.view_dict)
 
         pair_has_overlap = []
@@ -398,7 +398,7 @@ class StitcherQWidget(QWidget):
             return
 
         self.dims = _file_utils.get_dims_from_multitile_czi(self.source_identifier['filename'],
-                                                            self.source_identifier['sample_index'])
+                                                            self.source_identifier['scene_index'])
         
         self.times_slider.min, self.times_slider.max = self.dims['T'][0] - 1, self.dims['T'][1] - 1
         # self.times_slider.value = (self.dims['T'][0] - 1, self.dims['T'][0])
@@ -414,13 +414,15 @@ class StitcherQWidget(QWidget):
                     sw.enabled = True
             w.enabled = True
 
-        max_project = False
+        # max_project = False
 
-        self.view_dict = _file_utils.build_view_dict_from_multitile_czi(
-            filename=self.source_identifier['filename'],
-            sample_index=self.source_identifier['sample_index'],
-            max_project=max_project)
-        self.views = np.array([view for view in sorted(self.view_dict.keys())])
+        # self.view_dict = _file_utils.build_view_dict_from_multitile_czi(
+        #     filename=self.source_identifier['filename'],
+        #     scene_index=self.source_identifier['scene_index'],
+        #     max_project=max_project)
+        
+        # self.views = sorted([l.metadata['view'] for l in self.viewer.layers
+        #                      if _utils.layer_coincides_with_source_identifier(l, self.source_identifier)])
 
 
     def link_channel_layers(self):

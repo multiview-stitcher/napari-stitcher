@@ -149,16 +149,16 @@ def get_source_path_from_viewer(viewer):
 
 
 def source_identifier_to_str(source_identifier):
-    return f"File: {os.path.basename(source_identifier['filename'])} (Sample: {source_identifier['sample_index']})"
+    return f"File: {os.path.basename(source_identifier['filename'])} (Sample: {source_identifier['scene_index']})"
 
 
 def str_to_source_identifier(string):
     # use regex to extract filename and sample index
     # regex to match filename from e.g. 'File: /home/.../sample_1.czi (Sample: 1)'
     filename = re.search(r'File: (.*) \(Sample: \d+\)', string).group(1)
-    sample_index = int(re.search(r'File: .*\ \(Sample: (\d+)\)', string).group(1))
+    scene_index = int(re.search(r'File: .*\ \(Sample: (\d+)\)', string).group(1))
 
-    return {'filename': filename, 'sample_index': sample_index}
+    return {'filename': filename, 'scene_index': scene_index}
 
 
 def layer_was_loaded_by_own_reader(layer):
@@ -171,7 +171,7 @@ def layer_was_loaded_by_own_reader(layer):
 
 def layer_coincides_with_source_identifier(layer, source_identifier):
     if layer.source.path == source_identifier['filename'] and\
-        layer.metadata['sample_index'] == source_identifier['sample_index']:
+        layer.metadata['scene_index'] == source_identifier['scene_index']:
         return True
     else:
         return False
@@ -183,7 +183,7 @@ def get_list_of_source_identifiers_from_layers(layers):
     for l in layers:
         if layer_was_loaded_by_own_reader(l):
             source_identifier = {'filename': l.source.path,
-                                 'sample_index': l.metadata['sample_index']}
+                                 'scene_index': l.metadata['scene_index']}
             source_identifiers.append(source_identifier)
 
     return source_identifiers
@@ -193,6 +193,10 @@ def get_layer_name_from_view_and_ch(view=0, ch=0):
     return 'tile_%03d' %view + '_ch_%03d' %ch
 
 
+def get_layer_name_from_view_and_ch_name(view=0, ch='unnamed'):
+    return 'tile_%03d' %view + '_ch_%s' %ch
+
+
 def get_view_from_layer(layer):
     return layer.metadata['view']
 
@@ -200,8 +204,10 @@ def get_view_from_layer(layer):
 import re
 def get_ch_from_layer(layer):
 
+    return layer.metadata['channel_name']
+
     # regex to match ch from e.g. 'view_008_ch_002_ [0]'
-    return int(re.search(r'_ch_(\d+)', layer.name).group(1))
+    # return int(re.search(r'_ch_(\d+)', layer.name).group(1))
 
 
 def get_layers_from_source_identifier_and_view(layers, source_identifier, view):
@@ -220,12 +226,18 @@ def get_layer_from_source_identifier_view_and_ch(layers, source_identifier, view
             return l
 
 
-def params_to_napari_affine(params, stack_props, view_stack_props):
+def params_to_napari_affine(params):
 
     """
+    params: Transformation from image data pixel space to physical space.
+            This is the transform that makes napari display layer data in world coordinates.
+
+    See https://napari.org/stable/guides/3D_interactivity.html
+
     y = Ax+c
     y=sy*yp+oy
     x=sx*xp+ox
+
     sy*yp+oy = A(sx*xp+ox)+c
     yp = syi * A*sx*xp + syi  *A*ox +syi*(c-oy)
     A' = syi * A * sx
@@ -234,10 +246,11 @@ def params_to_napari_affine(params, stack_props, view_stack_props):
 
     p = mv_utils.params_to_matrix(params)
 
-    ndim = len(stack_props['spacing'])
+    ndim = len(p) - 1
 
     sx = np.diag(list((stack_props['spacing'])))
     sy = np.diag(list((view_stack_props['spacing'])))
+
     syi = np.linalg.inv(sy)
     p[:ndim, ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], stack_props['origin'])) \
                 + np.dot(syi, (p[:ndim, ndim] - view_stack_props['origin']))

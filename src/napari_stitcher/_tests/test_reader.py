@@ -1,7 +1,19 @@
 import numpy as np
 from pathlib import Path
 
-from napari_stitcher import napari_get_reader
+from napari_stitcher import napari_get_reader, _reader
+
+def test_read_mosaic_czi_into_list_of_spatial_xarrays():
+
+    test_path = str(Path(__file__).parent.parent.parent.parent /\
+                             "image-datasets" / "mosaic_test.czi")
+    
+    view_xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(test_path)
+
+    assert(2, len(view_xims))
+    assert(min([ax in view_xims[0].dims for ax in ['X', 'Y']]))
+
+    return
 
 
 # tmp_path is a pytest fixture
