@@ -5,7 +5,7 @@ from napari_stitcher import napari_get_reader
 
 
 # tmp_path is a pytest fixture
-def test_reader(tmp_path):
+def test_reader():
     """An example of how you might test your plugin."""
 
     test_path = str(Path(__file__).parent.parent.parent.parent /\
