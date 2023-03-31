@@ -189,12 +189,12 @@ def get_list_of_source_identifiers_from_layers(layers):
     return source_identifiers
 
 
-def get_layer_name_from_view_and_ch(view=0, ch=0):
-    return 'tile_%03d' %view + '_ch_%03d' %ch
+# def get_layer_name_from_view_and_ch(view=0, ch=0):
+#     return 'tile_%03d' %view + '_ch_%03d' %ch
 
 
-def get_layer_name_from_view_and_ch_name(view=0, ch='unnamed'):
-    return 'tile_%03d' %view + '_ch_%s' %ch
+# def get_layer_name_from_view_and_ch_name(view=0, ch='unnamed'):
+#     return 'tile_%03d' %view + '_ch_%s' %ch
 
 
 def get_view_from_layer(layer):
