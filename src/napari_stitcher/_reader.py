@@ -150,6 +150,8 @@ def create_image_layer_tuple_from_spatial_xim(xim,
         {
         'contrast_limits': [np.iinfo(xim.dtype).min,
                             np.iinfo(xim.dtype).max],
+        # 'contrast_limits': [np.iinfo(xim.dtype).min,
+        #                     30],
         'name': name,
         'colormap': colormap,
         'gamma': 0.6,
@@ -197,7 +199,7 @@ def read_mosaic_czi(path, scene_index=None):
     view_xims = read_mosaic_czi_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
 
     # get colors from graph analysis
-    mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(view_xims)
+    mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(view_xims, expand=True)
     colors = nx.coloring.greedy_color(mv_graph)
     
     # import pdb; pdb.set_trace()
@@ -225,9 +227,10 @@ if __name__ == "__main__":
 
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
 
 
     viewer = napari.Viewer()

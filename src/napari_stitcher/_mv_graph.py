@@ -3,7 +3,7 @@ import networkx as nx
 import xarray as xr
 
 
-def build_view_adjacency_graph_from_xims(xims):
+def build_view_adjacency_graph_from_xims(xims, expand=False):
     """
     Build graph representing view overlap relationships from list of xarrays.
     Will be used for
@@ -22,7 +22,7 @@ def build_view_adjacency_graph_from_xims(xims):
             
             # if iview1 == 0 and iview2 == 8:
             #     import pdb; pdb.set_trace()
-            overlap = get_overlap_between_pair_of_xims(xim1, xim2)
+            overlap = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand)
             
             if overlap > 0:
                 g.add_edge(iview1, iview2, overlap=overlap)
@@ -30,7 +30,7 @@ def build_view_adjacency_graph_from_xims(xims):
     return g
 
 
-def get_overlap_between_pair_of_xims(xim1, xim2):
+def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
 
     """
     How to handle T?
@@ -45,6 +45,15 @@ def get_overlap_between_pair_of_xims(xim1, xim2):
     x2_i, x2_f = np.array([[xim2.coords[dim][index].data
                             for dim in spatial_dims]
                             for index in [0, -1]])
+    
+    # expand limits so that in case of no overlap the neighbours are shown
+    a = 10
+    if expand:
+        x1_i = x1_i - a * xim1.attrs['spacing'].data
+        x2_i = x2_i - a * xim2.attrs['spacing'].data
+
+        x1_f = x1_f + a * xim1.attrs['spacing'].data
+        x2_f = x2_f + a * xim2.attrs['spacing'].data
 
     dim_overlap_opt1 = (x1_f >= x2_i) * (x1_f <= x2_f)
     dim_overlap_opt2 = (x2_f >= x1_i) * (x2_f <= x1_f)
