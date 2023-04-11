@@ -22,6 +22,7 @@ def test_overlap():
     
     return
 
+
 def test_mv_graph_creation():
 
     view_xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
@@ -35,3 +36,21 @@ def test_mv_graph_creation():
     # import pdb; pdb.set_trace()
     
     return
+
+
+def test_get_pairs():
+
+    view_xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
+        _sample_data.get_sample_data_path())
+    
+    mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(view_xims)
+
+    pairs = _mv_graph.get_registration_pairs_from_overlap_graph(mv_graph,
+                    method='shortest_paths_considering_overlap')
+    
+    assert(len(pairs) == 1)
+
+    pairs = _mv_graph.get_registration_pairs_from_overlap_graph(mv_graph,
+                    method='percentile')
+    
+    assert(len(pairs) == 1)

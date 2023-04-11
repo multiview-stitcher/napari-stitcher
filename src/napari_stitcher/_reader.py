@@ -18,7 +18,7 @@ from dask import delayed
 from aicspylibczi import CziFile
 from aicsimageio import AICSImage
 
-from napari_stitcher import _utils, _file_utils, _mv_graph
+from napari_stitcher import _utils, _file_utils, _mv_graph, _spatial_image_utils
 
 import time
 
@@ -61,7 +61,7 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
 
     aicsim = AICSImage(path, reconstruct_mosaic=False)
 
-    if len(aicsim.scenes) > 1:
+    if len(aicsim.scenes) > 1 and scene_index is None:
         from magicgui.widgets import request_values
         scene_index = request_values(
             scene_index=dict(annotation=int,
@@ -101,18 +101,19 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
                               dims=['dim'],
                               coords={'dim': spatial_dims})
         
-        spacing = xr.DataArray([pixel_sizes[dim] for dim in spatial_dims],
-                              dims=['dim'],
-                              coords={'dim': spatial_dims})
+        # spacing = xr.DataArray([pixel_sizes[dim] for dim in spatial_dims],
+        #                       dims=['dim'],
+        #                       coords={'dim': spatial_dims})
         
         for dim in spatial_dims:
             view_xim = view_xim.assign_coords({dim: view_xim.coords[dim] + origin.loc[dim]})
 
         view_xim.attrs.update(dict(
-            spacing = spacing,
-            origin = origin,
+            # spacing = spacing,
+            # origin = origin,
             scene_index=scene_index,
             spatial_dims=spatial_dims,
+            source=path,
         ))
 
         view_xims.append(view_xim)
@@ -140,11 +141,11 @@ def create_image_layer_tuple_from_spatial_xim(xim,
 
     metadata = \
         {
-        # 'napari_stitcher_reader_function': 'read_mosaic_czi',
+        'napari_stitcher_reader_function': 'read_mosaic_czi',
         # 'channel_name': ch_name,
         }
     
-    metadata['xr_attrs'] = xim.attrs.copy()
+    # metadata['xr_attrs'] = xim.attrs.copy()
 
     kwargs = \
         {
@@ -155,10 +156,15 @@ def create_image_layer_tuple_from_spatial_xim(xim,
         'name': name,
         'colormap': colormap,
         'gamma': 0.6,
-        'scale': [xim.attrs['spacing'].loc[dim]
-                  for dim in xim.attrs['spatial_dims']],
-        'translate': [xim.attrs['origin'].loc[dim]
-                    for dim in xim.attrs['spatial_dims']],
+        # 'scale': [
+        #     # xim.attrs['spacing'].loc[dim]
+        #     xim.coords[dim][1] - xim.coords[dim][0]
+        #           for dim in xim.attrs['spatial_dims']],
+        # 'translate': [
+        #     # xim.attrs['origin'].loc[dim]
+        #     xim.coords[dim][0]
+        #             for dim in xim.attrs['spatial_dims']],
+        'affine': _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(xim),
         'cache': True,
         'blending': 'additive',
         'metadata': metadata,
@@ -230,7 +236,8 @@ if __name__ == "__main__":
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
 
 
     viewer = napari.Viewer()

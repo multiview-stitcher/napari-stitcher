@@ -1,4 +1,5 @@
 import numpy as np
+import xarray as xr
 from scipy import ndimage
 import skimage
 from tqdm import tqdm
@@ -7,7 +8,9 @@ from dask import delayed
 import dask.array as da
 
 from mvregfus import mv_utils, multiview
-# from mvregfus.image_array import ImageArray
+from mvregfus.image_array import ImageArray
+
+from napari_stitcher import _spatial_image_utils, _mv_graph
 
 
 def apply_recursive_dict(func, d):
@@ -26,72 +29,143 @@ def bin_views(view_ims, registration_binning):
             view_ims)
 
 
-def register_tiles(
-                   view_reg_ims: dict,
-                   view_dict: dict,
-                   pairs: list,
-                   reg_channel: int,
-                   times: list,
+def bin_xim(xim, registration_binning):
+    return xr.apply_ufunc(mv_utils.bin_stack, xim, registration_binning,
+                   input_core_dims=_spatial_image_utils.get_spatial_dims_from_xim(xim),
+                   output_core_dims=_spatial_image_utils.get_spatial_dims_from_xim(xim),
+                   )
+
+
+def register_pair_of_spatial_images(
+                   xims: list,
                    registration_binning = None,
-                   ref_view_index = 0,
                    ) -> dict:
     """
-    Register tiles in a view_dict.
+    Register input spatial images. Assume there's no C and T.
 
-    Use dask.distributed in combination with dask.delayed to do so.
-
-    Return: dict of transform parameters for each tp and view
+    Return: Transform in homogeneous coordinates
     """
 
-
-    # ndim = len(view_dict[list(view_dict.keys())[0]]['spacing'])
-    input_channels = sorted(view_reg_ims.keys())
-    input_times = sorted(view_reg_ims[input_channels[0]].keys())
-    views = sorted(view_reg_ims[input_channels[0]][input_times[0]].keys())
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
 
     if registration_binning is not None:
-        view_reg_ims = bin_views(view_reg_ims, registration_binning)
+        rxims = [xim.coarsen({dim: registration_binning[dim] for dim in spatial_dims},
+                             boundary="trim").mean().astype(xim.dtype) for xim in xims]
+    else:
+        rxims = xims
+        
+    ims = []
+    for rxim in rxims:
+        origin = _spatial_image_utils.get_origin_from_xim(rxim)
+        spacing = _spatial_image_utils.get_spacing_from_xim(rxim)
+        ims.append(
+            delayed(ImageArray)(rxim.data,
+                       origin=[origin[dim] for dim in spatial_dims],
+                       spacing=[spacing[dim] for dim in spatial_dims])
+        )
 
-    apply_recursive_dict(lambda x: print(x.compute().get_info()), view_reg_ims)
+    p = delayed(multiview.register_linear_elastix)(
+            ims[0], ims[1],
+            None,
+            '',
+            f'',
+            None,
+            )
+    
+    p = delayed(mv_utils.params_to_matrix)(p)
 
-    # perform pairwise registrations
-    pair_ps = {t: {(view1, view2):
-                        delayed(multiview.register_linear_elastix)
-                                 (view_reg_ims[reg_channel][t][view1],
-                                  view_reg_ims[reg_channel][t][view2],
-                                #  (
-                                # delayed(ImageArray)(view_reg_ims[reg_channel][t][view1],
-                                #         spacing=view_dict[view1]['spacing'],
-                                #         origin=view_dict[view1]['origin']),
-                                #   delayed(ImageArray)(view_reg_ims[reg_channel][t][view2],
-                                #              spacing=view_dict[view2]['spacing'],
-                                #              origin=view_dict[view2]['origin']),
-                                  -1, #degree
-                                  None,
-                                  '',
-                                  f'{view1}_{view2}',
-                                  None
-                                 )
-                for view1, view2 in pairs}
-            for t in times}
+    return p
 
-    # get final transform parameters
-    ps = {t: delayed(multiview.get_params_from_pairs)(
-                                views[ref_view_index],
-                                pairs,
-                                [pair_ps[t][(v1,v2)] for v1, v2 in pairs],
-                                None, # time_alignment_params
-                                True, # consider_reg_quality
-                                [view_reg_ims[reg_channel][t][view] for view in views],
-                                {view: iview for iview, view in enumerate(views)}
-                                )
-            for t in times}
 
-    ps = {t: delayed(lambda x: {view: x[iview] for iview, view in enumerate(views)})
-                (ps[t])
-            for t in times}
+def register_graph(
+        g,
+        registration_binning = None,
+        ) -> dict:
+    
+    """
+    - get shortest paths between all views and the reference view (deambiguate with largest overlap)
+    - register all pairs of views along the shortest paths
+    - return the graph with the transforms (new edges containing final transforms?)
+    """
 
-    return ps
+    pairs = _mv_graph.get_registration_pairs_from_overlap_graph(g,
+                    method='shortest_paths_considering_overlap')
+    
+    # register all pairs of views along the shortest paths
+    transforms = {pair:
+        register_pair_of_spatial_images(
+            [g.nodes[pair[0]]['xim'], g.nodes[pair[1]]['xim']],
+            registration_binning=registration_binning,
+        )
+            for pair in pairs}
+    
+    # make sure all transforms are computed before going further
+    # is this the right way?
+    transforms = delayed(transforms)
+    
+    # return the graph with the transforms (new edges containing final transforms?)
+    gd = g.to_directed()
+    for pair, transform in transforms.items():
+        gd.edges[pair]['transform'] = transforms[pair]
+
+    return delayed(gd)
+
+# def register_
+
+#     ds_xims = xr.merge([xim.rename({dim: "%s_%s" %(dim, ixim)
+#                                     for dim in spatial_dims}).to_dataset(name='im%s' %ixim)
+#                         for ixim, xim in enumerate(xims[:2])])
+    
+    # xr.apply_ufunc(lambda x: x,
+    #                ds_xims.sel(C=ds_xims.coords['C'][0]),
+    #                dask='allowed',
+    #             #    input_core_dims=[['%s_%s' %(dim, iim)  for iim in range(2) for dim in spatial_dims]],
+    #                input_core_dims=[['T']],
+    #                output_core_dims=('M1', 'M2'),
+    #                )
+
+    # delayed(multiview.register_linear_elastix)(
+    #     ImageArray()
+    # )
+
+    # # perform pairwise registrations
+    # pair_ps = {t: {(view1, view2):
+    #                     delayed(multiview.register_linear_elastix)
+    #                              (view_reg_ims[reg_channel][t][view1],
+    #                               view_reg_ims[reg_channel][t][view2],
+    #                             #  (
+    #                             # delayed(ImageArray)(view_reg_ims[reg_channel][t][view1],
+    #                             #         spacing=view_dict[view1]['spacing'],
+    #                             #         origin=view_dict[view1]['origin']),
+    #                             #   delayed(ImageArray)(view_reg_ims[reg_channel][t][view2],
+    #                             #              spacing=view_dict[view2]['spacing'],
+    #                             #              origin=view_dict[view2]['origin']),
+    #                               -1, #degree
+    #                               None,
+    #                               '',
+    #                               f'{view1}_{view2}',
+    #                               None
+    #                              )
+    #             for view1, view2 in pairs}
+    #         for t in times}
+
+    # # get final transform parameters
+    # ps = {t: delayed(multiview.get_params_from_pairs)(
+    #                             views[ref_view_index],
+    #                             pairs,
+    #                             [pair_ps[t][(v1,v2)] for v1, v2 in pairs],
+    #                             None, # time_alignment_params
+    #                             True, # consider_reg_quality
+    #                             [view_reg_ims[reg_channel][t][view] for view in views],
+    #                             {view: iview for iview, view in enumerate(views)}
+    #                             )
+    #         for t in times}
+
+    # ps = {t: delayed(lambda x: {view: x[iview] for iview, view in enumerate(views)})
+    #             (ps[t])
+    #         for t in times}
+
+    # return ps
 
 
 def correct_random_drift(ims, reg_ch=0, zoom_factor=10, particle_reinstantiation_stepsize=30, sigma_t=3):

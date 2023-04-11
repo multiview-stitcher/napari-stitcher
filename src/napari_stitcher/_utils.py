@@ -171,7 +171,8 @@ def layer_was_loaded_by_own_reader(layer):
 
 def layer_coincides_with_source_identifier(layer, source_identifier):
     if layer.source.path == source_identifier['filename'] and\
-        layer.metadata['scene_index'] == source_identifier['scene_index']:
+        layer.data.attrs['scene_index'] == source_identifier['scene_index']:
+        # layer.metadata['scene_index'] == source_identifier['scene_index']:
         return True
     else:
         return False
@@ -183,78 +184,83 @@ def get_list_of_source_identifiers_from_layers(layers):
     for l in layers:
         if layer_was_loaded_by_own_reader(l):
             source_identifier = {'filename': l.source.path,
-                                 'scene_index': l.metadata['scene_index']}
+                                #  'scene_index': l.metadata['scene_index'],
+                                'scene_index': l.data.attrs['scene_index'],
+                                 }
             source_identifiers.append(source_identifier)
 
     return source_identifiers
-
-
-# def get_layer_name_from_view_and_ch(view=0, ch=0):
-#     return 'tile_%03d' %view + '_ch_%03d' %ch
-
-
-# def get_layer_name_from_view_and_ch_name(view=0, ch='unnamed'):
-#     return 'tile_%03d' %view + '_ch_%s' %ch
 
 
 def get_view_from_layer(layer):
     return layer.metadata['view']
 
 
-import re
 def get_ch_from_layer(layer):
 
-    return layer.metadata['channel_name']
-
-    # regex to match ch from e.g. 'view_008_ch_002_ [0]'
-    # return int(re.search(r'_ch_(\d+)', layer.name).group(1))
+    return str(layer.data.coords['C'].data)
 
 
-def get_layers_from_source_identifier_and_view(layers, source_identifier, view):
+def filter_layers(layers, source_identifier=None, ch=None):
     for l in layers:
-        if layer_was_loaded_by_own_reader(l) and\
-            layer_coincides_with_source_identifier(l, source_identifier) and\
-                get_view_from_layer(l) == view:
-            yield l
+        if source_identifier is not None and\
+            not layer_coincides_with_source_identifier(l, source_identifier): continue
+        if ch is not None and get_ch_from_layer(l) != ch: continue
+        yield l
 
 
-def get_layer_from_source_identifier_view_and_ch(layers, source_identifier, view, ch):
+# def get_layers_from_source_identifier_and_view(layers, source_identifier, view):
+#     for l in layers:
+#         if layer_was_loaded_by_own_reader(l) and\
+#             layer_coincides_with_source_identifier(l, source_identifier) and\
+#                 get_view_from_layer(l) == view:
+#             yield l
 
-    view_layers = get_layers_from_source_identifier_and_view(layers, source_identifier, view)
-    for l in view_layers:
-        if get_ch_from_layer(l) == ch:
-            return l
+
+# def get_layers_from_source_identifier_and_ch(layers, source_identifier, ch):
+#     for l in layers:
+#         if layer_was_loaded_by_own_reader(l) and\
+#             layer_coincides_with_source_identifier(l, source_identifier) and\
+#                 get_ch_from_layer(l) == ch:
+#             yield l
 
 
-def params_to_napari_affine(params):
+# def get_layer_from_source_identifier_view_and_ch(layers, source_identifier, view, ch):
+#     view_layers = get_layers_from_source_identifier_and_view(layers, source_identifier, view)
+#     for l in view_layers:
+#         if get_ch_from_layer(l) == ch:
+#             return l
 
-    """
-    params: Transformation from image data pixel space to physical space.
-            This is the transform that makes napari display layer data in world coordinates.
 
-    See https://napari.org/stable/guides/3D_interactivity.html
+# def params_to_napari_affine(params):
 
-    y = Ax+c
-    y=sy*yp+oy
-    x=sx*xp+ox
+#     """
+#     params: Transformation from image data pixel space to physical space.
+#             This is the transform that makes napari display layer data in world coordinates.
 
-    sy*yp+oy = A(sx*xp+ox)+c
-    yp = syi * A*sx*xp + syi  *A*ox +syi*(c-oy)
-    A' = syi * A * sx
-    c' = syi  *A*ox +syi*(c-oy)
-    """
+#     See https://napari.org/stable/guides/3D_interactivity.html
 
-    p = mv_utils.params_to_matrix(params)
+#     y = Ax+c
+#     y=sy*yp+oy
+#     x=sx*xp+ox
 
-    ndim = len(p) - 1
+#     sy*yp+oy = A(sx*xp+ox)+c
+#     yp = syi * A*sx*xp + syi  *A*ox +syi*(c-oy)
+#     A' = syi * A * sx
+#     c' = syi  *A*ox +syi*(c-oy)
+#     """
 
-    sx = np.diag(list((stack_props['spacing'])))
-    sy = np.diag(list((view_stack_props['spacing'])))
+#     p = mv_utils.params_to_matrix(params)
 
-    syi = np.linalg.inv(sy)
-    p[:ndim, ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], stack_props['origin'])) \
-                + np.dot(syi, (p[:ndim, ndim] - view_stack_props['origin']))
-    p[:ndim, :ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], sx))
-    p = np.linalg.inv(p)
+#     ndim = len(p) - 1
 
-    return p
+#     sx = np.diag(list((stack_props['spacing'])))
+#     sy = np.diag(list((view_stack_props['spacing'])))
+
+#     syi = np.linalg.inv(sy)
+#     p[:ndim, ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], stack_props['origin'])) \
+#                 + np.dot(syi, (p[:ndim, ndim] - view_stack_props['origin']))
+#     p[:ndim, :ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], sx))
+#     p = np.linalg.inv(p)
+
+#     return p

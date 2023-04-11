@@ -3,58 +3,58 @@ from aicspylibczi import CziFile
 from aicsimageio import AICSImage
 
 
-def get_dims_from_multitile_czi(filename, scene_index=0):
+# def get_dims_from_multitile_czi(filename, scene_index=0):
 
-    czi = CziFile(filename)
-    dims_list = czi.get_dims_shape()
+#     czi = CziFile(filename)
+#     dims_list = czi.get_dims_shape()
 
-    # https://allencellmodeling.github.io/aicspylibczi/_modules/aicspylibczi/CziFile.html#CziFile.get_dims_shape
-    for dims in dims_list:
-        if scene_index in range(*dims['S']):
-            return dims
-    else:
-        raise ValueError('scene_index out of range')
+#     # https://allencellmodeling.github.io/aicspylibczi/_modules/aicspylibczi/CziFile.html#CziFile.get_dims_shape
+#     for dims in dims_list:
+#         if scene_index in range(*dims['S']):
+#             return dims
+#     else:
+#         raise ValueError('scene_index out of range')
 
 
-def build_view_dict_from_multitile_czi(filename, scene_index=0, max_project=True):
+# def build_view_dict_from_multitile_czi(filename, scene_index=0, max_project=True):
 
-    czi = CziFile(filename)
-    dims = get_dims_from_multitile_czi(filename, scene_index=scene_index)
+#     czi = CziFile(filename)
+#     dims = get_dims_from_multitile_czi(filename, scene_index=scene_index)
 
-    ntiles = dims['M'][1]
-    z_shape = dims['Z'][1]
-    ndim = 2 if z_shape == 1 else 3
+#     ntiles = dims['M'][1]
+#     z_shape = dims['Z'][1]
+#     ndim = 2 if z_shape == 1 else 3
 
-    physical_pixel_sizes = AICSImage(filename).physical_pixel_sizes
-    physical_pixel_sizes = np.array([physical_pixel_sizes.Y,
-                                     physical_pixel_sizes.X])
+#     physical_pixel_sizes = AICSImage(filename).physical_pixel_sizes
+#     physical_pixel_sizes = np.array([physical_pixel_sizes.Y,
+#                                      physical_pixel_sizes.X])
 
-    spacing = np.array([1., 1.])
-    shape = np.array([dims[dim_s][1] for dim_s in ['Z', 'Y', 'X']])
+#     spacing = np.array([1., 1.])
+#     shape = np.array([dims[dim_s][1] for dim_s in ['Z', 'Y', 'X']])
 
-    # xmin, ymin = np.min([[b.y, b.x] for b in bbs], axis=0)
-    bbs = [czi.get_mosaic_tile_bounding_box(M=itile, S=0, C=0, T=0, Z=0) for itile in range(ntiles)]
+#     # xmin, ymin = np.min([[b.y, b.x] for b in bbs], axis=0)
+#     bbs = [czi.get_mosaic_tile_bounding_box(M=itile, S=0, C=0, T=0, Z=0) for itile in range(ntiles)]
 
-    if ndim == 3 and not max_project:
-        spacing = np.append([1.], spacing, axis=0)
-        origins = np.array([[0., b.y, b.x] for b in bbs]) * spacing# - np.array([xmin, ymin])
+#     if ndim == 3 and not max_project:
+#         spacing = np.append([1.], spacing, axis=0)
+#         origins = np.array([[0., b.y, b.x] for b in bbs]) * spacing# - np.array([xmin, ymin])
         
-    else:
-        # bbs = [czi.get_mosaic_tile_bounding_box(M=itile, S=0, C=0, T=0) for itile in range(ntiles)]
-        origins = np.array([[b.y, b.x] for b in bbs]) * spacing# - np.array([xmin, ymin])
-        shape = shape[1:]
+#     else:
+#         # bbs = [czi.get_mosaic_tile_bounding_box(M=itile, S=0, C=0, T=0) for itile in range(ntiles)]
+#         origins = np.array([[b.y, b.x] for b in bbs]) * spacing# - np.array([xmin, ymin])
+#         shape = shape[1:]
         
-    view_dict = {itile: {
-                  'shape': shape,
-                  'size': shape,
-                  'origin': o,
-                  'rotation': 0,
-                  'spacing': spacing,
-                  'physical_pixel_sizes': physical_pixel_sizes,
-                  'filename': filename,
-                  'view': itile,
-                  'scene_index': scene_index,
-                  }
-            for itile, o in zip(range(ntiles), origins)}
+#     view_dict = {itile: {
+#                   'shape': shape,
+#                   'size': shape,
+#                   'origin': o,
+#                   'rotation': 0,
+#                   'spacing': spacing,
+#                   'physical_pixel_sizes': physical_pixel_sizes,
+#                   'filename': filename,
+#                   'view': itile,
+#                   'scene_index': scene_index,
+#                   }
+#             for itile, o in zip(range(ntiles), origins)}
 
-    return view_dict
+#     return view_dict

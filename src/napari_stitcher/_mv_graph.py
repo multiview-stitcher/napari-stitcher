@@ -46,14 +46,23 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
                             for dim in spatial_dims]
                             for index in [0, -1]])
     
+    # # expand limits so that in case of no overlap the neighbours are shown
+    # a = 10
+    # if expand:
+    #     x1_i = x1_i - a * xim1.attrs['spacing'].data
+    #     x2_i = x2_i - a * xim2.attrs['spacing'].data
+
+    #     x1_f = x1_f + a * xim1.attrs['spacing'].data
+    #     x2_f = x2_f + a * xim2.attrs['spacing'].data
+
     # expand limits so that in case of no overlap the neighbours are shown
     a = 10
     if expand:
-        x1_i = x1_i - a * xim1.attrs['spacing'].data
-        x2_i = x2_i - a * xim2.attrs['spacing'].data
+        x1_i = x1_i - a * np.array([xim1.coords[dim][1] - xim1.coords[dim][1] for dim in spatial_dims])
+        x2_i = x2_i - a * np.array([xim2.coords[dim][1] - xim2.coords[dim][1] for dim in spatial_dims])
 
-        x1_f = x1_f + a * xim1.attrs['spacing'].data
-        x2_f = x2_f + a * xim2.attrs['spacing'].data
+        x1_f = x1_f + a * np.array([xim1.coords[dim][1] - xim1.coords[dim][1] for dim in spatial_dims])
+        x2_f = x2_f + a * np.array([xim2.coords[dim][1] - xim2.coords[dim][1] for dim in spatial_dims])
 
     dim_overlap_opt1 = (x1_f >= x2_i) * (x1_f <= x2_f)
     dim_overlap_opt2 = (x2_f >= x1_i) * (x2_f <= x1_f)
@@ -104,6 +113,66 @@ def get_registration_pairs_from_view_dict(view_dict, min_percentile=49):
     return all_pairs
 
 
+def get_node_with_maximal_overlap_from_graph(g):
+    """
+    g: graph containing edges with 'overlap' weight
+    """
+    total_node_overlaps = {node: np.sum([g.edges[e]['overlap']
+            for e in g.edges if node in e])
+        for node in g.nodes}
+    ref_node = max(total_node_overlaps, key=total_node_overlaps.get)
+    return ref_node
+
+
+def get_registration_pairs_from_overlap_graph(g,
+                                              method='shortest_paths_considering_overlap',
+                                              min_percentile=49,
+                                              ref_node=None,
+                                              ):
+
+    all_pairs = np.array([e for e in g.edges])
+
+    if not len(all_pairs):
+        raise(ValueError('No overlap between views found.'))
+
+    if method == 'percentile':
+
+        overlap_areas = [g.get_edge_data(e[0], e[1])['overlap'] for e in all_pairs]
+
+        reg_pairs = all_pairs[overlap_areas >= np.percentile(overlap_areas, min_percentile), :]
+    
+    elif method == 'shortest_paths_considering_overlap':
+
+        if ref_node is None:
+            ref_node = get_node_with_maximal_overlap_from_graph(g)
+
+        # invert overlap to use as weight in shortest path
+        for e in g.edges:
+            g.edges[e]['overlap_inv'] = 1 / g.edges[e]['overlap']
+
+        # get shortest paths to ref_node
+        paths = nx.shortest_path(g, source=ref_node, weight='overlap_inv')
+
+        # get all pairs of views that are connected by a shortest path
+        reg_pairs = []
+        for _, sp in paths.items():
+            if len(sp) < 2: continue
+            for i in range(len(sp) - 1):
+                pair = (sp[i], sp[i + 1])
+                if pair not in reg_pairs:
+                    reg_pairs.append(pair)
+
+    else:
+        raise NotImplementedError
+    
+    return reg_pairs
+
+
 if __name__ == "__main__":
 
     from napari_stitcher import _reader
+
+    xims=_reader.read_mosaic_czi_into_list_of_spatial_xarrays(
+        '../napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi', scene_index=0)
+    
+    g = build_view_adjacency_graph_from_xims(xims)

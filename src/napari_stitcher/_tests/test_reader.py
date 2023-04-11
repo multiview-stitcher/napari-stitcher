@@ -1,7 +1,7 @@
-import numpy as np
 from pathlib import Path
 
 from napari_stitcher import napari_get_reader, _reader
+
 
 def test_read_mosaic_czi_into_list_of_spatial_xarrays():
 
