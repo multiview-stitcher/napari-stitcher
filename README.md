@@ -74,3 +74,9 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [tox]: https://tox.readthedocs.io/en/latest/
 [pip]: https://pypi.org/project/pip/
 [PyPI]: https://pypi.org/
+
+## Ideas / things to check out
+
+- https://github.com/spatial-image
+- https://github.com/carbonplan/ndpyramid
+- https://www.napari-hub.org/plugins/affinder

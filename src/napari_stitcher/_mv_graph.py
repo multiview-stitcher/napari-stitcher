@@ -1,6 +1,7 @@
 import numpy as np
 import networkx as nx
 import xarray as xr
+from dask import compute
 
 
 def build_view_adjacency_graph_from_xims(xims, expand=False):
@@ -166,6 +167,25 @@ def get_registration_pairs_from_overlap_graph(g,
         raise NotImplementedError
     
     return reg_pairs
+
+
+def compute_graph_edges(input_g, weight_name='transform', scheduler='threads'):
+
+    """
+    Perform simultaneous compute on all edge attributes with given name
+    """
+
+    g = input_g.copy()
+
+    edge_weight_dict = {e: g.edges[e][weight_name]
+                        for e in g.edges if weight_name in g.edges[e]}
+
+    edge_weight_dict = compute(edge_weight_dict, scheduler=scheduler)[0]
+
+    for e, w in edge_weight_dict.items():
+        g.edges[e][weight_name] = w
+
+    return g
 
 
 if __name__ == "__main__":

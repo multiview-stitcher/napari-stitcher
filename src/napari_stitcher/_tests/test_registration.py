@@ -14,7 +14,8 @@ def test_pairwise():
     pd = _registration.register_pair_of_spatial_images(xims,
             registration_binning={dim: 4 for dim in spatial_dims})
 
-    p = pd.compute(scheduler='single-threaded')
+    # p = pd.compute(scheduler='single-threaded')
+    p = pd
 
     assert np.allclose(p,
         np.array([[1.        , 0.        , 1.73333333],
@@ -29,5 +30,10 @@ def test_register_graph():
     
     g = _mv_graph.build_view_adjacency_graph_from_xims(view_xims)
 
-    gd = _registration.register_graph(g)
+    g_pairs = _registration.get_registration_pair_graph(g)
+
+    # g_pairs_registered = _registration.register_graph(g_pairs)
+
+    _mv_graph.compute_graph_edges(g_pairs)
     
+    import pdb; pdb.set_trace()

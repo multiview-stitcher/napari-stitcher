@@ -3,6 +3,7 @@ import xarray as xr
 from scipy import ndimage
 import skimage
 from tqdm import tqdm
+import networkx as nx
 
 from dask import delayed
 import dask.array as da
@@ -59,12 +60,14 @@ def register_pair_of_spatial_images(
         origin = _spatial_image_utils.get_origin_from_xim(rxim)
         spacing = _spatial_image_utils.get_spacing_from_xim(rxim)
         ims.append(
-            delayed(ImageArray)(rxim.data,
+            # delayed(ImageArray)(rxim.data,
+            (ImageArray)(rxim.squeeze().data,
+
                        origin=[origin[dim] for dim in spatial_dims],
                        spacing=[spacing[dim] for dim in spatial_dims])
         )
 
-    p = delayed(multiview.register_linear_elastix)(
+    p = (multiview.register_linear_elastix)(
             ims[0], ims[1],
             None,
             '',
@@ -72,43 +75,62 @@ def register_pair_of_spatial_images(
             None,
             )
     
-    p = delayed(mv_utils.params_to_matrix)(p)
+    p = (mv_utils.params_to_matrix)(p)
 
     return p
 
 
-def register_graph(
+def get_registration_pair_graph(
         g,
+        # method=,
         registration_binning = None,
-        ) -> dict:
-    
+):
     """
-    - get shortest paths between all views and the reference view (deambiguate with largest overlap)
-    - register all pairs of views along the shortest paths
-    - return the graph with the transforms (new edges containing final transforms?)
+        - get shortest paths between all views and the reference view (deambiguate with largest overlap)
+        - return directed graph of xims and registration edges with (delayed) transforms
     """
+    g_reg = g.to_directed() # returns a deep copy
 
-    pairs = _mv_graph.get_registration_pairs_from_overlap_graph(g,
+    pairs = _mv_graph.get_registration_pairs_from_overlap_graph(g_reg,
                     method='shortest_paths_considering_overlap')
     
-    # register all pairs of views along the shortest paths
-    transforms = {pair:
-        register_pair_of_spatial_images(
-            [g.nodes[pair[0]]['xim'], g.nodes[pair[1]]['xim']],
-            registration_binning=registration_binning,
-        )
-            for pair in pairs}
-    
-    # make sure all transforms are computed before going further
-    # is this the right way?
-    transforms = delayed(transforms)
-    
-    # return the graph with the transforms (new edges containing final transforms?)
-    gd = g.to_directed()
-    for pair, transform in transforms.items():
-        gd.edges[pair]['transform'] = transforms[pair]
+    for pair in pairs:
+        # g_pairs.edges[(pair[0], pair[1])]['marked_for_registration'] = True
+        # g_pairs.add_edge(pair[0], pair[1])
+        g_reg.edges[(pair[0], pair[1])]['transform'] = \
+            delayed(register_pair_of_spatial_images)(
+                [g.nodes[pair[0]]['xim'], g.nodes[pair[1]]['xim']],
+                registration_binning=registration_binning,
+                    )
 
-    return delayed(gd)
+    return g_reg
+
+
+# def register_graph(
+#         g,
+#         registration_binning = None,
+#         ) -> dict:
+    
+#     """
+#     Attach (delayed) transforms to all edges with 'to_register: True'
+#     attribute in the directed input graph
+#     """
+
+#     # gd = g.to_directed() # create deep copy
+    
+#     # register all pairs of views along the shortest paths
+#     for e in g.edges:
+#         if not 'marked_for_registration' in g.edges[e].keys()\
+#             or not g.edges[e]['marked_for_registration']: continue
+        
+#         g.edges[e]['transform'] = \
+#             delayed(register_pair_of_spatial_images)(
+#                 [g.nodes[e[0]]['xim'], g.nodes[e[1]]['xim']],
+#                 registration_binning=registration_binning,
+#                     )
+    
+#     return g
+#     # return _mv_graph.compute_graph(gd)
 
 # def register_
 
