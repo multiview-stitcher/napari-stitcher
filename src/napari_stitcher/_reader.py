@@ -18,9 +18,7 @@ from dask import delayed
 from aicspylibczi import CziFile
 from aicsimageio import AICSImage
 
-from napari_stitcher import _utils, _file_utils, _mv_graph, _spatial_image_utils
-
-import time
+from napari_stitcher import _mv_graph, _spatial_image_utils
 
 
 def napari_get_reader(path):
@@ -116,6 +114,8 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
             source=path,
         ))
 
+        view_xim.name = str(view)
+
         view_xims.append(view_xim)
 
     return view_xims
@@ -147,6 +147,10 @@ def create_image_layer_tuple_from_spatial_xim(xim,
     
     # metadata['xr_attrs'] = xim.attrs.copy()
 
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
+    origin = _spatial_image_utils.get_origin_from_xim(xim)
+    spacing = _spatial_image_utils.get_spacing_from_xim(xim)
+
     kwargs = \
         {
         'contrast_limits': [np.iinfo(xim.dtype).min,
@@ -164,7 +168,9 @@ def create_image_layer_tuple_from_spatial_xim(xim,
         #     # xim.attrs['origin'].loc[dim]
         #     xim.coords[dim][0]
         #             for dim in xim.attrs['spatial_dims']],
-        'affine': _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(xim),
+        # 'affine': _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(xim),
+        'translate': [origin[dim] for dim in spatial_dims],
+        'scale': [spacing[dim] for dim in spatial_dims],
         'cache': True,
         'blending': 'additive',
         'metadata': metadata,
@@ -217,7 +223,7 @@ def read_mosaic_czi(path, scene_index=None):
     out_layers = [
         create_image_layer_tuple_from_spatial_xim(
                     view_xim.sel(C=ch_coord),
-                    cmaps[iview],
+                    cmaps[view_xim.name],
                     name_prefix='tile_%03d' %iview)
             for iview, view_xim in enumerate(view_xims)
         for ch_coord in view_xim.coords['C']
@@ -239,6 +245,7 @@ if __name__ == "__main__":
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
     filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
 
+    # xims = read_mosaic_czi_into_list_of_spatial_xarrays(filename)
 
     viewer = napari.Viewer()
     
@@ -249,4 +256,4 @@ if __name__ == "__main__":
 
     viewer.open(filename)
 
-    napari.run()
+    # napari.run()

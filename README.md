@@ -78,5 +78,12 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 ## Ideas / things to check out
 
 - https://github.com/spatial-image
+- https://github.com/xarray-contrib/datatree
 - https://github.com/carbonplan/ndpyramid
 - https://www.napari-hub.org/plugins/affinder
+
+## Notes
+
+- Option to load all layers / selected layers
+- Show loaded layers
+- keep layers and xims list according to this

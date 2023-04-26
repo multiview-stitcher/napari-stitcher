@@ -80,28 +80,175 @@ def register_pair_of_spatial_images(
     return p
 
 
-def get_registration_pair_graph(
-        g,
-        # method=,
-        registration_binning = None,
-):
+def register_pair_of_xims(xim1,
+                            xim2,
+                            registration_binning=None):
     """
-        - get shortest paths between all views and the reference view (deambiguate with largest overlap)
-        - return directed graph of xims and registration edges with (delayed) transforms
+    Register over time
     """
-    g_reg = g.to_directed() # returns a deep copy
 
-    pairs = _mv_graph.get_registration_pairs_from_overlap_graph(g_reg,
-                    method='shortest_paths_considering_overlap')
+    if 'T' not in xim1.dims:
+        xim1 = xim1.expand_dims('T')
+        xim2 = xim2.expand_dims('T')
+
+    # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
+    ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(xim1))
     
-    for pair in pairs:
-        # g_pairs.edges[(pair[0], pair[1])]['marked_for_registration'] = True
-        # g_pairs.add_edge(pair[0], pair[1])
-        g_reg.edges[(pair[0], pair[1])]['transform'] = \
-            delayed(register_pair_of_spatial_images)(
-                [g.nodes[pair[0]]['xim'], g.nodes[pair[1]]['xim']],
-                registration_binning=registration_binning,
+    xp = xr.DataArray(da.stack([
+        da.from_delayed(delayed(register_pair_of_spatial_images)
+            (xims=[xim1.sel(T=t), xim2.sel(T=t)], registration_binning=registration_binning),
+                shape=(ndim+1, ndim+1), dtype=float)
+                for t in xim1.coords['T']]),
+            # dims=['C', 'T', 'x_in', 'x_out'],
+            dims=['T', 'x_in', 'x_out'],
+            coords={
+                    # 'C': xim1.coords['C'],
+                    'T': xim1.coords['T'],
+                    'x_in': np.arange(ndim+1),
+                    'x_out': np.arange(ndim+1)})
+    
+    return xp
+
+
+# def get_registration_pair_graph(
+#         g,
+#         # method=,
+#         registration_binning = None,
+# ):
+#     """
+#         - determine a reference_view and 
+#         - get shortest paths between all views and the reference view (deambiguate with largest overlap)
+#         - return directed graph of xims and registration edges with (delayed) transforms
+#     """
+#     g_reg = g.to_directed() # returns a deep copy
+
+
+def get_registration_graph_from_overlap_graph(g,
+                                            registration_binning = None,
+                                              ):
+
+    g_reg = g.to_directed()
+
+    ref_node = _mv_graph.get_node_with_maximal_overlap_from_graph(g)
+
+    # invert overlap to use as weight in shortest path
+    for e in g_reg.edges:
+        g_reg.edges[e]['overlap_inv'] = 1 / g_reg.edges[e]['overlap']
+
+    # get shortest paths to ref_node
+    paths = nx.shortest_path(g_reg, source=ref_node, weight='overlap_inv')
+
+    # get all pairs of views that are connected by a shortest path
+    # reg_pairs = []
+    # import pdb; pdb.set_trace()
+
+    for n, sp in paths.items():
+        g_reg.nodes[n]['reg_path'] = sp
+
+        if len(sp) < 2: continue
+
+        # add registration edges
+        for i in range(len(sp) - 1):
+            pair = (sp[i], sp[i + 1])
+
+            g_reg.edges[(pair[0], pair[1])]['transform'] = \
+                (register_pair_of_xims)(
+                    g.nodes[pair[0]]['xim'],
+                    g.nodes[pair[1]]['xim'],
+                    registration_binning=registration_binning,
                     )
+        
+    # g_reg.graph['ref_node'] = ref_node
+    g_reg.graph['pair_finding_method'] = 'shortest_paths_considering_overlap'
+
+    return g_reg
+
+
+def get_node_params_from_reg_graph(g_reg):
+
+    # g = networkx.DiGraph()
+    # for ipair,pair in enumerate(pairs):
+    #     # g.add_edge(pair[0],pair[1],{'p': params[ipair]})
+
+    #     # import pdb; pdb.set_trace()
+    #     if consider_reg_quality and views is not None:
+    #         from scipy import stats
+    #         imf = views[view_indices[pair[0]]] + 1
+    #         imm = views[view_indices[pair[1]]] + 1
+    #         immt = transform_stack_sitk(imm, params[ipair],
+    #                                     out_origin=imf.origin,
+    #                                     out_spacing=imf.spacing,
+    #                                     out_shape=imf.shape,
+    #                                     )
+    #         mask = (imf > 0) * (immt > 0)
+    #         weight = 5 - stats.spearmanr(imf[mask], immt[mask]).correlation
+    #         print('weights: ', pair, weight, params[ipair])
+    #         # if pair[0] == 0 and pair[1] == 7: import pdb; pdb.set_trace()
+    #     else:
+    #         weight = 1
+
+        # g.add_edge(pair[0],pair[1], p = params[ipair], weight=weight) # after update 201809 networkx seems to have changed
+        # g.add_edge(pair[1], pair[0], p = invert_params(params[ipair]), weight=weight) # after update 201809 networkx seems to have changed
+
+    # all_views = np.unique(np.array(pairs).flatten())
+    # views_to_transform = np.sort(np.array(list(set(all_views).difference(set([ref_view])))))
+
+    # ref_view = g_pairs.graph['ref_node']
+
+    ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(
+        g_reg.nodes[list(g_reg.nodes)[0]]['xim']))
+
+    # final_params = []
+    for n in g_reg.nodes:
+
+        reg_path = g_reg.nodes[n]['reg_path']
+
+        path_pairs = [[reg_path[i], reg_path[i+1]]
+                      for i in range(len(reg_path) - 1)]
+        
+        path_params = xr.DataArray(np.eye(ndim + 1),
+                                    dims=['x_in', 'x_out'])
+
+        # path_params = xr.DataArray([np.eye(ndim + 1) for t in g_reg.nodes[n]['xim'].coords['T']],
+        #                             dims=['T', 'x_in', 'x_out'],
+        #                             coords={'T': g_reg.nodes[n]['xim'].coords['T']})
+        
+        for pair in path_pairs:
+            path_params = xr.apply_ufunc(np.matmul,
+                                         g_reg.edges[(pair[0], pair[1])]['transform'],
+                                         path_params,
+                                         input_core_dims=[['x_in', 'x_out']]*2,
+                                         output_core_dims=[['x_in', 'x_out']],
+                                         vectorize=True)
+        
+        g_reg.nodes[n]['transforms'] = path_params
+
+        # else:
+        #     #import pdb; pdb.set_trace()
+        #     paths = nx.all_shortest_paths(g,ref_view, view, weight='weight')
+        #     # print('PATHs for view %s: ' %view, [p for p in paths])
+        #     paths_params = []
+        #     for ipath,path in enumerate(paths):
+        #         print('processing PATH for view %s: ' %view, path)
+        #         # if ipath > 0: break # is it ok to take mean affine params?
+        #         path_pairs = [[path[i],path[i+1]] for i in range(len(path)-1)]
+        #         # print(path_pairs)
+        #         path_params = np.eye(ndim+1)
+        #         for edge in path_pairs:
+        #             tmp_params = params_to_matrix(g.get_edge_data(edge[0], edge[1])['p'])
+        #             path_params = np.dot(tmp_params,path_params)
+        #             # print(path_params)
+        #         paths_params.append(matrix_to_params(path_params))
+
+        #     final_view_params = np.mean(paths_params,0)
+
+        # # concatenate with time alignment if given
+        # if time_alignment_params is not None:
+        #     final_view_params = concatenate_view_and_time_params(time_alignment_params,final_view_params)
+
+        # final_params.append(final_view_params)
+
+    # print(final_params)
 
     return g_reg
 
@@ -303,8 +450,80 @@ def get_stabilization_parameters(tl, sigma=2):
     return deltas
 
 
-
 if __name__ == "__main__":
 
-    viewer = napari.Viewer()
-    viewer.open(filename)
+    from napari_stitcher import _reader, _spatial_image_utils
+    import xarray as xr
+    import dask.array as da
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
+
+    xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(filename, scene_index=0)
+
+    # def func(x):
+    #     print(x.im1)
+    #     return x
+    
+    # p = xr.apply_ufunc(
+    #     # register_pair_of_spatial_images,
+    #     func,
+    #     xr.Dataset({'im1': xims[0],
+    #                 'im2': xims[1]}),
+    #     # input_core_dims=[_spatial_image_utils.get_spatial_dims_from_xim(xim) for xim in xims],
+    #     input_core_dims=[_spatial_image_utils.get_spatial_dims_from_xim(xims[0])],
+
+    #     output_core_dims=[['Y', 'X']],
+    #     dask='allowed',
+    #     vectorize=False,
+    #     output_dtypes=float,
+    #     # output_sizes={'Y': ndim + 1, 'x_out': ndim + 1},
+    #     join='left',
+    # )
+
+    # def func(x):
+    #     print(x.im1, x.im2)
+    #     res = xr.DataArray(register_pair_of_spatial_images([x.im1, x.im2]), dims=['x_in', 'x_out'])
+    #     return res
+
+    # p = xr.apply_ufunc(
+    #     # register_pair_of_spatial_images,
+    #     func,
+    #     xr.Dataset({'im1': xims[0],
+    #                 'im2': xims[1]}),
+    #     # input_core_dims=[_spatial_image_utils.get_spatial_dims_from_xim(xim) for xim in xims],
+    #     input_core_dims=[_spatial_image_utils.get_spatial_dims_from_xim(xims[0])],
+
+    #     output_core_dims=[['x_in', 'x_out']],
+    #     dask='parallelized',
+    #     vectorize=False,
+    #     output_dtypes=float,
+    #     output_sizes={'x_in': ndim + 1, 'x_out': ndim + 1},
+    #     join='left',
+    # )
+
+    # def func(x):
+    #     print(x.im1.shape, x.im2.shape)
+    #     res = xr.DataArray(register_pair_of_spatial_images([x.im1, x.im2]), dims=['x_in', 'x_out'])
+    #     return res
+
+    # p = xr.Dataset({'im1': xims[0], 'im2': xims[1]}).groupby('C')
+    # # t = p.apply(lambda x: xr.DataArray(da.ones((3,3)), dims=['x_in', 'x_out']))
+    # t = p.apply(func)
+
+    # from flox import xarray as fxarray
+
+    # fxarray.xarray_reduce(
+    #     xr.Dataset({'im1': xims[0], 'im2': xims[1]}),
+    #     'C',
+    #     func=lambda x: xr.Dataset({'M': register_pair_of_spatial_images([x.im1, x.im2])}),
+    #     method='blockwise',
+    #     )
+
+    # for c in xims[0].coords['C']:
+    #     print(c)
+    #     print(register_pair_of_spatial_images([xims[0].sel(C=c), xims[1].sel(C=c)]))
+
+
+    
+    # xp = register_pair_of_xims(xims[0], xims[1])

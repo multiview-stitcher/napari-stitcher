@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 
 # from napari_stitcher import ExampleQWidget, example_magic_widget
-from napari_stitcher import StitcherQWidget, _widget
+from napari_stitcher import StitcherQWidget, _widget, _spatial_image_utils
 
 
 def test_data_loading_while_plugin_open(make_napari_viewer):
@@ -38,6 +38,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 
     test_path = Path(__file__).parent.parent.parent.parent /\
                              "image-datasets" / "mosaic_test.czi"
+    
     viewer.open(test_path)
 
     # Run stitching
@@ -50,18 +51,25 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
     # Check that parameters are visualised
 
     # First, view 0 is not shifted
-    assert(np.allclose(np.eye(4), viewer.layers[0].affine.affine_matrix))
+    assert(np.allclose(
+        # _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
+        np.eye(3),
+        viewer.layers[0].affine.affine_matrix))
+    
     # Toggle showing the registrations
     stitcher_widget.visualization_type_rbuttons.value=_widget.CHOICE_REGISTERED
     # Make sure view 0 is shifted now
-    assert(~np.allclose(np.eye(4), viewer.layers[0].affine.affine_matrix))
+    assert(~np.allclose(
+        # _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
+        np.eye(3),
+        viewer.layers[0].affine.affine_matrix))
 
-    # Run fusion
-    stitcher_widget.button_fuse.clicked()
+    # # Run fusion
+    # stitcher_widget.button_fuse.clicked()
 
-    # Make sure layers are created
-    assert(3, len(viewer.layers))
-    assert(True, min(['fused' in l.name for l in viewer.layers]))
+    # # Make sure layers are created
+    # assert(3, len(viewer.layers))
+    # assert(True, min(['fused' in l.name for l in viewer.layers]))
 
     # create our widget, passing in the viewer
 

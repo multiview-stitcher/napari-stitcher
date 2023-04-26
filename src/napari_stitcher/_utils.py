@@ -192,6 +192,10 @@ def get_list_of_source_identifiers_from_layers(layers):
     return source_identifiers
 
 
+def get_view_from_layer_name(layer_name):
+    return int(layer_name.split(' :: ')[0].split('_')[1])
+
+
 def get_view_from_layer(layer):
     return layer.metadata['view']
 

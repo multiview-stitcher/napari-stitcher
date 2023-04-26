@@ -14,8 +14,10 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
 
     g = nx.Graph()
     for iview, xim in enumerate(xims):
-        g.add_node(iview,
-                   xim=xim)
+        g.add_node(
+            # iview,
+            xim.name,
+            xim=xim)
         
     for iview1, xim1 in enumerate(xims):
         for iview2, xim2 in enumerate(xims):
@@ -26,7 +28,8 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
             overlap = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand)
             
             if overlap > 0:
-                g.add_edge(iview1, iview2, overlap=overlap)
+                # g.add_edge(iview1, iview2, overlap=overlap)
+                g.add_edge(xim1.name, xim2.name, overlap=overlap)
 
     return g
 
@@ -125,50 +128,6 @@ def get_node_with_maximal_overlap_from_graph(g):
     return ref_node
 
 
-def get_registration_pairs_from_overlap_graph(g,
-                                              method='shortest_paths_considering_overlap',
-                                              min_percentile=49,
-                                              ref_node=None,
-                                              ):
-
-    all_pairs = np.array([e for e in g.edges])
-
-    if not len(all_pairs):
-        raise(ValueError('No overlap between views found.'))
-
-    if method == 'percentile':
-
-        overlap_areas = [g.get_edge_data(e[0], e[1])['overlap'] for e in all_pairs]
-
-        reg_pairs = all_pairs[overlap_areas >= np.percentile(overlap_areas, min_percentile), :]
-    
-    elif method == 'shortest_paths_considering_overlap':
-
-        if ref_node is None:
-            ref_node = get_node_with_maximal_overlap_from_graph(g)
-
-        # invert overlap to use as weight in shortest path
-        for e in g.edges:
-            g.edges[e]['overlap_inv'] = 1 / g.edges[e]['overlap']
-
-        # get shortest paths to ref_node
-        paths = nx.shortest_path(g, source=ref_node, weight='overlap_inv')
-
-        # get all pairs of views that are connected by a shortest path
-        reg_pairs = []
-        for _, sp in paths.items():
-            if len(sp) < 2: continue
-            for i in range(len(sp) - 1):
-                pair = (sp[i], sp[i + 1])
-                if pair not in reg_pairs:
-                    reg_pairs.append(pair)
-
-    else:
-        raise NotImplementedError
-    
-    return reg_pairs
-
-
 def compute_graph_edges(input_g, weight_name='transform', scheduler='threads'):
 
     """
@@ -179,13 +138,46 @@ def compute_graph_edges(input_g, weight_name='transform', scheduler='threads'):
 
     edge_weight_dict = {e: g.edges[e][weight_name]
                         for e in g.edges if weight_name in g.edges[e]}
-
+    
     edge_weight_dict = compute(edge_weight_dict, scheduler=scheduler)[0]
 
     for e, w in edge_weight_dict.items():
         g.edges[e][weight_name] = w
 
     return g
+
+
+def sel_coords_from_graph(g, mapping_dim_sel, node_attributes=[], edge_attributes=[], sel_or_isel='sel'):
+    """
+    select coordinates from all nodes that are xarray nodes
+    """
+
+    g = g.copy()
+
+    for n in g.nodes:
+        for node_attr in node_attributes:
+            if node_attr not in g.nodes[n].keys(): continue
+            if isinstance(g.nodes[n][node_attr], xr.DataArray):
+                if sel_or_isel == 'sel':
+                    g.nodes[n][node_attr] = g.nodes[n][node_attr].sel(mapping_dim_sel)
+                else:
+                    g.nodes[n][node_attr] = g.nodes[n][node_attr].isel(mapping_dim_sel)
+
+    for e in g.edges:
+        for edge_attr in edge_attributes:
+            if edge_attr not in g.edges[e].keys(): continue
+            if isinstance(g.edges[e][edge_attr], xr.DataArray):
+                if sel_or_isel == 'sel':
+                    g.edges[e][edge_attr] = g.edges[e][edge_attr].sel(mapping_dim_sel)
+                else:
+                    g.edges[e][edge_attr] = g.edges[e][edge_attr].isel(mapping_dim_sel)
+
+    return g
+
+
+def get_nodes_dataset_from_graph(g, node_attribute):
+    return xr.Dataset({n: g.nodes[n][node_attribute]
+                      for n in g.nodes if node_attribute in g.nodes[n].keys()})
 
 
 if __name__ == "__main__":

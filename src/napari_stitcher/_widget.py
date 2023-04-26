@@ -12,6 +12,7 @@ import pathlib, os, tempfile
 import numpy as np
 import dask
 import dask.array as da
+import xarray as xr
 
 from napari.utils import notifications
 
@@ -153,29 +154,65 @@ class StitcherQWidget(QWidget):
 
         for l in self.viewer.layers:
 
-            view = l.name
-            ndim = len(l.data.attrs['spatial_dims'])
+            # view = l.name
+            # ndim = len(l.data.attrs['spatial_dims'])
+            ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(l.data))
 
             # unfused layers
             if _utils.layer_was_loaded_by_own_reader(l) and\
                 _utils.layer_coincides_with_source_identifier(l, self.source_identifier):
 
-                if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
+                viewer_has_T_axis = 'T' in l.data.dims and len(l.data.coords['T']) > 1
+
+                # if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
+                if viewer_has_T_axis:
                     curr_tp = self.viewer.dims.current_step[0]
                 else:
                     curr_tp = 0
 
-                if self.visualization_type_rbuttons.value == 'Registered'\
-                        and curr_tp not in self.params:
-                    notifications.notification_manager.receive_info(
-                        'Timepoint %s: no parameters available, register first.' % curr_tp)
+                # if self.visualization_type_rbuttons.value == CHOICE_REGISTERED\
+                #         and l.data.coords['T'][curr_tp] not in self.params:
+                #     notifications.notification_manager.receive_info(
+                #         'Timepoint %s: no parameters available, register first.' % curr_tp)
                     
-                    self.visualization_type_rbuttons.value = CHOICE_METADATA
-                    return
+                    # self.visualization_type_rbuttons.value = CHOICE_METADATA
+                    # return
 
-                
                 if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
-                    p = self.params[curr_tp][view]
+                    # p = self.params[curr_tp][view]
+                    # p = np.array(self.params.data_vars[view.split(' :: ')[0]][curr_tp])
+                    # import pdb; pdb.set_trace()
+                    params = self.params.data_vars[str(_utils.get_view_from_layer_name(l.name))]
+
+                    if 'T' not in params.dims:
+                        p = np.array(params)#.squeeze()
+                    else:
+                        if 'T' not in l.data.dims:
+                            p = np.array(params.sel(T=0).squeeze())
+                        else:
+                            try:
+                                p = np.array(params.sel(T=l.data.coords['T'][curr_tp])).squeeze()
+                            except:
+
+                                # notifications.notification_manager.receive_info(
+                                #     'Timepoint %s: no parameters available, register first.' % curr_tp)
+                                # self.visualization_type_rbuttons.value = CHOICE_METADATA
+                                # return
+
+                                # if curr_tp not available, use nearest available parameter
+                                notifications.notification_manager.receive_info(
+                                    'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
+                                p = np.array(params.sel(T=l.data.coords['T'][curr_tp], method='nearest')).squeeze()
+
+                    # if 'T' not in l.data.dims:
+                    #     if 'T' in params.dims:
+                    #         p = np.array(params.sel(T=0))
+                    #     else:
+                    #         p = np.array(params)
+                    # else:
+                    #     p = np.array(params.sel(T=l.data.coords['T'][curr_tp]))
+
+                    p = np.linalg.inv(p)
                 else:
                     p = np.eye(ndim + 1)
 
@@ -183,7 +220,8 @@ class StitcherQWidget(QWidget):
                 #     l.metadata['stack_props'],
                 #     l.metadata['view_dict'])
 
-                vis_p = np.matmul(p, _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(l.data))
+                # vis_p = np.matmul(p, _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(l.data))
+                vis_p = p
 
                 # embed parameters into ndim + ? matrix because of additional axes
                 ndim_layer_data = len(l.data.shape)
@@ -279,63 +317,55 @@ class StitcherQWidget(QWidget):
         # spatial image xarrays taking into account 'layer.affine.affine_transform'
         # or 'layer.scale' and 'layer.translate' attributes
         xims = [l.data for l in layers]
+        for ixim, xim in enumerate(xims):
+            xim.name = str(_utils.get_view_from_layer_name(layers[ixim].name))
 
         # calculate overlap graph with overlap as edge attributes
         g = _mv_graph.build_view_adjacency_graph_from_xims(xims)
 
-        pairs = _mv_graph.get_registration_pairs_from_overlap_graph(g,
-                                # method='percentile',
-                                method='shortest_paths_considering_overlap'
-                                )
+        g_reg = _registration.get_registration_graph_from_overlap_graph(g)
 
-        if not len(g.edges):
+        if not len(g_reg.edges):
             message = 'No overlap between views for stitching. Consider stabilizing the tiles instead.'
             notifications.notification_manager.receive_info(message)
             return
-
-        # viewims = _utils.load_tiles_from_layers(
-        #     self.viewer.layers,
-        #     self.view_dict,
-        #     [self.reg_ch_picker.value],
-        #     times,
-        #     source_identifier=self.source_identifier
-        #     )
         
-        # viewims = _utils.add_metadata_to_tiles(viewims, self.view_dict)
+        # restrict tps
+        if 'T' in xims[0].dims:
+            g_reg = _mv_graph.sel_coords_from_graph(g_reg,
+                        {'T': range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)},
+                        edge_attributes=['transform'],
+                        node_attributes=['xim'],
+                        sel_or_isel='isel',
+                        )
+        
+        # compute graph
 
-        # times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
+        # g_reg_computed = _utils.compute_dask_object(
+        #     dask.delayed(_mv_graph.compute_graph_edges(g_reg)),
+        #     self.viewer,
+        #     widgets_to_disable=[self.container],
+        #     message="Registering graph",
+        #     scheduler='single-threaded',
+        #     )
 
-        for pairs in pairs:
+        with _utils.TemporarilyDisabledWidgets([self.container]),\
+            _utils.VisibleActivityDock(self.viewer),\
+            _utils.TqdmCallback(tqdm_class=_utils.progress,
+                                desc='Register graph tiles', bar_format=" "):
+            g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='threading')
 
-            ds_xims = xr.merge([xim.rename({dim: "%s_%s" %(dim, ixim)
-                                            for dim in spatial_dims}).to_dataset(name='im%s' %ixim)
-                                for ixim, xim in enumerate(xims[:2])])
+        g_reg_computed = _mv_graph.compute_graph_edges(g_reg)
 
-            ds_xims.sel(C=ds_xims.coords['C'][0]).groupby('T').apply(func)
+        # get node parameters
+        g_reg_nodes = _registration.get_node_params_from_reg_graph(g_reg_computed)
 
-        # choose central view as reference
-        # self.ref_view_index = len(self.views) // 2
-        self.ref_view_index = len(xims) // 2
+        # import pdb; pdb.set_trace()
 
-        ps = _registration.register_tiles(
-                            viewims,
-                            self.view_dict,
-                            pairs,
-                            reg_channel = self.reg_ch_picker.value,
-                            times = times,
-                            registration_binning=[2] * len(self.view_dict[self.views[0]]['shape']),
-                            # registration_binning=None,
-                            ref_view_index = self.ref_view_index,
-                            )
+        node_transforms = _mv_graph.get_nodes_dataset_from_graph(g_reg_nodes, node_attribute='transforms')
 
-        psc = _utils.compute_dask_object(ps,
-                                         self.viewer,
-                                         widgets_to_disable=[self.container],
-                                         message='Stitching tiles',
-                                         scheduler=scheduler,
-                                         )
-
-        self.params.update(psc)
+        # self.params.update(psc)
+        self.params = xr.merge([self.params, node_transforms], compat='override')
         self.visualization_type_rbuttons.enabled = True
 
 
@@ -406,6 +436,7 @@ class StitcherQWidget(QWidget):
             self.visualization_type_rbuttons.value = CHOICE_METADATA
             self.times_slider.min, self.times_slider.max = (0, 1)
             self.times_slider.value = (0, 1)
+            self.layers = []
 
             # self.visualization_type_rbuttons.enabled = False
             # self.times_slider.enabled = False
@@ -426,9 +457,6 @@ class StitcherQWidget(QWidget):
         
         if self.source_identifier != curr_source_identifier:
             self.reset()
-        # else:
-        #     # don't do anything if source identifier didn't change
-        #     return
 
         self.source_identifier = curr_source_identifier
         if self.source_identifier is None:
@@ -437,12 +465,16 @@ class StitcherQWidget(QWidget):
 
         layers = list(_utils.filter_layers(self.viewer.layers, source_identifier=self.source_identifier))
 
+        self.layers = layers
+
         # assume dims are the same for all layers
         l0 = layers[0]
         if 'T' in l0.data.dims:
             self.times_slider.enabled = True
-            self.times_slider.min = int(l0.data.coords['T'][0] - 1)
-            self.times_slider.max = int(l0.data.coords['T'][-1] - 1)
+            # self.times_slider.min = int(l0.data.coords['T'][0] - 1)
+            # self.times_slider.max = int(l0.data.coords['T'][-1] - 1)
+            self.times_slider.min = -1
+            self.times_slider.max = len(l0.data.coords['T']) - 1
             self.times_slider.value = self.times_slider.min, self.times_slider.max
 
         # import pdb; pdb.set_trace()
@@ -457,16 +489,6 @@ class StitcherQWidget(QWidget):
                 for sw in w:
                     sw.enabled = True
             w.enabled = True
-
-        # max_project = False
-
-        # self.view_dict = _file_utils.build_view_dict_from_multitile_czi(
-        #     filename=self.source_identifier['filename'],
-        #     scene_index=self.source_identifier['scene_index'],
-        #     max_project=max_project)
-        
-        # self.views = sorted([l.metadata['view'] for l in self.viewer.layers
-        #                      if _utils.layer_coincides_with_source_identifier(l, self.source_identifier)])
 
 
     def link_channel_layers(self):
@@ -483,13 +505,6 @@ class StitcherQWidget(QWidget):
         channels = [_utils.get_ch_from_layer(l) for l in layers]
         for ch in channels:
             ch_layers = list(_utils.filter_layers(layers, ch=ch))
-
-            # layers_to_link = [_utils.get_layer_from_source_identifier_view_and_ch(
-            #     self.viewer.layers, self.source_identifier, view, ch)
-            #         for view in range(self.dims['M'][0], self.dims['M'][1])]
-            
-            # layers_to_link = _utils.get_layers_from_source_identifier_and_ch(
-            #     self.viewer.layers, self.source_identifier, ch)
 
             # layers_to_link = [l for l in layers_to_link if l is not None]
             layers_to_link = ch_layers
@@ -536,7 +551,8 @@ if __name__ == "__main__":
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
 
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
 
     viewer = napari.Viewer()
@@ -547,5 +563,12 @@ if __name__ == "__main__":
     viewer.window.add_dock_widget(wdg)
 
     viewer.open(filename)
+
+    # wdg.times_slider.value = (-1, 0)
+    # wdg.params = xr.open_dataset('test.netcdf')
+    # wdg.visualization_type_rbuttons.enabled = True
+
+
+    wdg.run_stitching()
 
     napari.run()
