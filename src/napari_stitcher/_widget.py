@@ -19,7 +19,7 @@ from napari.utils import notifications
 from magicgui import magic_factory, magicgui, widgets
 from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget
 
-from mvregfus import mv_utils
+# from mvregfus import mv_utils
 
 from napari_stitcher import _utils, _registration, _fusion, _file_utils, _mv_graph, _spatial_image_utils
 
@@ -43,16 +43,31 @@ class StitcherQWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
         
-        self.source_identifier = None
+        # self.source_identifier = None
 
         # self.outdir_picker = widgets.FileEdit(label='Output dir:',
         #         value=default_outdir, mode='r')
 
-        self.source_identifier_picker = widgets.ComboBox(
-            label='Input file: ',
-            choices=[_utils.source_identifier_to_str(p)
-                for p in _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)],
-                tooltip='Choose a file to process using napari-stitcher.')
+        # self.source_identifier_picker = widgets.ComboBox(
+        #     label='Input file: ',
+        #     choices=[_utils.source_identifier_to_str(p)
+        #         for p in _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)],
+        #         tooltip='Choose a file to process using napari-stitcher.')
+
+        self.button_load_layers_all = widgets.Button(text='All')
+        self.button_load_layers_sel = widgets.Button(text='Selected')
+        self.buttons_load_layers = widgets.HBox(
+            # label='Load layers: ',
+                                                widgets=\
+                                                [self.button_load_layers_sel,
+                                                 self.button_load_layers_all])
+        self.layers_selection = widgets.Select(choices=[])
+        self.load_layers_box = widgets.VBox(widgets=\
+                                            [
+            self.buttons_load_layers,
+            self.layers_selection,
+                                            ],
+                                            label='Loaded\nlayers:')
 
         self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints:', enabled=False,
             tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\n(3, 5) means timepoints 4 and 5 are processed')
@@ -91,7 +106,10 @@ class StitcherQWidget(QWidget):
                     'blending the overlaps and filling in gaps.')
 
         self.loading_widgets = [
-                            self.source_identifier_picker,
+                            # self.source_identifier_picker,
+                            # self.buttons_load_layers,
+                            # self.layers_selection,
+                            self.load_layers_box,
                             ]
 
         self.reg_widgets = [
@@ -121,28 +139,33 @@ class StitcherQWidget(QWidget):
         self.layout().addWidget(self.container.native)
 
         # initialize registration parameter dict
+        self.input_layers= []
+        self.output_layers = []
         self.params = dict()
 
         # create temporary directory for storing dask arrays
         self.tmpdir = tempfile.TemporaryDirectory()
 
-        # run on startup
-        self.load_metadata()
-        self.link_channel_layers()
+        # # run on startup
+        # self.load_metadata()
+        # self.link_channel_layers()
 
         # link callbacks
-        self.source_identifier_picker.changed.connect(self.load_metadata)
-        self.viewer.layers.events.inserted.connect(self.link_channel_layers)
+        # self.source_identifier_picker.changed.connect(self.load_metadata)
+        # self.viewer.layers.events.inserted.connect(self.link_channel_layers)
         
         self.visualization_type_rbuttons.changed.connect(self.update_viewer_transformations)
         self.viewer.dims.events.connect(self.update_viewer_transformations)
 
-        self.viewer.layers.events.inserted.connect(self.on_layers_change)
-        self.viewer.layers.events.removed.connect(self.on_layers_change)
+        # self.viewer.layers.events.inserted.connect(self.on_layers_change)
+        # self.viewer.layers.events.removed.connect(self.on_layers_change)
 
         self.button_stitch.clicked.connect(self.run_stitching)
         self.button_stabilize.clicked.connect(self.run_stabilization)
         self.button_fuse.clicked.connect(self.run_fusion)
+
+        self.button_load_layers_all.clicked.connect(self.load_layers_all)
+        self.button_load_layers_sel.clicked.connect(self.load_layers_sel)
 
 
     def update_viewer_transformations(self):
@@ -150,124 +173,123 @@ class StitcherQWidget(QWidget):
         set transformations for current timepoint
         """
 
-        if self.source_identifier is None: return
+        # if self.source_identifier is None: return
 
-        for l in self.viewer.layers:
+        for l in self.input_layers:
 
             # view = l.name
             # ndim = len(l.data.attrs['spatial_dims'])
             ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(l.data))
 
             # unfused layers
-            if _utils.layer_was_loaded_by_own_reader(l) and\
-                _utils.layer_coincides_with_source_identifier(l, self.source_identifier):
+            # if _utils.layer_was_loaded_by_own_reader(l) and\
+            #     _utils.layer_coincides_with_source_identifier(l, self.source_identifier):
 
-                viewer_has_T_axis = 'T' in l.data.dims and len(l.data.coords['T']) > 1
+            viewer_has_T_axis = 'T' in l.data.dims and len(l.data.coords['T']) > 1
 
-                # if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
-                if viewer_has_T_axis:
-                    curr_tp = self.viewer.dims.current_step[0]
-                else:
-                    curr_tp = 0
+            # if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
+            if viewer_has_T_axis:
+                curr_tp = self.viewer.dims.current_step[0]
+            else:
+                curr_tp = 0
 
-                # if self.visualization_type_rbuttons.value == CHOICE_REGISTERED\
-                #         and l.data.coords['T'][curr_tp] not in self.params:
-                #     notifications.notification_manager.receive_info(
-                #         'Timepoint %s: no parameters available, register first.' % curr_tp)
-                    
-                    # self.visualization_type_rbuttons.value = CHOICE_METADATA
-                    # return
-
-                if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
-                    # p = self.params[curr_tp][view]
-                    # p = np.array(self.params.data_vars[view.split(' :: ')[0]][curr_tp])
-                    # import pdb; pdb.set_trace()
-                    params = self.params.data_vars[str(_utils.get_view_from_layer_name(l.name))]
-
-                    if 'T' not in params.dims:
-                        p = np.array(params)#.squeeze()
-                    else:
-                        if 'T' not in l.data.dims:
-                            p = np.array(params.sel(T=0).squeeze())
-                        else:
-                            try:
-                                p = np.array(params.sel(T=l.data.coords['T'][curr_tp])).squeeze()
-                            except:
-
-                                # notifications.notification_manager.receive_info(
-                                #     'Timepoint %s: no parameters available, register first.' % curr_tp)
-                                # self.visualization_type_rbuttons.value = CHOICE_METADATA
-                                # return
-
-                                # if curr_tp not available, use nearest available parameter
-                                notifications.notification_manager.receive_info(
-                                    'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
-                                p = np.array(params.sel(T=l.data.coords['T'][curr_tp], method='nearest')).squeeze()
-
-                    # if 'T' not in l.data.dims:
-                    #     if 'T' in params.dims:
-                    #         p = np.array(params.sel(T=0))
-                    #     else:
-                    #         p = np.array(params)
-                    # else:
-                    #     p = np.array(params.sel(T=l.data.coords['T'][curr_tp]))
-
-                    p = np.linalg.inv(p)
-                else:
-                    p = np.eye(ndim + 1)
-
-                # p_napari = _utils.params_to_napari_affine(p,
-                #     l.metadata['stack_props'],
-                #     l.metadata['view_dict'])
-
-                # vis_p = np.matmul(p, _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(l.data))
-                vis_p = p
-
-                # embed parameters into ndim + ? matrix because of additional axes
-                ndim_layer_data = len(l.data.shape)
-                full_vis_p = np.eye(ndim_layer_data + 1)
-                full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
-
-                l.affine.affine_matrix = full_vis_p
-                l.refresh()
-
-            # fused layers
-            elif ('processing_state' in l.metadata.keys()):
+            # if self.visualization_type_rbuttons.value == CHOICE_REGISTERED\
+            #         and l.data.coords['T'][curr_tp] not in self.params:
+            #     notifications.notification_manager.receive_info(
+            #         'Timepoint %s: no parameters available, register first.' % curr_tp)
                 
-                if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
-                    curr_tp = self.viewer.dims.current_step[0]
+                # self.visualization_type_rbuttons.value = CHOICE_METADATA
+                # return
+
+            if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
+
+                params = self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
+
+                if 'T' not in params.dims:
+                    p = np.array(params)#.squeeze()
                 else:
-                    curr_tp = 0
+                    if 'T' not in l.data.dims:
+                        p = np.array(params.sel(T=0).squeeze())
+                    else:
+                        try:
+                            p = np.array(params.sel(T=l.data.coords['T'][curr_tp])).squeeze()
+                        except:
 
-                if curr_tp not in l.metadata['times']:
-                    continue
+                            # notifications.notification_manager.receive_info(
+                            #     'Timepoint %s: no parameters available, register first.' % curr_tp)
+                            # self.visualization_type_rbuttons.value = CHOICE_METADATA
+                            # return
 
-                p_napari = _utils.params_to_napari_affine(
-                    mv_utils.matrix_to_params(np.eye(ndim + 1)),
-                    l.metadata['view_dict'][0],
-                    l.metadata['stack_props'],
-                    )
+                            # if curr_tp not available, use nearest available parameter
+                            notifications.notification_manager.receive_info(
+                                'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
+                            p = np.array(params.sel(T=l.data.coords['T'][curr_tp], method='nearest')).squeeze()
 
-                # embed parameters into ndim + 2 matrix because of time axis
-                time_p = np.eye(ndim + 2)
-                time_p[-len(p_napari):, -len(p_napari):] = p_napari
+                # if 'T' not in l.data.dims:
+                #     if 'T' in params.dims:
+                #         p = np.array(params.sel(T=0))
+                #     else:
+                #         p = np.array(params)
+                # else:
+                #     p = np.array(params.sel(T=l.data.coords['T'][curr_tp]))
 
-                l.affine.affine_matrix = time_p
+                p = np.linalg.inv(p)
+            else:
+                p = np.eye(ndim + 1)
 
-                l.refresh()
+            # p_napari = _utils.params_to_napari_affine(p,
+            #     l.metadata['stack_props'],
+            #     l.metadata['view_dict'])
 
-            else: continue
+            # vis_p = np.matmul(p, _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(l.data))
+            vis_p = p
+
+            # embed parameters into ndim + ? matrix because of additional axes
+            ndim_layer_data = len(l.data.shape)
+            full_vis_p = np.eye(ndim_layer_data + 1)
+            full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
+
+            l.affine.affine_matrix = full_vis_p
+            l.refresh()
+
+        # fused layers
+        for l in self.output_layers:
+        # elif ('processing_state' in l.metadata.keys()):
+            
+            if 'times' in l.metadata.keys() and len(l.metadata['times']) > 1:
+                curr_tp = self.viewer.dims.current_step[0]
+            else:
+                curr_tp = 0
+
+            if curr_tp not in l.metadata['times']:
+                continue
+
+            # p_napari = _utils.params_to_napari_affine(
+            #     mv_utils.matrix_to_params(np.eye(ndim + 1)),
+            #     l.metadata['view_dict'][0],
+            #     l.metadata['stack_props'],
+            #     )
+
+            # embed parameters into ndim + 2 matrix because of time axis
+            time_p = np.eye(ndim + 2)
+            time_p[-len(p_napari):, -len(p_napari):] = p_napari
+
+            l.affine.affine_matrix = time_p
+
+            l.refresh()
+
+        # else: continue
 
 
-    def on_layers_change(self):
-        available_source_identifiers =\
-            _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)
-        self.source_identifier_picker.choices = [_utils.source_identifier_to_str(si)
-            for si in available_source_identifiers]
-        self.source_identifier_values = available_source_identifiers
+    # def on_layers_change(self):
+    #     available_source_identifiers =\
+    #         _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)
+    #     self.source_identifier_picker.choices = [_utils.source_identifier_to_str(si)
+    #         for si in available_source_identifiers]
+    #     self.source_identifier_values = available_source_identifiers
 
-        self.load_metadata()
-        self.link_channel_layers()
+    #     self.load_metadata()
+    #     self.link_channel_layers()
 
 
     def run_stabilization(self):
@@ -306,19 +328,15 @@ class StitcherQWidget(QWidget):
 
     def run_stitching(self, scheduler='threading'):
 
-        # get relevant layers
-        # potentially these could be user selected ones
-        layers = list(_utils.filter_layers(self.viewer.layers,
-                                           self.source_identifier,
-                                           self.reg_ch_picker.value))
-        
-        # get xims from layers
-        # potentially user selected layers could be transformed into
-        # spatial image xarrays taking into account 'layer.affine.affine_transform'
-        # or 'layer.scale' and 'layer.translate' attributes
-        xims = [l.data for l in layers]
-        for ixim, xim in enumerate(xims):
-            xim.name = str(_utils.get_view_from_layer_name(layers[ixim].name))
+        layers = list(_utils.filter_layers(self.input_layers,
+                                      ch=self.reg_ch_picker.value))
+
+        # xims = [l.data for l in layers]
+
+        xims = [self.xims[l.name] for l in layers]
+
+        # for ixim, xim in enumerate(xims):
+        #     xim.name = str(_utils.get_str_unique_to_view_from_layer_name(layers[ixim].name))
 
         # calculate overlap graph with overlap as edge attributes
         g = _mv_graph.build_view_adjacency_graph_from_xims(xims)
@@ -364,12 +382,14 @@ class StitcherQWidget(QWidget):
 
         node_transforms = _mv_graph.get_nodes_dataset_from_graph(g_reg_nodes, node_attribute='transforms')
 
-        # self.params.update(psc)
-        self.params = xr.merge([self.params, node_transforms], compat='override')
+        self.params.update({_utils.get_str_unique_to_view_from_layer_name(l.name): node_transforms[il]
+                            for il, l in enumerate(layers)})
+
+        # self.params = xr.merge([self.params, node_transforms], compat='override')
         self.visualization_type_rbuttons.enabled = True
 
 
-    def run_fusion(self, scheduler='threading'):
+    def run_fusion(self):
 
         # assume view_dict, pairs and params are already defined
 
@@ -384,8 +404,8 @@ class StitcherQWidget(QWidget):
             source_identifier=self.source_identifier
             )
 
-        from napari.utils import progress
-        from tqdm.dask import TqdmCallback
+        # from napari.utils import progress
+        # from tqdm.dask import TqdmCallback
 
         fused_da, fusion_stack_props, field_stack_props = \
             _fusion.fuse_tiles(viewims, self.params, self.view_dict)
@@ -436,7 +456,8 @@ class StitcherQWidget(QWidget):
             self.visualization_type_rbuttons.value = CHOICE_METADATA
             self.times_slider.min, self.times_slider.max = (0, 1)
             self.times_slider.value = (0, 1)
-            self.layers = []
+            self.input_layers = []
+            self.output_layers = []
 
             # self.visualization_type_rbuttons.enabled = False
             # self.times_slider.enabled = False
@@ -445,30 +466,8 @@ class StitcherQWidget(QWidget):
 
     def load_metadata(self):
         
-        if self.source_identifier_picker.value is None:
-            # self.container.enabled = False
-            # notifications.notification_manager.receive_info('No CZI file loaded.')
-            return
-
-        # get source identifier by comparing SIs from layers with picker value
-        # should be improved
-        curr_source_identifier = [si for si in _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)
-            if _utils.source_identifier_to_str(si) == self.source_identifier_picker.value][0]
-        
-        if self.source_identifier != curr_source_identifier:
-            self.reset()
-
-        self.source_identifier = curr_source_identifier
-        if self.source_identifier is None:
-            notifications.notification_manager.receive_info('No CZI file loaded.')
-            return
-
-        layers = list(_utils.filter_layers(self.viewer.layers, source_identifier=self.source_identifier))
-
-        self.layers = layers
-
         # assume dims are the same for all layers
-        l0 = layers[0]
+        l0 = self.input_layers[0]
         if 'T' in l0.data.dims:
             self.times_slider.enabled = True
             # self.times_slider.min = int(l0.data.coords['T'][0] - 1)
@@ -477,10 +476,9 @@ class StitcherQWidget(QWidget):
             self.times_slider.max = len(l0.data.coords['T']) - 1
             self.times_slider.value = self.times_slider.min, self.times_slider.max
 
-        # import pdb; pdb.set_trace()
         if 'C' in l0.data.coords.keys():
             self.reg_ch_picker.enabled = True
-            self.reg_ch_picker.choices = np.unique([_utils.get_ch_from_layer(l) for l in layers])
+            self.reg_ch_picker.choices = np.unique([_utils.get_ch_from_layer(l) for l in self.input_layers])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
         from collections.abc import Iterable
@@ -491,15 +489,35 @@ class StitcherQWidget(QWidget):
             w.enabled = True
 
 
-    def link_channel_layers(self):
+    def load_layers_all(self):
+        self.load_layers(self.viewer.layers)
 
-        if self.source_identifier is None:
-            return
+
+    def load_layers_sel(self):
+        self.load_layers([l for l in self.viewer.layers.selection])
+
+
+    def load_layers(self, layers):
+
+        self.reset()
+        self.layers_selection.choices = sorted([l.name for l in layers])
+
+        self.input_layers = layers
+        self.xims = {l.name: l.data for l in layers}
+
+        if len(layers) and\
+            len(np.unique([_utils.get_str_unique_to_view_from_layer_name(l.name) for l in layers])) > 1:
+            self.link_channel_layers(layers)
+
+        self.load_metadata()
+
+
+    def link_channel_layers(self, layers):
 
         # link channel layers
         from napari.experimental import link_layers
 
-        layers = list(_utils.filter_layers(self.viewer.layers, source_identifier=self.source_identifier))
+        # layers = list(_utils.filter_layers(self.viewer.layers, source_identifier=self.source_identifier))
 
         # for ch in range(self.dims['C'][0], self.dims['C'][1]):
         channels = [_utils.get_ch_from_layer(l) for l in layers]
@@ -517,10 +535,10 @@ class StitcherQWidget(QWidget):
         print('deleting widget')
 
         # clean up callbacks
-        self.viewer.layers.events.inserted.disconnect(self.link_channel_layers)
+        # self.viewer.layers.events.inserted.disconnect(self.link_channel_layers)
         self.viewer.dims.events.disconnect(self.update_viewer_transformations)
-        self.viewer.layers.events.inserted.disconnect(self.on_layers_change)
-        self.viewer.layers.events.removed.disconnect(self.on_layers_change)
+        # self.viewer.layers.events.inserted.disconnect(self.on_layers_change)
+        # self.viewer.layers.events.removed.disconnect(self.on_layers_change)
 
 
 # simple widget to reload the plugin during development
@@ -532,11 +550,6 @@ def reload_plugin_widget(viewer: "napari.Viewer"):
     _reader = importlib.reload(_reader)
     _fusion = importlib.reload(_fusion)
     _registration = importlib.reload(_registration)
-
-    from mvregfus import mv_visualization, mv_utils, io_utils
-    mv_visualization = importlib.reload(mv_visualization)
-    mv_utils = importlib.reload(mv_utils)
-    io_utils = importlib.reload(io_utils)
     
     # viewer.window.remove_dock_widget('all')
     # viewer.events.disconnect()
@@ -568,7 +581,8 @@ if __name__ == "__main__":
     # wdg.params = xr.open_dataset('test.netcdf')
     # wdg.visualization_type_rbuttons.enabled = True
 
+    wdg.button_load_layers_all.clicked()
 
-    wdg.run_stitching()
+    # wdg.run_stitching()
 
-    napari.run()
+    # napari.run()

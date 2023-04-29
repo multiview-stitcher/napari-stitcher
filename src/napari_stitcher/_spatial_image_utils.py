@@ -21,7 +21,7 @@ def assign_si_coords_from_params(xim, p=None):
         p = M.copy()
 
     scale, shear, angles, translate, perspective = tfs.decompose_matrix(p)
-    direction_matrix = tfs.euler_matrix(angles[0], angles[1], angles[2])
+    direction_matrix = tfs.euler_matrix(angles[0], angles[1], angles[2]) # use tfs.compose_matrix here for consistency
 
     if ndim == 2:
         scale = scale[1:]
@@ -38,6 +38,23 @@ def assign_si_coords_from_params(xim, p=None):
     xim.attrs['direction'] = direction_matrix
 
     return xim
+
+
+def compose_params(origin, spacing):
+
+    ndim = len(origin)
+
+    if ndim == 2:
+        origin = np.concatenate([[0.], origin])
+        spacing = np.concatenate([[1.], spacing])
+    
+
+    M = tfs.compose_matrix(scale=spacing, translate=origin)
+
+    if ndim == 2:
+        M = M[1:, 1:]
+
+    return M
 
 
 def get_data_to_world_matrix_from_spatial_image(xim):
@@ -76,20 +93,47 @@ def get_spatial_dims_from_xim(xim):
     return [dim for dim in ['Z', 'Y', 'X'] if dim in xim.dims]
 
 
-def get_origin_from_xim(xim):
+def get_origin_from_xim(xim, asarray=False):
 
     spatial_dims = get_spatial_dims_from_xim(xim)
     origin = {dim: xim.coords[dim][0] for dim in spatial_dims}
 
+    if asarray:
+        origin = np.array([origin[sd] for sd in spatial_dims])
+
     return origin
 
 
-def get_spacing_from_xim(xim):
+def get_shape_from_xim(xim, asarray=False):
+
+    spatial_dims = get_spatial_dims_from_xim(xim)
+    shape = {dim: len(xim.coords[dim]) for dim in spatial_dims}
+
+    if asarray:
+        shape = np.array([shape[sd] for sd in spatial_dims])
+
+    return shape
+
+
+def get_spacing_from_xim(xim, asarray=False):
     
     spatial_dims = get_spatial_dims_from_xim(xim)
     spacing = {dim: xim.coords[dim][1] - xim.coords[dim][0] for dim in spatial_dims}
 
+    if asarray:
+        spacing = np.array([spacing[sd] for sd in spatial_dims])
+
     return spacing
+
+
+def ensure_time_dim(xim):
+    if 'T' not in xim.dims:
+        xim = xim.expand_dims(['T'])
+    return xim
+
+
+def get_ndim_from_xim(xim):
+    return len(get_spatial_dims_from_xim(xim))
 
 
 # def get_spatial_image_from_array_and_params(im, p=None):

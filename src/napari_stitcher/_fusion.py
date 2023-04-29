@@ -1,12 +1,12 @@
 import numpy as np
-
+import xarray as xr
 import dask.array as da
 from dask import delayed
 
-from mvregfus.multiview import calc_stack_properties_from_views_and_params
-
 from scipy import ndimage
 from dask_image import ndinterp
+
+from napari_stitcher import _spatial_image_utils
 
 
 def combine_stack_props(stack_props_list):
@@ -20,25 +20,110 @@ def combine_stack_props(stack_props_list):
     return combined_stack_props
 
 
-def fuse_tiles(viewims: dict,
-               params: dict,
-               view_dict: dict,
+# def fuse_tiles(viewims: dict,
+#                params: dict,
+#                view_dict: dict,
+#             #    blending_widths: list,
+# ):
+
+#     input_channels = sorted(viewims.keys())
+#     input_times = sorted(viewims[input_channels[0]].keys())
+#     views = sorted(viewims[input_channels[0]][input_times[0]].keys())
+
+#     for view in views:
+#         view_dict[view]['size'] = view_dict[view]['shape']
+
+#     field_stack_props = [calc_stack_properties_from_views_and_params(
+#                 [view_dict[view] for view in views],
+#                 params[t],
+#                 view_dict[views[0]]['spacing'],
+#                 mode='union',
+#             )
+#         for t in input_times]
+
+#     fusion_stack_props = combine_stack_props(field_stack_props)
+
+#     fused_da = \
+#         da.stack([
+#             da.stack([
+#                 # da.from_delayed(delayed(fuse_field)(
+#                     fuse_field(
+#                         viewims[ch][t],
+#                         params[t],
+#                         view_dict,
+#                         fusion_stack_props,
+#                         )
+#                 # shape=tuple(fusion_stack_props['size']),
+#                 # dtype=np.uint16,
+#                 # dtype=viewims[ch][t][views[0]].dtype,
+                
+#             for t in input_times])
+#         for ch in input_channels])
+
+#     return fused_da, fusion_stack_props, field_stack_props
+
+
+# def fuse_tiles(xims: list,
+#                params: list,
+#             #    view_dict: dict,
+#             #    blending_widths: list,
+# ):
+#     """
+#     - create xr dataset containing all info
+#     - apply fuse_field to each tp independently
+#     """
+    
+#     xds = xr.Dataset(
+#         {xim.name: xim for xim in xims} |\
+#         {(xim.name, 'transform'): params.data_vars[xim.name] for xim in xims}
+#         )
+    
+
+    
+#     xds.groupby('T')
+    
+#     xfused = xr.apply_ufunc(
+#         fuse_field,
+#         xds.groupby('T')) if 'T' in xds else xds,
+        
+    
+
+#     xdss = []
+#     for xim in xims:
+        
+#     xr.Dataset({xims.name: xim}.update({'params': }))
+    
+#     return
+
+
+def fuse_tiles(xims: list,
+               params: list,
+            #    view_dict: dict,
             #    blending_widths: list,
 ):
 
-    input_channels = sorted(viewims.keys())
-    input_times = sorted(viewims[input_channels[0]].keys())
-    views = sorted(viewims[input_channels[0]][input_times[0]].keys())
+    # input_channels = sorted(viewims.keys())
+    # input_times = sorted(viewims[input_channels[0]].keys())
+    # views = sorted(viewims[input_channels[0]][input_times[0]].keys())
 
     for view in views:
         view_dict[view]['size'] = view_dict[view]['shape']
 
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
+
+    target_spacing = _spatial_image_utils.get_spacing_from_xim(xims[0])
+
+    # size, spacing, origin
     field_stack_props = [calc_stack_properties_from_views_and_params(
-                [view_dict[view] for view in views],
-                params[t],
-                view_dict[views[0]]['spacing'],
-                mode='union',
-            )
+                [{'size': np.array([len(xim.coords[sd] for sd in spatial_dims)]),
+                  'origin': np.array([_spatial_image_utils.get_origin_from_xim(xim, asarray=True)[sd]
+                                      for sd in spatial_dims]),
+                  'spacing': np.array([_spatial_image_utils.get_spacing_from_xim(xim, asarray=True)[sd]
+                                       for sd in spatial_dims]),
+                  } for xim in xims],
+                params.isel(T=t),
+                np.array([target_spacing[sd] for sd in spatial_dims]),
+                mode='union')
         for t in input_times]
 
     fusion_stack_props = combine_stack_props(field_stack_props)
@@ -63,39 +148,48 @@ def fuse_tiles(viewims: dict,
     return fused_da, fusion_stack_props, field_stack_props
 
 
-def fuse_field(field_ims, params, view_dict, out_stack_props):
+def fuse_field(xims,
+               params,
+               output_origin=None,
+               output_spacing=None,
+               output_shape=None,
+               do_interpolate_missing_pixels=True,
+               ):
     """
     fuse tiles from single timepoint and channel
     """
 
-    views = sorted(field_ims.keys())
-    input_dtype = field_ims[views[0]].dtype
+    # views = sorted(field_ims.keys())
+    input_dtype = xims[0].dtype
 
-    ndim = field_ims[0].ndim
+    ndim = _spatial_image_utils.get_ndim_from_xim(xims[0])
+
     field_ims_t = []
     field_ws_t = []
-    for view in views:
+    # for view in views:
+    for ixim, xim in enumerate(xims):
 
-        p = np.array(params[view])
-        matrix = p[:ndim*ndim].reshape(ndim,ndim)
-        offset = p[ndim*ndim:]
+        p = np.array(params[ixim])
+        matrix = p[:ndim, :ndim]
+        offset = p[:ndim, ndim]
 
         # spacing matrices
-        Sx = np.diag(out_stack_props['spacing'])
-        Sy = np.diag(view_dict[view]['spacing'])
+        Sx = np.diag(output_spacing)
+        Sy = np.diag(_spatial_image_utils.get_spacing_from_xim(xim, asarray=True))
 
         matrix_prime = np.dot(np.linalg.inv(Sy), np.dot(matrix, Sx))
         offset_prime = np.dot(np.linalg.inv(Sy),
-            offset - view_dict[view]['origin'] + np.dot(matrix, out_stack_props['origin']))
-
+            offset - _spatial_image_utils.get_origin_from_xim(xim, asarray=True) +
+            np.dot(matrix, output_origin))
+        
         field_ims_t.append(ndinterp.affine_transform(
-                                            field_ims[view].astype(np.uint16) + 1, # add 1 so that 0 indicates no data
+                                            xim.data,
                                             matrix=matrix_prime,
                                             offset=offset_prime,
-                                            order=3,
-                                            output_shape=tuple(out_stack_props['size']),
-                                            output_chunks=tuple([600 for _ in out_stack_props['size']]),
-                                            # output_chunks=tuple(out_stack_props['size']),
+                                            order=1,
+                                            output_shape=tuple(output_shape),
+                                            # output_chunks=tuple([600 for _ in output_shape]),
+                                            output_chunks=tuple(output_shape),
                                             mode='constant',
                                             cval=0.,
                                             )
@@ -106,52 +200,148 @@ def fuse_field(field_ims, params, view_dict, out_stack_props):
         else:
             blending_widths = [3] + [10] * 2
 
-        field_ws = get_smooth_border_weight_from_shape(field_ims[view].shape[-ndim:], widths=blending_widths)
+        field_ws = get_smooth_border_weight_from_shape(xim.shape[-ndim:], widths=blending_widths)
 
         field_ws_t.append(ndinterp.affine_transform(
-                                            field_ws, # add 1 so that 0 indicates no data
+                                            field_ws,
                                             matrix=matrix_prime,
                                             offset=offset_prime,
                                             order=1,
-                                            output_shape=tuple(out_stack_props['size']),
-                                            output_chunks=tuple([600 for _ in out_stack_props['size']]),
-                                            # output_chunks=tuple(out_stack_props['size']),
+                                            output_shape=tuple(output_shape),
+                                            output_chunks=tuple(output_shape),
                                             mode='constant',
-                                            cval=0.,
+                                            cval=np.nan, # nan indicates no data
                                             )
         )
 
     field_ims_t = da.stack(field_ims_t)
     field_ws_t = da.stack(field_ws_t)
 
-    wsum = da.sum(field_ws_t, axis=0)
+    wsum = da.nansum(field_ws_t, axis=0)
     wsum[wsum==0] = 1
 
     field_ws_t = field_ws_t / wsum
 
-    fused_field = da.sum(field_ims_t * field_ws_t, axis=0)
+    fused_field = da.nansum(field_ims_t * field_ws_t, axis=0)
 
-    fused_field = fused_field - 1  # subtract 1 because of earlier addition
-
-    do_interpolate_missing_pixels = True
     if do_interpolate_missing_pixels:
 
         # find empty spaces
-        empty_mask = fused_field < 0
+        empty_mask = da.min(da.isnan(field_ws_t), 0)
 
         # convert to input dtype
         fused_field = fused_field.astype(input_dtype)
 
         fused_field = da.from_delayed(delayed(interpolate_missing_pixels)(
-                                fused_field, empty_mask),
+                            fused_field, empty_mask),
                             shape=fused_field.shape,
                             dtype=fused_field.dtype)
 
-    else:
-        fused_field = fused_field * (fused_field >= 0)
-        fused_field = fused_field.astype(input_dtype)
+    fused_field = xr.DataArray(fused_field,
+                             dims=xims[0].dims
+    )
+
+    fused_field = _spatial_image_utils.assign_si_coords_from_params(
+        fused_field,
+        _spatial_image_utils.compose_params(output_origin, output_spacing)
+        )
 
     return fused_field
+
+
+def calc_stack_properties_from_views_and_params(views_props, params, spacing=None, mode='sample'):
+
+    spacing = np.array(spacing).astype(np.float64)
+
+    if mode == 'sample':
+        volume = get_sample_volume(views_props, params)
+    elif mode == 'union':
+        volume = get_union_volume(views_props, params)
+    elif mode == 'intersection':
+        volume = get_intersection_volume(views_props, params)
+
+    stack_properties = calc_stack_properties_from_volume(volume, spacing)
+
+    return stack_properties
+
+
+def get_sample_volume(stack_properties_list, params):
+    """
+    back project first planes in every view to get maximum volume
+    """
+
+    ndim = len(stack_properties_list[0]['spacing'])
+    generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
+    vertices = np.zeros((len(stack_properties_list)*len(generic_vertices),ndim))
+    for iim, sp in enumerate(stack_properties_list):
+        tmp_vertices = generic_vertices * np.array(sp['size']) * np.array(sp['spacing']) + np.array(sp['origin'])
+        inv_params = np.linalg.inv(((params[iim])))
+        tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]
+        vertices[iim*len(generic_vertices):(iim+1)*len(generic_vertices)] = tmp_vertices_transformed
+
+    lower = np.min(vertices,0)
+    upper = np.max(vertices,0)
+
+    return lower,upper
+
+
+def get_union_volume(stack_properties_list, params):
+    """
+    back project first planes in every view to get maximum volume
+    """
+    ndim = len(stack_properties_list[0]['spacing'])
+    generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
+    vertices = np.zeros((len(stack_properties_list)*len(generic_vertices),ndim))
+    for iim, sp in enumerate(stack_properties_list):
+        tmp_vertices = generic_vertices * np.array(sp['size']) * np.array(sp['spacing']) + np.array(sp['origin'])
+        inv_params = np.linalg.inv(((params[iim])))
+        tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]
+        vertices[iim*len(generic_vertices):(iim+1)*len(generic_vertices)] = tmp_vertices_transformed
+
+    lower = np.min(vertices,0)
+    upper = np.max(vertices,0)
+
+    return lower,upper
+
+
+def get_intersection_volume(stack_properties_list, params):
+    """
+    back project first planes in every view to get maximum volume
+    """
+
+    ndim = len(stack_properties_list[0]['spacing'])
+    # generic_vertices = np.array([[i,j,k] for i in [0,1] for j in [0,1] for k in [0,1]])
+    generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
+    vertices = np.zeros((len(stack_properties_list)*len(generic_vertices),ndim))
+    for iim, sp in enumerate(stack_properties_list):
+        tmp_vertices = generic_vertices * np.array(sp['size']) * np.array(sp['spacing']) + np.array(sp['origin'])
+        inv_params = np.linalg.inv(((params[iim])))
+        tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]
+        vertices[iim,:] = tmp_vertices_transformed
+
+    lower = np.max(np.min(vertices,1),0)
+    upper = np.min(np.max(vertices,1),0)
+
+    return lower,upper
+
+
+def calc_stack_properties_from_volume(volume, spacing):
+
+    """
+    :param volume: lower and upper edge of final volume (e.g. [edgeLow,edgeHigh] as calculated by calc_final_stack_cube)
+    :param spacing: final spacing
+    :return: dictionary containing size, origin and spacing of final stack
+    """
+
+    origin                      = volume[0]
+    size                        = np.ceil((volume[1]-volume[0]) / spacing).astype(np.uint16)
+
+    properties_dict = dict()
+    properties_dict['size']     = size
+    properties_dict['spacing']  = spacing
+    properties_dict['origin']   = origin
+
+    return properties_dict
 
 
 def smooth_transition(x, x_offset=0.5, x_stretch=None, k=3):
@@ -187,9 +377,16 @@ def get_smooth_border_weight_from_shape(shape, widths=None):
     ndim = len(shape)
 
     # get distance to border for each dim
+
+    # zero at the border
+    # dim_dists = [ndimage.distance_transform_edt(
+    #                 ndimage.binary_erosion(
+    #                     np.ones(shape[dim]).astype(bool)))
+    #                         for dim in range(ndim)]
+
+    # nonzero at the border
     dim_dists = [ndimage.distance_transform_edt(
-                    ndimage.binary_erosion(
-                        np.ones(shape[dim]).astype(bool)))
+                    np.ones(shape[dim]).astype(bool))
                             for dim in range(ndim)]
 
     dim_ws = [smooth_transition(dim_dists[dim],
@@ -250,27 +447,30 @@ def interpolate_missing_pixels(
 
 if __name__ == "__main__":
 
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
 
-    from napari_stitcher import _utils
-    from mvregfus import io_utils, mv_utils
+    from napari_stitcher import _utils, _reader
+    # from mvregfus import io_utils, mv_utils
 
-    view_dict = io_utils.build_view_dict_from_multitile_czi(filename, max_project=False)
-    views = np.array([view for view in sorted(view_dict.keys())])
-    pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
+    # xims = 
 
-    viewims = _utils.load_tiles(view_dict, [0],
-                    [0], max_project=False)
+    # view_dict = io_utils.build_view_dict_from_multitile_czi(filename, max_project=False)
+    # views = np.array([view for view in sorted(view_dict.keys())])
+    # pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
+
+    # viewims = _utils.load_tiles(view_dict, [0],
+    #                 [0], max_project=False)
     
-    params = {0: {view: mv_utils.matrix_to_params(np.eye(len(view_dict[0]['origin'])+1)) for view in views}}
+    # params = {0: {view: mv_utils.matrix_to_params(np.eye(len(view_dict[0]['origin'])+1)) for view in views}}
 
-    fused_da, fusion_stack_props_d, field_stack_props_d = \
-        fuse_tiles(viewims, params, view_dict)
+    # fused_da, fusion_stack_props_d, field_stack_props_d = \
+    #     fuse_tiles(viewims, params, view_dict)
 
-    fused = fused_da.compute()
+    # fused = fused_da.compute()
 
     # import tifffile
     # tifffile.imwrite('delme1.tif', fused.astype(np.float32))

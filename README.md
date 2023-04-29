@@ -87,3 +87,4 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 - Option to load all layers / selected layers
 - Show loaded layers
 - keep layers and xims list according to this
+- add groupwise optimization, e.g. using corners of overlap regions as virtual points. optimize using decomposition parametrizations

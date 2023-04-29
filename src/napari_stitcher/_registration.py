@@ -84,12 +84,11 @@ def register_pair_of_xims(xim1,
                             xim2,
                             registration_binning=None):
     """
-    Register over time
+    Register over time.
     """
 
-    if 'T' not in xim1.dims:
-        xim1 = xim1.expand_dims('T')
-        xim2 = xim2.expand_dims('T')
+    xim1 = _spatial_image_utils.ensure_time_dim(xim1)
+    xim2 = _spatial_image_utils.ensure_time_dim(xim2)
 
     # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
     ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(xim1))
@@ -164,6 +163,15 @@ def get_registration_graph_from_overlap_graph(g,
     return g_reg
 
 
+def identity_transform(ndim):
+
+    params = xr.DataArray(
+        np.eye(ndim + 1),
+        dims=['x_in', 'x_out'])
+    
+    return params
+
+
 def get_node_params_from_reg_graph(g_reg):
 
     # g = networkx.DiGraph()
@@ -206,8 +214,7 @@ def get_node_params_from_reg_graph(g_reg):
         path_pairs = [[reg_path[i], reg_path[i+1]]
                       for i in range(len(reg_path) - 1)]
         
-        path_params = xr.DataArray(np.eye(ndim + 1),
-                                    dims=['x_in', 'x_out'])
+        path_params = identity_transform(ndim)
 
         # path_params = xr.DataArray([np.eye(ndim + 1) for t in g_reg.nodes[n]['xim'].coords['T']],
         #                             dims=['T', 'x_in', 'x_out'],

@@ -41,6 +41,8 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
     
     viewer.open(test_path)
 
+    stitcher_widget.button_load_layers_all.clicked()
+
     # Run stitching
     # stitcher_widget.button_stitch.clicked()
     stitcher_widget.run_stitching(scheduler='single-threaded')

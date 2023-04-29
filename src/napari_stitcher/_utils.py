@@ -192,8 +192,8 @@ def get_list_of_source_identifiers_from_layers(layers):
     return source_identifiers
 
 
-def get_view_from_layer_name(layer_name):
-    return int(layer_name.split(' :: ')[0].split('_')[1])
+def get_str_unique_to_view_from_layer_name(layer_name):
+    return layer_name.split(' :: ')[0]#.split('_')[1]
 
 
 def get_view_from_layer(layer):
@@ -212,59 +212,3 @@ def filter_layers(layers, source_identifier=None, ch=None):
         if ch is not None and get_ch_from_layer(l) != ch: continue
         yield l
 
-
-# def get_layers_from_source_identifier_and_view(layers, source_identifier, view):
-#     for l in layers:
-#         if layer_was_loaded_by_own_reader(l) and\
-#             layer_coincides_with_source_identifier(l, source_identifier) and\
-#                 get_view_from_layer(l) == view:
-#             yield l
-
-
-# def get_layers_from_source_identifier_and_ch(layers, source_identifier, ch):
-#     for l in layers:
-#         if layer_was_loaded_by_own_reader(l) and\
-#             layer_coincides_with_source_identifier(l, source_identifier) and\
-#                 get_ch_from_layer(l) == ch:
-#             yield l
-
-
-# def get_layer_from_source_identifier_view_and_ch(layers, source_identifier, view, ch):
-#     view_layers = get_layers_from_source_identifier_and_view(layers, source_identifier, view)
-#     for l in view_layers:
-#         if get_ch_from_layer(l) == ch:
-#             return l
-
-
-# def params_to_napari_affine(params):
-
-#     """
-#     params: Transformation from image data pixel space to physical space.
-#             This is the transform that makes napari display layer data in world coordinates.
-
-#     See https://napari.org/stable/guides/3D_interactivity.html
-
-#     y = Ax+c
-#     y=sy*yp+oy
-#     x=sx*xp+ox
-
-#     sy*yp+oy = A(sx*xp+ox)+c
-#     yp = syi * A*sx*xp + syi  *A*ox +syi*(c-oy)
-#     A' = syi * A * sx
-#     c' = syi  *A*ox +syi*(c-oy)
-#     """
-
-#     p = mv_utils.params_to_matrix(params)
-
-#     ndim = len(p) - 1
-
-#     sx = np.diag(list((stack_props['spacing'])))
-#     sy = np.diag(list((view_stack_props['spacing'])))
-
-#     syi = np.linalg.inv(sy)
-#     p[:ndim, ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], stack_props['origin'])) \
-#                 + np.dot(syi, (p[:ndim, ndim] - view_stack_props['origin']))
-#     p[:ndim, :ndim] = np.dot(syi, np.dot(p[:ndim, :ndim], sx))
-#     p = np.linalg.inv(p)
-
-#     return p

@@ -223,7 +223,7 @@ def read_mosaic_czi(path, scene_index=None):
     out_layers = [
         create_image_layer_tuple_from_spatial_xim(
                     view_xim.sel(C=ch_coord),
-                    cmaps[view_xim.name],
+                    cmaps[iview],
                     name_prefix='tile_%03d' %iview)
             for iview, view_xim in enumerate(view_xims)
         for ch_coord in view_xim.coords['C']

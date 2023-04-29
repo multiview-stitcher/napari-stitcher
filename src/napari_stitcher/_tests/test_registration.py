@@ -41,10 +41,10 @@ def test_register_graph():
     assert([type(g_reg.edges[e]['transform'].data) == da.core.Array
         for e in g_reg.edges if 'transform' in g_reg.edges[e].keys()])
     
-    # g_reg = _mv_graph.select_coords_from_graph(g_reg, {'C': [view_xims[0].coords['C'][0]]}, ['transform'])
-    g_reg = _mv_graph.select_coords_from_graph(g_reg,
-                                               {'C': [view_xims[0].coords['C'][0].data]},
-                                               edge_attributes=['transform'])
+    # # g_reg = _mv_graph.select_coords_from_graph(g_reg, {'C': [view_xims[0].coords['C'][0]]}, ['transform'])
+    # g_reg = _mv_graph.sel_coords_from_graph(g_reg,
+    #                                            {'C': [view_xims[0].coords['C'][0].data]},
+    #                                            edge_attributes=['transform'])
 
     g_reg_computed = _mv_graph.compute_graph_edges(g_reg)
     

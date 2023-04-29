@@ -15,8 +15,8 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
     g = nx.Graph()
     for iview, xim in enumerate(xims):
         g.add_node(
-            # iview,
-            xim.name,
+            iview,
+            # xim.name,
             xim=xim)
         
     for iview1, xim1 in enumerate(xims):
@@ -28,8 +28,8 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
             overlap = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand)
             
             if overlap > 0:
-                # g.add_edge(iview1, iview2, overlap=overlap)
-                g.add_edge(xim1.name, xim2.name, overlap=overlap)
+                g.add_edge(iview1, iview2, overlap=overlap)
+                # g.add_edge(xim1.name, xim2.name, overlap=overlap)
 
     return g
 
