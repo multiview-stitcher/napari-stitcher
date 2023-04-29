@@ -12,7 +12,6 @@ import pathlib, os, tempfile
 import numpy as np
 import dask
 import dask.array as da
-import xarray as xr
 
 from napari.utils import notifications
 
@@ -21,7 +20,7 @@ from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget
 
 # from mvregfus import mv_utils
 
-from napari_stitcher import _utils, _registration, _fusion, _file_utils, _mv_graph, _spatial_image_utils
+from napari_stitcher import _utils, _registration, _fusion, _mv_graph, _spatial_image_utils
 
 if TYPE_CHECKING:
     import napari
@@ -385,7 +384,6 @@ class StitcherQWidget(QWidget):
         self.params.update({_utils.get_str_unique_to_view_from_layer_name(l.name): node_transforms[il]
                             for il, l in enumerate(layers)})
 
-        # self.params = xr.merge([self.params, node_transforms], compat='override')
         self.visualization_type_rbuttons.enabled = True
 
 
