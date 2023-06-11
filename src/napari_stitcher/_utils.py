@@ -193,22 +193,23 @@ def get_list_of_source_identifiers_from_layers(layers):
 
 
 def get_str_unique_to_view_from_layer_name(layer_name):
-    return layer_name.split(' :: ')[0]#.split('_')[1]
+    return layer_name.split(' :: ')[0]
+
+
+def get_str_unique_to_ch_from_layer_name(layer_name):
+    return layer_name.split(' :: ')[1]
 
 
 def get_view_from_layer(layer):
     return layer.metadata['view']
 
 
-def get_ch_from_layer(layer):
+# def get_ch_from_layer(layer):
+#     return str(layer.data.coords['C'].data)
 
-    return str(layer.data.coords['C'].data)
 
-
-def filter_layers(layers, source_identifier=None, ch=None):
+def filter_layers(layers, view=None, ch=None):
     for l in layers:
-        if source_identifier is not None and\
-            not layer_coincides_with_source_identifier(l, source_identifier): continue
-        if ch is not None and get_ch_from_layer(l) != ch: continue
+        if view is not None and get_str_unique_to_view_from_layer_name(l.name) != view: continue
+        if ch is not None and get_str_unique_to_ch_from_layer_name(l.name) != ch: continue
         yield l
-

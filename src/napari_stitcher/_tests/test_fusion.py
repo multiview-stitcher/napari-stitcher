@@ -4,7 +4,7 @@ import xarray as xr
 
 from napari_stitcher import _fusion, _registration, _sample_data, _spatial_image_utils, _reader, _mv_graph
 
-def test_fuse_fields():
+def test_fuse_field():
 
     xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
     _sample_data.get_sample_data_path())
@@ -14,14 +14,8 @@ def test_fuse_fields():
         # xims[ixim].name = ixim
         # xim.name = ixim
 
-    # params = xr.Dataset({xim.name: _registration.identity_transform(_spatial_image_utils.get_ndim_from_xim(xim))
-    #                      for xim in xims})
     params = [_registration.identity_transform(_spatial_image_utils.get_ndim_from_xim(xim))
                          for xim in xims]
-
-    # _fusion.calc_stack_properties_from_views_and_params
-
-    # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
 
     xfused = _fusion.fuse_field(
         xims,
@@ -30,6 +24,9 @@ def test_fuse_fields():
         output_spacing=_spatial_image_utils.get_spacing_from_xim(xims[0], asarray=True),
         output_shape=_spatial_image_utils.get_shape_from_xim(xr.merge(xims), asarray=True),
         )
+    
+    # check output is dask array and hasn't been converted into numpy array
+    assert(type(xfused.data) == da.core.Array)
     
     xfused = xfused.compute()
 
@@ -59,3 +56,34 @@ def test_fuse_fields():
     assert(np.all((xims_merge_min <= xfused.data)))
     assert(np.all((xims_merge_max >= xfused.data)))
 
+
+def test_fuse_xims():
+
+    xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
+    _sample_data.get_sample_data_path())
+
+    params = [_registration.identity_transform(_spatial_image_utils.get_ndim_from_xim(xim))
+                        for xim in xims]
+
+    for test_xims in [
+        xims,
+        [xim.expand_dims('T') for xim in xims]
+    ]:
+        
+        xfused = _fusion.fuse_xims(test_xims, params,
+                    
+            output_origin=[0,0],
+            output_shape=[10,11],
+            output_spacing=[1,1.],
+            )
+
+        # check output is dask array and hasn't been converted into numpy array
+        assert(type(xfused.data) == da.core.Array)    
+
+        # xfused.compute()
+        xfused = xfused.compute(scheduled='single-threaded')
+
+        
+
+
+# def test_calc_stack_properties_from_xims_and_params()

@@ -80,9 +80,8 @@ def register_pair_of_spatial_images(
     return p
 
 
-def register_pair_of_xims(xim1,
-                            xim2,
-                            registration_binning=None):
+def register_pair_of_xims(xim1, xim2,
+                          registration_binning=None):
     """
     Register over time.
     """
@@ -214,11 +213,14 @@ def get_node_params_from_reg_graph(g_reg):
         path_pairs = [[reg_path[i], reg_path[i+1]]
                       for i in range(len(reg_path) - 1)]
         
-        path_params = identity_transform(ndim)
+        # path_params = identity_transform(ndim)
 
-        # path_params = xr.DataArray([np.eye(ndim + 1) for t in g_reg.nodes[n]['xim'].coords['T']],
-        #                             dims=['T', 'x_in', 'x_out'],
-        #                             coords={'T': g_reg.nodes[n]['xim'].coords['T']})
+        if 'T' in g_reg.nodes[n]['xim'].dims:
+            path_params = xr.DataArray([np.eye(ndim + 1) for t in g_reg.nodes[n]['xim'].coords['T']],
+                                        dims=['T', 'x_in', 'x_out'],
+                                        coords={'T': g_reg.nodes[n]['xim'].coords['T']})
+        else:
+            path_params = identity_transform(ndim)
         
         for pair in path_pairs:
             path_params = xr.apply_ufunc(np.matmul,

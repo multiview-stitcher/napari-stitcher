@@ -277,19 +277,6 @@ class StitcherQWidget(QWidget):
 
             l.refresh()
 
-        # else: continue
-
-
-    # def on_layers_change(self):
-    #     available_source_identifiers =\
-    #         _utils.get_list_of_source_identifiers_from_layers(self.viewer.layers)
-    #     self.source_identifier_picker.choices = [_utils.source_identifier_to_str(si)
-    #         for si in available_source_identifiers]
-    #     self.source_identifier_values = available_source_identifiers
-
-    #     self.load_metadata()
-    #     self.link_channel_layers()
-
 
     def run_stabilization(self):
 
@@ -330,12 +317,7 @@ class StitcherQWidget(QWidget):
         layers = list(_utils.filter_layers(self.input_layers,
                                       ch=self.reg_ch_picker.value))
 
-        # xims = [l.data for l in layers]
-
         xims = [self.xims[l.name] for l in layers]
-
-        # for ixim, xim in enumerate(xims):
-        #     xim.name = str(_utils.get_str_unique_to_view_from_layer_name(layers[ixim].name))
 
         # calculate overlap graph with overlap as edge attributes
         g = _mv_graph.build_view_adjacency_graph_from_xims(xims)
@@ -377,8 +359,6 @@ class StitcherQWidget(QWidget):
         # get node parameters
         g_reg_nodes = _registration.get_node_params_from_reg_graph(g_reg_computed)
 
-        # import pdb; pdb.set_trace()
-
         node_transforms = _mv_graph.get_nodes_dataset_from_graph(g_reg_nodes, node_attribute='transforms')
 
         self.params.update({_utils.get_str_unique_to_view_from_layer_name(l.name): node_transforms[il]
@@ -389,61 +369,77 @@ class StitcherQWidget(QWidget):
 
     def run_fusion(self):
 
-        # assume view_dict, pairs and params are already defined
+        """
+        Split layers into channel groups and fuse each group separately.
+        """
 
-        times = sorted(self.params.keys())
-        channels = range(self.dims['C'][0], self.dims['C'][1])
-
-        viewims = _utils.load_tiles_from_layers(
-            self.viewer.layers,
-            self.view_dict,
-            channels,
-            times,
-            source_identifier=self.source_identifier
-            )
-
-        # from napari.utils import progress
-        # from tqdm.dask import TqdmCallback
-
-        fused_da, fusion_stack_props, field_stack_props = \
-            _fusion.fuse_tiles(viewims, self.params, self.view_dict)
+        layer_chs = [_utils.get_str_unique_to_ch_from_layer_name(l.name)
+                    for l in self.input_layers]
         
-        fused = da.to_zarr(
-            fused_da,
-            os.path.join(self.tmpdir.name, fused_da.name+'.zarr'),
-            return_stored=True,
-            overwrite=True,
-            compute=False,
+        channels = np.unique(layer_chs)
+
+        channels = self.reg_ch_picker.choices
+
+        for ch in channels:
+
+            layers_to_fuse = list(_utils.filter_layers(self.input_layers, ch=ch))
+            xims_to_fuse = [self.xims[l.name] for l in layers_to_fuse]
+
+            params_to_fuse = [self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
+                              for l in layers_to_fuse]
+
+            output_stack_properties = _fusion.calc_stack_properties_from_xims_and_params(
+                xims_to_fuse,
+                params_to_fuse,
+                spacing=_spatial_image_utils.get_spacing_from_xim(xims_to_fuse[0], asarray=True)
+                )
+            
+            xfused = _fusion.fuse_xims(
+                xims_to_fuse,
+                params_to_fuse,
+                output_origin=output_stack_properties['origin'],
+                output_spacing=output_stack_properties['spacing'],
+                output_shape=output_stack_properties['shape'],
+                output_chunksize=512,
+                interpolate_missing_pixels=True,
             )
 
-        fused = _utils.compute_dask_object(
-            fused,
-            self.viewer,
-            widgets_to_disable=[self.container],
-            message="Fusing tiles",
-            scheduler='single-threaded',
+            xfused.data = da.to_zarr(
+                xfused.data,
+                os.path.join(self.tmpdir.name, xfused.data.name+'.zarr'),
+                return_stored=True,
+                overwrite=True,
+                compute=False,
+                )
+
+            xfused.data = _utils.compute_dask_object(
+                xfused.data,
+                self.viewer,
+                widgets_to_disable=[self.container],
+                message="Fusing tiles of channel %s" %ch,
+                scheduler='single-threaded',
+                )
+
+            self.viewer.add_image(
+                xfused,
+                channel_axis=0,
+                name=[_utils.source_identifier_to_str(self.source_identifier) + '_fused_ch_%03d' %ch
+                        for ch in channels],
+                colormap='gray',
+                blending='additive',
+                # metadata=dict(
+                #                 view_dict=self.view_dict,
+                #                 stack_props=fusion_stack_props,
+                #                 field_stack_props={t: field_stack_props[it]
+                #                     for it, t in enumerate(times)},
+                #                 view=-1,
+                #                 times=times,
+                #                 processing_state='fused',
+                #                 ndim=len(fusion_stack_props['origin']),
+                #                 )
             )
 
-        self.viewer.add_image(
-            fused,
-            channel_axis=0,
-            name=[_utils.source_identifier_to_str(self.source_identifier) + '_fused_ch_%03d' %ch
-                    for ch in channels],
-            colormap='gray',
-            blending='additive',
-            metadata=dict(
-                            view_dict=self.view_dict,
-                            stack_props=fusion_stack_props,
-                            field_stack_props={t: field_stack_props[it]
-                                for it, t in enumerate(times)},
-                            view=-1,
-                            times=times,
-                            processing_state='fused',
-                            ndim=len(fusion_stack_props['origin']),
-                            )
-        )
-
-        self.update_viewer_transformations()
+            self.update_viewer_transformations()
 
 
     def reset(self):
@@ -476,7 +472,9 @@ class StitcherQWidget(QWidget):
 
         if 'C' in l0.data.coords.keys():
             self.reg_ch_picker.enabled = True
-            self.reg_ch_picker.choices = np.unique([_utils.get_ch_from_layer(l) for l in self.input_layers])
+            self.reg_ch_picker.choices = np.unique([
+                _utils.get_str_unique_to_ch_from_layer_name(l.name)
+                for l in self.input_layers])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
         from collections.abc import Iterable
@@ -518,7 +516,7 @@ class StitcherQWidget(QWidget):
         # layers = list(_utils.filter_layers(self.viewer.layers, source_identifier=self.source_identifier))
 
         # for ch in range(self.dims['C'][0], self.dims['C'][1]):
-        channels = [_utils.get_ch_from_layer(l) for l in layers]
+        channels = [_utils.get_str_unique_to_ch_from_layer_name(l.name) for l in layers]
         for ch in channels:
             ch_layers = list(_utils.filter_layers(layers, ch=ch))
 
@@ -565,6 +563,7 @@ if __name__ == "__main__":
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
+    # filename = '/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi'
 
     viewer = napari.Viewer()
     

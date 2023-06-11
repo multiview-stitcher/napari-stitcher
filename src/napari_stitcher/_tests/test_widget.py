@@ -66,8 +66,8 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
         np.eye(3),
         viewer.layers[0].affine.affine_matrix))
 
-    # # Run fusion
-    # stitcher_widget.button_fuse.clicked()
+    # Run fusion
+    stitcher_widget.button_fuse.clicked()
 
     # # Make sure layers are created
     # assert(3, len(viewer.layers))
