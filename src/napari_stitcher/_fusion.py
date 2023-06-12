@@ -405,6 +405,9 @@ def get_interpolated_image(
         fill_value: int = 0
 ):
     """
+
+    Currently only 2d!
+
     :param image: a 2D image
     :param mask: a 2D boolean image, True indicates missing values
     :param method: interpolation method, one of

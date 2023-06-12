@@ -50,7 +50,7 @@ def test_writer():
     spacing_xy = 0.5
     im_dtype = np.uint8
 
-    for field_ndim in [2]:
+    for field_ndim in [2, 3]:
         for times in [[0], [0, 1]]:
             for channels in [
                 # [0],

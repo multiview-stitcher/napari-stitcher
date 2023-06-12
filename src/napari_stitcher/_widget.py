@@ -303,6 +303,8 @@ class StitcherQWidget(QWidget):
             layers_to_fuse = list(_utils.filter_layers(self.input_layers, ch=ch))
             xims_to_fuse = [l.data for l in layers_to_fuse]
 
+            ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(xims_to_fuse[0]))
+
             params_to_fuse = [self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
                               for l in layers_to_fuse]
 
@@ -319,7 +321,7 @@ class StitcherQWidget(QWidget):
                 output_spacing=output_stack_properties['spacing'],
                 output_shape=output_stack_properties['shape'],
                 output_chunksize=512,
-                interpolate_missing_pixels=True,
+                interpolate_missing_pixels=True if ndim == 2 else False,
             )
 
             with _utils.TemporarilyDisabledWidgets([self.container]),\

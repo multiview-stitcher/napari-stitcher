@@ -65,6 +65,15 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
 
     xim_to_write = xim_to_write.squeeze(drop=True)
 
+    # imagej needs Z to come before C
+    if 'Z' in xim_to_write.dims:
+        axes = list(xim_to_write.dims)
+        zpos = axes.index('Z')
+        cpos = axes.index('C')
+        axes[zpos] = 'C'
+        axes[cpos] = 'Z'
+        xim_to_write = xim_to_write.transpose(*tuple([ax for ax in axes]))
+
     axes = ''.join(xim_to_write.dims)
 
     imwrite(

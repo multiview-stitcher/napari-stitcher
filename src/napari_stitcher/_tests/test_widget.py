@@ -1,8 +1,11 @@
+import os
 import numpy as np
 from pathlib import Path
 
 # from napari_stitcher import ExampleQWidget, example_magic_widget
-from napari_stitcher import StitcherQWidget, _widget, _sample_data
+from napari_stitcher import StitcherQWidget, _widget, _sample_data, _viewer_utils
+
+import pytest
 
 
 def test_data_loading_while_plugin_open(make_napari_viewer):
@@ -130,3 +133,43 @@ def test_stabilization_workflow(make_napari_viewer, capsys):
     # Run fusion
     # stitcher_widget.button_fuse.clicked()
     stitcher_widget.run_fusion()
+
+
+@pytest.mark.parametrize(
+    "ndim, N_c, N_t, dtype", [
+        (2, 1, 3, np.uint16),
+        (2, 1, 3, np.uint8),
+        (2, 2, 3, np.uint8),
+        (3, 1, 3, np.uint16),
+        (3, 1, 3, np.uint8),
+        (3, 2, 3, np.uint8),
+    ]
+)
+def test_diversity_stitching(ndim, N_c, N_t, dtype, make_napari_viewer):
+
+    from napari_stitcher import StitcherQWidget
+
+    viewer = make_napari_viewer()
+
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
+            tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=5, zoom=10, dtype=dtype)
+
+    layer_tuples = _viewer_utils.create_image_layer_tuples_from_xims(xims)
+   
+    for lt in layer_tuples:
+        lt[1]['contrast_limits'] = [0, 100]
+        viewer.add_image(lt[0], **lt[1])
+
+    wdg.button_load_layers_all.clicked()
+
+    # Run stabilization
+    wdg.run_stitching()
+
+    # Run fusion
+    # stitcher_widget.button_fuse.clicked()
+    wdg.run_fusion()
+
+    viewer.layers[-N_c:].save(os.path.join(wdg.tmpdir.name, 'test.tif'))
