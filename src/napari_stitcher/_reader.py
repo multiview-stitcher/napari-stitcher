@@ -7,18 +7,14 @@ https://napari.org/stable/plugins/guides.html?#readers
 """
 import numpy as np
 import xarray as xr
-import networkx as nx
-
-from mvregfus.image_array import ImageArray
-from mvregfus import io_utils, mv_utils
 
 import dask.array as da
 from dask import delayed
 
-from aicspylibczi import CziFile
+# from aicspylibczi import CziFile
 from aicsimageio import AICSImage
 
-from napari_stitcher import _mv_graph, _spatial_image_utils
+from napari_stitcher import _spatial_image_utils, _viewer_utils
 
 
 def napari_get_reader(path):
@@ -73,9 +69,14 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
     xim =  aicsim.get_xarray_dask_stack()
     xim = xim.sel(I=scene_index)
 
-    for axis in ['Z', 'T']:
+    # remove singleton Z
+    # for axis in ['Z', 'T']:
+    for axis in ['Z']:
         if axis in xim.dims and len(xim.coords[axis]) < 2:
             xim = xim.sel({axis: 0}, drop=True)
+    
+    # ensure time dimension is present
+    xim = _spatial_image_utils.ensure_time_dim(xim)
 
     views = range(len(xim.coords['M']))
     
@@ -110,7 +111,7 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
             # spacing = spacing,
             # origin = origin,
             scene_index=scene_index,
-            spatial_dims=spatial_dims,
+            # spatial_dims=spatial_dims,
             source=path,
         ))
 
@@ -119,64 +120,6 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
         view_xims.append(view_xim)
 
     return view_xims
-
-
-def create_image_layer_tuple_from_spatial_xim(xim,
-                                              colormap='gray_r',
-                                              name_prefix=None,
-                                              ):
-
-    """
-    Note:
-    - xarray.DataArray can have coordinates for dimensions that are not listed in xim.dims (?)
-    - useful for channel names
-    """
-
-    ch_name = str(xim.coords['C'].data)
-
-    if name_prefix is None:
-        name = ch_name
-    else:
-        name = ' :: '.join([name_prefix, ch_name])
-
-    metadata = \
-        {
-        'napari_stitcher_reader_function': 'read_mosaic_czi',
-        # 'channel_name': ch_name,
-        }
-    
-    # metadata['xr_attrs'] = xim.attrs.copy()
-
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
-    origin = _spatial_image_utils.get_origin_from_xim(xim)
-    spacing = _spatial_image_utils.get_spacing_from_xim(xim)
-
-    kwargs = \
-        {
-        'contrast_limits': [np.iinfo(xim.dtype).min,
-                            np.iinfo(xim.dtype).max],
-        # 'contrast_limits': [np.iinfo(xim.dtype).min,
-        #                     30],
-        'name': name,
-        'colormap': colormap,
-        'gamma': 0.6,
-        # 'scale': [
-        #     # xim.attrs['spacing'].loc[dim]
-        #     xim.coords[dim][1] - xim.coords[dim][0]
-        #           for dim in xim.attrs['spatial_dims']],
-        # 'translate': [
-        #     # xim.attrs['origin'].loc[dim]
-        #     xim.coords[dim][0]
-        #             for dim in xim.attrs['spatial_dims']],
-        # 'affine': _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(xim),
-        'translate': [origin[dim] for dim in spatial_dims],
-        'scale': [spacing[dim] for dim in spatial_dims],
-        'cache': True,
-        'blending': 'additive',
-        'metadata': metadata,
-        }
-
-    return (xim, kwargs, 'image')
 
 
 def read_mosaic_czi(path, scene_index=None):
@@ -208,26 +151,9 @@ def read_mosaic_czi(path, scene_index=None):
     # handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
-    view_xims = read_mosaic_czi_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
+    xims = read_mosaic_czi_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
 
-    # get colors from graph analysis
-    mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(view_xims, expand=True)
-    colors = nx.coloring.greedy_color(mv_graph)
-    
-    # import pdb; pdb.set_trace()
-
-    cmaps = ['red', 'green', 'blue', 'gray']
-    cmaps = {iview: cmaps[color_index % len(cmaps)]
-             for iview, color_index in colors.items()}
-        
-    out_layers = [
-        create_image_layer_tuple_from_spatial_xim(
-                    view_xim.sel(C=ch_coord),
-                    cmaps[iview],
-                    name_prefix='tile_%03d' %iview)
-            for iview, view_xim in enumerate(view_xims)
-        for ch_coord in view_xim.coords['C']
-        ]
+    out_layers = _viewer_utils.create_image_layer_tuples_from_xims(xims)
 
     return out_layers
 

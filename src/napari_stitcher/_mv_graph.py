@@ -3,6 +3,8 @@ import networkx as nx
 import xarray as xr
 from dask import compute
 
+from napari_stitcher import _spatial_image_utils
+
 
 def build_view_adjacency_graph_from_xims(xims, expand=False):
     """
@@ -23,13 +25,10 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
         for iview2, xim2 in enumerate(xims):
             if iview1 >= iview2: continue
             
-            # if iview1 == 0 and iview2 == 8:
-            #     import pdb; pdb.set_trace()
             overlap = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand)
-            
+
             if overlap > 0:
                 g.add_edge(iview1, iview2, overlap=overlap)
-                # g.add_edge(xim1.name, xim2.name, overlap=overlap)
 
     return g
 
@@ -37,10 +36,15 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
 def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
 
     """
-    How to handle T?
+    How to handle T? For now, only consider first timepoint
     """
 
-    spatial_dims = xim1.attrs['spatial_dims']
+    # select first time point
+
+    xim1 = xim1.sel(T=xim1.coords['T'][0])
+    xim2 = xim2.sel(T=xim2.coords['T'][0])
+
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
 
     x1_i, x1_f = np.array([[xim1.coords[dim][index].data
                             for dim in spatial_dims]
@@ -49,7 +53,7 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
     x2_i, x2_f = np.array([[xim2.coords[dim][index].data
                             for dim in spatial_dims]
                             for index in [0, -1]])
-    
+        
     # # expand limits so that in case of no overlap the neighbours are shown
     # a = 10
     # if expand:
@@ -62,11 +66,11 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
     # expand limits so that in case of no overlap the neighbours are shown
     a = 10
     if expand:
-        x1_i = x1_i - a * np.array([xim1.coords[dim][1] - xim1.coords[dim][1] for dim in spatial_dims])
-        x2_i = x2_i - a * np.array([xim2.coords[dim][1] - xim2.coords[dim][1] for dim in spatial_dims])
+        x1_i = x1_i - a * np.array([xim1.coords[dim][1] - xim1.coords[dim][0] for dim in spatial_dims])
+        x2_i = x2_i - a * np.array([xim2.coords[dim][1] - xim2.coords[dim][0] for dim in spatial_dims])
 
-        x1_f = x1_f + a * np.array([xim1.coords[dim][1] - xim1.coords[dim][1] for dim in spatial_dims])
-        x2_f = x2_f + a * np.array([xim2.coords[dim][1] - xim2.coords[dim][1] for dim in spatial_dims])
+        x1_f = x1_f + a * np.array([xim1.coords[dim][1] - xim1.coords[dim][0] for dim in spatial_dims])
+        x2_f = x2_f + a * np.array([xim2.coords[dim][1] - xim2.coords[dim][0] for dim in spatial_dims])
 
     dim_overlap_opt1 = (x1_f >= x2_i) * (x1_f <= x2_f)
     dim_overlap_opt2 = (x2_f >= x1_i) * (x2_f <= x1_f)

@@ -11,9 +11,14 @@ contributions:
     - id: napari-stitcher.write_single_image
       python_name: napari_stitcher._writer:write_single_image
       title: Save image data with Stitchery
+
     - id: napari-stitcher.make_sample_data
       python_name: napari_stitcher._sample_data:make_sample_data
       title: Load sample data from Stitchery
+    - id: napari-stitcher.drifting_timelapse_with_stage_shifts_no_overlap_2d
+      python_name: napari_stitcher._sample_data:drifting_timelapse_with_stage_shifts_no_overlap_2d
+      title: Load sample data from Stitchery
+
     - id: napari-stitcher.make_qwidget
       python_name: napari_stitcher._widget:StitcherQWidget
       title: Make Stitcher QWidget
@@ -33,8 +38,11 @@ contributions:
     #   filename_extensions: ['.npy']
   sample_data:
     - command: napari-stitcher.make_sample_data
-      display_name: napari-stitcher
+      display_name: Mosaic
       key: unique_id.1
+    - command: napari-stitcher.drifting_timelapse_with_stage_shifts_no_overlap_2d
+      display_name: 2D drifting timelapse with stage shifts and no overlap
+      key: unique_id.2
   widgets:
     - command: napari-stitcher.make_qwidget
       display_name: Stitcher

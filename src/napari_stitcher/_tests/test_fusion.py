@@ -10,7 +10,8 @@ def test_fuse_field():
     _sample_data.get_sample_data_path())
 
     for ixim, xim in enumerate(xims):
-        xims[ixim] = xim.sel(C=xim.coords['C'][0])
+        xims[ixim] = xim.sel(C=xim.coords['C'][0],
+                             T=xim.coords['T'][0])
         # xims[ixim].name = ixim
         # xim.name = ixim
 
@@ -19,6 +20,7 @@ def test_fuse_field():
 
     xfused = _fusion.fuse_field(
         xims,
+        # [xim.sel(T=xim.coords['T'][0]) for xim in xims],
         params,
         output_origin=np.min([_spatial_image_utils.get_origin_from_xim(xim, asarray=True) for xim in xims], 0),
         output_spacing=_spatial_image_utils.get_spacing_from_xim(xims[0], asarray=True),
@@ -62,28 +64,29 @@ def test_fuse_xims():
     xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
     _sample_data.get_sample_data_path())
 
+    # test with two channels
+    for ixim, xim in enumerate(xims):
+        xims[ixim] = xr.concat([xim] * 2, dim='C')\
+        .assign_coords(C=[
+            xim.coords['C'].data[0],
+            xim.coords['C'].data[0] + '_2']
+        )
+
     params = [_registration.identity_transform(_spatial_image_utils.get_ndim_from_xim(xim))
                         for xim in xims]
 
-    for test_xims in [
-        xims,
-        [xim.expand_dims('T') for xim in xims]
-    ]:
-        
-        xfused = _fusion.fuse_xims(test_xims, params,
-                    
-            output_origin=[0,0],
-            output_shape=[10,11],
-            output_spacing=[1,1.],
-            )
+    xfused = _fusion.fuse_xims(xims, params,
+                
+        output_origin=[0,0],
+        output_shape=[10,11],
+        output_spacing=[1,1.],
+        )
 
-        # check output is dask array and hasn't been converted into numpy array
-        assert(type(xfused.data) == da.core.Array)    
+    # check output is dask array and hasn't been converted into numpy array
+    assert(type(xfused.data) == da.core.Array)    
 
-        # xfused.compute()
-        xfused = xfused.compute(scheduled='single-threaded')
-
-        
+    # xfused.compute()
+    xfused = xfused.compute(scheduled='threads')
 
 
 # def test_calc_stack_properties_from_xims_and_params()

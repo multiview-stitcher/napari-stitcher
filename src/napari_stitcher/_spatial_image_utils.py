@@ -96,7 +96,7 @@ def get_spatial_dims_from_xim(xim):
 def get_origin_from_xim(xim, asarray=False):
 
     spatial_dims = get_spatial_dims_from_xim(xim)
-    origin = {dim: xim.coords[dim][0] for dim in spatial_dims}
+    origin = {dim: float(xim.coords[dim][0]) for dim in spatial_dims}
 
     if asarray:
         origin = np.array([origin[sd] for sd in spatial_dims])
@@ -118,7 +118,8 @@ def get_shape_from_xim(xim, asarray=False):
 def get_spacing_from_xim(xim, asarray=False):
     
     spatial_dims = get_spatial_dims_from_xim(xim)
-    spacing = {dim: xim.coords[dim][1] - xim.coords[dim][0] for dim in spatial_dims}
+    spacing = {dim: float(xim.coords[dim][1] - xim.coords[dim][0])
+               for dim in spatial_dims}
 
     if asarray:
         spacing = np.array([spacing[sd] for sd in spatial_dims])

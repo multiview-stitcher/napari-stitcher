@@ -1,15 +1,19 @@
 import numpy as np
+import xarray as xr
+import dask.array as da
+
 import tempfile
 from pathlib import Path
 
 import tifffile
 
-from napari_stitcher import write_multiple
+from napari_stitcher import write_multiple, _viewer_utils
 
 
 def create_full_layer_data_list(channels=[0],
                                 times=[0],
                                 field_ndim=2,
+                                spatial_size=15,
                                 dtype=np.uint8,
                                 spacing_xy=0.5):
     """
@@ -17,39 +21,46 @@ def create_full_layer_data_list(channels=[0],
     Returns a List[FullLayerData].
     """
 
-    view_dict = {}
-    for view in range(1):
-        view_dict[view] = {"physical_pixel_sizes": [spacing_xy] * field_ndim}
+    spatial_dims = ['Z', 'Y', 'X'][-field_ndim:]
 
-    test_im = np.random.randint(0, 100, [len(times)] + [7] * field_ndim).astype(dtype)
+    im = da.random.randint(0, 100, [len(times)] + [spatial_size] * field_ndim,
+                                dtype=dtype,
+                                chunks=(1,) + (spatial_size // 4,) * field_ndim)
+    
+    xim = xr.DataArray(im, dims=['T'] + spatial_dims)
+
+    xim = xim.assign_coords({sd: np.arange(len(xim.coords[sd])) * spacing_xy
+                                           for sd in spatial_dims})
 
     full_layer_data_list = []
 
     for ch in channels:
-        full_layer_data_list.append([test_im,
-                                    {'metadata':
-                                        {'view':-1,
-                                        "view_dict": view_dict,
-                                        'stack_props': {'spacing': [0.1] * field_ndim},
-                                        'times': times}},
-                                    'image1_ch%03d' %ch])
+        xim_ch = xim.assign_coords(C=ch)
+
+        full_layer_data_list.append(
+            _viewer_utils.create_image_layer_tuple_from_spatial_xim(
+                xim_ch, colormap=None, name_prefix='fused')
+        )
         
     return full_layer_data_list
 
 
-def test_writer_general():
+def test_writer():
 
     spacing_xy = 0.5
     im_dtype = np.uint8
 
     for field_ndim in [2]:
         for times in [[0], [0, 1]]:
-            for channels in [[0], [0, 1]]:
-                full_layer_data_list = create_full_layer_data_list(channels=channels,
-                                                                times=times,
-                                                                field_ndim=field_ndim,
-                                                                dtype=im_dtype,
-                                                                spacing_xy=spacing_xy)
+            for channels in [
+                # [0],
+                [0, 1]]:
+                full_layer_data_list = create_full_layer_data_list(
+                    channels=['ch%s' %ch for ch in channels],
+                    times=times,
+                    field_ndim=field_ndim,
+                    dtype=im_dtype,
+                    spacing_xy=spacing_xy)
                 
                 with tempfile.TemporaryDirectory() as tmpdir:
 

@@ -44,13 +44,40 @@ def fuse_xims(xims: list,
         {(view, 'param'): params[view] for view in range(len(xims))},
     )
 
-    import pdb; pdb.set_trace()
+    # if not len(nsdims):
 
-    if not len(nsdims):
+    #     res = fuse_field(
+    #         xims,
+    #         params,
+    #         output_origin=output_origin,
+    #         output_shape=output_shape,
+    #         output_spacing=output_spacing,
+    #         output_chunksize=output_chunksize,
+    #         interpolate_missing_pixels=interpolate_missing_pixels, 
+    #     )
 
-        res = fuse_field(
-            xims,
-            params,
+    # else:
+        
+    size = [len(xims[0].coords[nsdim]) for nsdim in nsdims] + list(output_shape)
+    res = xr.DataArray(da.zeros(size, dtype=xims[0].dtype),
+                        dims=nsdims + sdims,
+                        coords={nsdim: xds.coords[nsdim] for nsdim in nsdims} |
+                        {sdim: np.arange(output_shape[isdim]) * output_spacing[isdim] + output_origin[isdim]
+                        for isdim, sdim in enumerate(sdims)},
+                        )
+    
+    for ns_coords in itertools.product(*tuple([xds.coords[nsdim] for nsdim in nsdims])):
+        
+        xim_coord_dict = {ndsim: ns_coords[i] for i, ndsim in enumerate(nsdims)}
+        params_coord_dict = {ndsim: ns_coords[i]
+                                for i, ndsim in enumerate(nsdims) if ndsim in params[0].dims}
+        
+        sxims = [xim.sel(xim_coord_dict) for xim in xims]
+        sparams = [param.sel(params_coord_dict) for param in params]
+
+        merge = fuse_field(
+            sxims,
+            sparams,
             output_origin=output_origin,
             output_shape=output_shape,
             output_spacing=output_spacing,
@@ -58,36 +85,7 @@ def fuse_xims(xims: list,
             interpolate_missing_pixels=interpolate_missing_pixels, 
         )
 
-    else:
-        
-        size = [len(xims[0].coords[nsdim]) for nsdim in nsdims] + list(output_shape)
-        res = xr.DataArray(da.zeros(size, dtype=xims[0].dtype),
-                           dims=nsdims + sdims,
-                           coords={nsdim: xds.coords[nsdim] for nsdim in nsdims} |
-                           {sdim: np.arange(output_shape[isdim]) * output_spacing[isdim] + output_origin[isdim]
-                            for isdim, sdim in enumerate(sdims)},
-                           )
-        
-        for ns_coords in itertools.product(*tuple([xds.coords[nsdim] for nsdim in nsdims])):
-            
-            xim_coord_dict = {ndsim: ns_coords[i] for i, ndsim in enumerate(nsdims)}
-            params_coord_dict = {ndsim: ns_coords[i]
-                                 for i, ndsim in enumerate(nsdims) if ndsim in params[0].dims}
-            
-            sxims = [xim.sel(xim_coord_dict) for xim in xims]
-            sparams = [param.sel(params_coord_dict) for param in params]
-
-            merge = fuse_field(
-                sxims,
-                sparams,
-                output_origin=output_origin,
-                output_shape=output_shape,
-                output_spacing=output_spacing,
-                output_chunksize=output_chunksize,
-                interpolate_missing_pixels=interpolate_missing_pixels, 
-            )
-
-            res.loc[xim_coord_dict] = merge
+        res.loc[xim_coord_dict] = merge
 
     return res
 
@@ -120,8 +118,6 @@ def fuse_field(xims,
         # spacing matrices
         Sx = np.diag(output_spacing)
         Sy = np.diag(_spatial_image_utils.get_spacing_from_xim(xim, asarray=True))
-
-        # import pdb; pdb.set_trace()
 
         matrix_prime = np.dot(np.linalg.inv(Sy), np.dot(matrix, Sx))
         offset_prime = np.dot(np.linalg.inv(Sy),

@@ -1,4 +1,4 @@
-from napari_stitcher import _mv_graph, _sample_data, _reader
+from napari_stitcher import _mv_graph, _sample_data, _reader, _spatial_image_utils
 
 def test_overlap():
 
@@ -11,7 +11,8 @@ def test_overlap():
     assert(overlap_nonempty > 0)
 
     # make sure second xim doesn't overlap with first one
-    for dim in view_xims[0].attrs['spatial_dims']:
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(view_xims[0])
+    for dim in spatial_dims:
         view_xims[1] = view_xims[1].assign_coords(
             {dim: view_xims[1].coords[dim] + view_xims[0].coords[dim][-1] + 0.1})
 

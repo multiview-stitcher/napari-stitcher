@@ -12,10 +12,13 @@ from tifffile import imwrite, imread
 import zarr
 
 import numpy as np
+import xarray as xr
 import dask.array as da
 from dask import config as dask_config
 
 from typing import TYPE_CHECKING, Any, List, Sequence, Tuple, Union
+
+from napari_stitcher import _spatial_image_utils
 
 if TYPE_CHECKING:
     DataType = Union[Any, Sequence[Any]]
@@ -41,50 +44,40 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
     if not path.endswith('.tif'):
         raise ValueError('Only .tif file saving is supported.')
 
-    if not np.all([d[1]['metadata']['view'] == -1 for d in data]):
-        raise ValueError('Only saving of fused images is supported.')
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(data[0][0])
+    spacing = _spatial_image_utils.get_spacing_from_xim(data[0][0], asarray=True)
 
-    # spacing = data[0][1]['metadata']['stack_props']['spacing']
-    # times = data[0][1]['metadata']['times']
-    # channels = range(len(data))
+    spacings = [_spatial_image_utils.get_spacing_from_xim(d[0], asarray=True) for d in data]
+    origins = [_spatial_image_utils.get_origin_from_xim(d[0], asarray=True) for d in data]
+    shapes = [_spatial_image_utils.get_shape_from_xim(d[0], asarray=True) for d in data]
 
-    # suboptimal way of handling the physical pixel sizes
-    views = list(data[0][1]['metadata']['view_dict'].keys())
-    physical_pixel_sizes = data[0][1]['metadata']['view_dict'][views[0]]["physical_pixel_sizes"]
+    for ixim in range(len(data)):
+        if not np.allclose(spacings[ixim], spacings[0]) or \
+           not np.allclose(origins[ixim], origins[0]) or \
+           not np.allclose(shapes[ixim], shapes[0]):
+            raise ValueError('Image saving: Data of all layers must occupy the same space.')
 
-    array_to_write = da.stack([d[0].squeeze() for d in data])
+    xim_to_write = xr.concat([d[0] for d in data], dim='C')
 
-    # currently hard coded and only 2d supported
-    if array_to_write[0].ndim > 2:
-        if len(data) > 1:
-            axes = 'TCYX'
-            array_to_write = da.swapaxes(array_to_write, 0, 1)
-            chunk_shape = (1, 1) + array_to_write.shape[-2:]
-        else:
-            axes = 'TYX'
-            array_to_write = array_to_write[0]
-            chunk_shape = (1, ) + array_to_write.shape[-2:]
-    else:
-        if len(data) > 1:
-            axes = 'CYX'
-            chunk_shape = (1, ) + array_to_write.shape[-2:]
-        else:
-            axes = 'YX'
-            array_to_write = array_to_write[0]
-            chunk_shape = array_to_write.shape[-2:]
+    xim_to_write = xim_to_write.transpose(*tuple(['T', 'C'] + spatial_dims))
 
-    # input dask array contains axes order 'ctyx'
-    # output tiff file should have axes order 'tcyx'
-    array_to_write = array_to_write.rechunk(chunk_shape)
+    channels = [ch for ch in xim_to_write.coords['C'].values]
+
+    xim_to_write = xim_to_write.squeeze(drop=True)
+
+    axes = ''.join(xim_to_write.dims)
 
     imwrite(
         path,
-        shape=array_to_write.shape,
-        dtype=array_to_write.dtype,
+        shape=xim_to_write.shape,
+        dtype=xim_to_write.dtype,
         imagej=True,
-        resolution=tuple([1. / s for s in physical_pixel_sizes]),
-        metadata={'axes': axes,
-                  'unit': 'um'}
+        resolution=tuple([1. / s for s in spacing]),
+        metadata={
+            'axes': axes,
+            'unit': 'um',
+            'Labels': channels,
+            }
     )
 
     store = imread(path, mode='r+', aszarr=True)
@@ -93,10 +86,20 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
     # writing with tifffile is not thread safe,
     # so we need to disable dask's multithreading
     with dask_config.set(scheduler='single-threaded'):
-        da.store(array_to_write, z)#, compute=False)
+        da.store(xim_to_write.data, z)#, compute=False)
 
     store.close()
 
     # return path to any file(s) that were successfully written
 
     return [path]
+
+
+if __name__ == "__main__":
+
+    from napari_stitcher import _reader
+
+    # xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays("/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi")
+    layer_tuples = _reader.read_mosaic_czi("/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi")
+
+    write_multiple('/Users/malbert/Desktop/test.tif', [layer_tuples[0]])

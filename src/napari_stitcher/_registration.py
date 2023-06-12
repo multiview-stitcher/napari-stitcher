@@ -11,7 +11,7 @@ import dask.array as da
 from mvregfus import mv_utils, multiview
 from mvregfus.image_array import ImageArray
 
-from napari_stitcher import _spatial_image_utils, _mv_graph
+from napari_stitcher import _spatial_image_utils, _mv_graph, _utils
 
 
 def apply_recursive_dict(func, d):
@@ -108,19 +108,6 @@ def register_pair_of_xims(xim1, xim2,
     return xp
 
 
-# def get_registration_pair_graph(
-#         g,
-#         # method=,
-#         registration_binning = None,
-# ):
-#     """
-#         - determine a reference_view and 
-#         - get shortest paths between all views and the reference view (deambiguate with largest overlap)
-#         - return directed graph of xims and registration edges with (delayed) transforms
-#     """
-#     g_reg = g.to_directed() # returns a deep copy
-
-
 def get_registration_graph_from_overlap_graph(g,
                                             registration_binning = None,
                                               ):
@@ -173,35 +160,6 @@ def identity_transform(ndim):
 
 def get_node_params_from_reg_graph(g_reg):
 
-    # g = networkx.DiGraph()
-    # for ipair,pair in enumerate(pairs):
-    #     # g.add_edge(pair[0],pair[1],{'p': params[ipair]})
-
-    #     # import pdb; pdb.set_trace()
-    #     if consider_reg_quality and views is not None:
-    #         from scipy import stats
-    #         imf = views[view_indices[pair[0]]] + 1
-    #         imm = views[view_indices[pair[1]]] + 1
-    #         immt = transform_stack_sitk(imm, params[ipair],
-    #                                     out_origin=imf.origin,
-    #                                     out_spacing=imf.spacing,
-    #                                     out_shape=imf.shape,
-    #                                     )
-    #         mask = (imf > 0) * (immt > 0)
-    #         weight = 5 - stats.spearmanr(imf[mask], immt[mask]).correlation
-    #         print('weights: ', pair, weight, params[ipair])
-    #         # if pair[0] == 0 and pair[1] == 7: import pdb; pdb.set_trace()
-    #     else:
-    #         weight = 1
-
-        # g.add_edge(pair[0],pair[1], p = params[ipair], weight=weight) # after update 201809 networkx seems to have changed
-        # g.add_edge(pair[1], pair[0], p = invert_params(params[ipair]), weight=weight) # after update 201809 networkx seems to have changed
-
-    # all_views = np.unique(np.array(pairs).flatten())
-    # views_to_transform = np.sort(np.array(list(set(all_views).difference(set([ref_view])))))
-
-    # ref_view = g_pairs.graph['ref_node']
-
     ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(
         g_reg.nodes[list(g_reg.nodes)[0]]['xim']))
 
@@ -232,118 +190,7 @@ def get_node_params_from_reg_graph(g_reg):
         
         g_reg.nodes[n]['transforms'] = path_params
 
-        # else:
-        #     #import pdb; pdb.set_trace()
-        #     paths = nx.all_shortest_paths(g,ref_view, view, weight='weight')
-        #     # print('PATHs for view %s: ' %view, [p for p in paths])
-        #     paths_params = []
-        #     for ipath,path in enumerate(paths):
-        #         print('processing PATH for view %s: ' %view, path)
-        #         # if ipath > 0: break # is it ok to take mean affine params?
-        #         path_pairs = [[path[i],path[i+1]] for i in range(len(path)-1)]
-        #         # print(path_pairs)
-        #         path_params = np.eye(ndim+1)
-        #         for edge in path_pairs:
-        #             tmp_params = params_to_matrix(g.get_edge_data(edge[0], edge[1])['p'])
-        #             path_params = np.dot(tmp_params,path_params)
-        #             # print(path_params)
-        #         paths_params.append(matrix_to_params(path_params))
-
-        #     final_view_params = np.mean(paths_params,0)
-
-        # # concatenate with time alignment if given
-        # if time_alignment_params is not None:
-        #     final_view_params = concatenate_view_and_time_params(time_alignment_params,final_view_params)
-
-        # final_params.append(final_view_params)
-
-    # print(final_params)
-
     return g_reg
-
-
-# def register_graph(
-#         g,
-#         registration_binning = None,
-#         ) -> dict:
-    
-#     """
-#     Attach (delayed) transforms to all edges with 'to_register: True'
-#     attribute in the directed input graph
-#     """
-
-#     # gd = g.to_directed() # create deep copy
-    
-#     # register all pairs of views along the shortest paths
-#     for e in g.edges:
-#         if not 'marked_for_registration' in g.edges[e].keys()\
-#             or not g.edges[e]['marked_for_registration']: continue
-        
-#         g.edges[e]['transform'] = \
-#             delayed(register_pair_of_spatial_images)(
-#                 [g.nodes[e[0]]['xim'], g.nodes[e[1]]['xim']],
-#                 registration_binning=registration_binning,
-#                     )
-    
-#     return g
-#     # return _mv_graph.compute_graph(gd)
-
-# def register_
-
-#     ds_xims = xr.merge([xim.rename({dim: "%s_%s" %(dim, ixim)
-#                                     for dim in spatial_dims}).to_dataset(name='im%s' %ixim)
-#                         for ixim, xim in enumerate(xims[:2])])
-    
-    # xr.apply_ufunc(lambda x: x,
-    #                ds_xims.sel(C=ds_xims.coords['C'][0]),
-    #                dask='allowed',
-    #             #    input_core_dims=[['%s_%s' %(dim, iim)  for iim in range(2) for dim in spatial_dims]],
-    #                input_core_dims=[['T']],
-    #                output_core_dims=('M1', 'M2'),
-    #                )
-
-    # delayed(multiview.register_linear_elastix)(
-    #     ImageArray()
-    # )
-
-    # # perform pairwise registrations
-    # pair_ps = {t: {(view1, view2):
-    #                     delayed(multiview.register_linear_elastix)
-    #                              (view_reg_ims[reg_channel][t][view1],
-    #                               view_reg_ims[reg_channel][t][view2],
-    #                             #  (
-    #                             # delayed(ImageArray)(view_reg_ims[reg_channel][t][view1],
-    #                             #         spacing=view_dict[view1]['spacing'],
-    #                             #         origin=view_dict[view1]['origin']),
-    #                             #   delayed(ImageArray)(view_reg_ims[reg_channel][t][view2],
-    #                             #              spacing=view_dict[view2]['spacing'],
-    #                             #              origin=view_dict[view2]['origin']),
-    #                               -1, #degree
-    #                               None,
-    #                               '',
-    #                               f'{view1}_{view2}',
-    #                               None
-    #                              )
-    #             for view1, view2 in pairs}
-    #         for t in times}
-
-    # # get final transform parameters
-    # ps = {t: delayed(multiview.get_params_from_pairs)(
-    #                             views[ref_view_index],
-    #                             pairs,
-    #                             [pair_ps[t][(v1,v2)] for v1, v2 in pairs],
-    #                             None, # time_alignment_params
-    #                             True, # consider_reg_quality
-    #                             [view_reg_ims[reg_channel][t][view] for view in views],
-    #                             {view: iview for iview, view in enumerate(views)}
-    #                             )
-    #         for t in times}
-
-    # ps = {t: delayed(lambda x: {view: x[iview] for iview, view in enumerate(views)})
-    #             (ps[t])
-    #         for t in times}
-
-    # return ps
 
 
 def correct_random_drift(ims, reg_ch=0, zoom_factor=10, particle_reinstantiation_stepsize=30, sigma_t=3):
@@ -432,7 +279,16 @@ def correct_random_drift(ims, reg_ch=0, zoom_factor=10, particle_reinstantiation
 import dask_image
 def get_stabilization_parameters(tl, sigma=2):
     """
-    Assume first dimension is time
+
+    Correct for random stage shifts in timelapse movies in the absence of reference points that are fixed relative to the stage.
+    - obtain shifts between consecutive frames
+    - get cumulative sum of shifts
+    - smooth
+    - consider difference between smoothed and unsmoothed shifts as the random stage shifts
+
+    Assume first dimension is time.
+
+    tl: dask array of shape (N_T, ...)
     """
 
     ndim = tl[0].ndim
@@ -440,23 +296,80 @@ def get_stabilization_parameters(tl, sigma=2):
     ps = da.stack([da.from_delayed(delayed(skimage.registration.phase_cross_correlation)(
             tl[t-1],
             tl[t],
-            upsample_factor=3,
+            upsample_factor=10,
             normalization=None)[0], shape=(ndim, ), dtype=float)
             for t in range(1, tl.shape[0])])
-    
+
     ps = da.concatenate([da.zeros((1, ndim)), ps], axis=0)
 
     ps_cum = da.cumsum(ps, axis=0)
     ps_cum_filtered = dask_image.ndfilters.gaussian_filter(ps_cum, [sigma, 0], mode='nearest')
+    # deltas = ps_cum_filtered - ps_cum
+    deltas = ps_cum - ps_cum_filtered
+    deltas = -deltas
 
-    # deltas = ps_cum - ps_cum_filtered
-    deltas = ps_cum_filtered - ps_cum
-
-    # imst = da.stack([da.from_delayed(delayed(ndimage.affine_transform)(tl[t],
+    # tl_t = da.stack([da.from_delayed(delayed(ndimage.affine_transform)(tl[t],
     #                                         matrix=np.eye(2),
-    #                                         offset=-ps[t-1] if t else np.zeros(2), order=1), shape=tl[0].shape, dtype=tl[0].dtype)
-
+    #                                         offset=-params[t], order=1), shape=tl[0].shape, dtype=tl[0].dtype)
+    #             for t in range(N_t)]).compute()
+    
     return deltas
+
+
+def get_stabilization_parameters_from_xim(xim, sigma=2):
+
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
+
+    ndim = len(spatial_dims)
+
+    params = get_stabilization_parameters(xim.transpose(*tuple(["T"] + spatial_dims)), sigma=sigma)
+
+    params = [_utils.shift_to_matrix(
+        params[it] * _spatial_image_utils.get_spacing_from_xim(xim, asarray=True))
+                    for it, t in enumerate(xim.coords['T'])]
+
+    params = xr.DataArray(params,
+            dims=['T', 'x_in', 'x_out'],
+            coords={
+                    # 'C': xim1.coords['C'],
+                    'T': xim.coords['T'],
+                    'x_in': np.arange(ndim+1),
+                    'x_out': np.arange(ndim+1)})
+    
+    return params
+
+
+
+import dask_image
+def get_drift_correction_parameters(tl, sigma=2):
+    """
+    Assume first dimension is time
+
+    tl: dask array of shape (N_T, ...)
+    """
+
+    ndim = tl[0].ndim
+
+    ps = da.stack([da.from_delayed(delayed(skimage.registration.phase_cross_correlation)(
+            tl[t-1],
+            tl[t],
+            upsample_factor=10,
+            normalization=None)[0], shape=(ndim, ), dtype=float)
+            for t in range(1, tl.shape[0])])
+
+    ps = da.concatenate([da.zeros((1, ndim)), ps], axis=0)
+
+    ps_cum = -da.cumsum(ps, axis=0)
+
+    # ps_cum_filtered = dask_image.ndfilters.gaussian_filter(ps_cum, [sigma, 0], mode='nearest')
+    # deltas = ps_cum_filtered - ps_cum
+
+    # tl_t = da.stack([da.from_delayed(delayed(ndimage.affine_transform)(tl[t],
+    #                                         matrix=np.eye(2),
+    #                                         offset=-params[t], order=1), shape=tl[0].shape, dtype=tl[0].dtype)
+    #             for t in range(N_t)]).compute()
+
+    return ps_cum
 
 
 if __name__ == "__main__":

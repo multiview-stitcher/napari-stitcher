@@ -1,7 +1,7 @@
-import os
-
 import numpy as np
-from mvregfus import mv_utils, io_utils
+import xarray as xr
+
+from mvregfus import io_utils
 from mvregfus.image_array import ImageArray
 
 from dask import delayed, compute
@@ -35,38 +35,6 @@ def load_tiles(view_dict: dict,
                                 shape=tuple(vdv['shape']),
                                 dtype=np.uint16,
                             )
-                        for vdv in view_dict.values()}
-                    for t in times}
-                for ch in channels}
-
-    return view_ims
-
-
-def load_tiles_from_layers(
-                            layers: list,
-                            view_dict: dict,
-                            channels: int,
-                            times: list,
-                            source_identifier: tuple = None,
-                            ) -> dict:
-    
-    """
-    Return: dict of delayed dask arrays
-      - directly from layer data
-      - format: nested dict of channels, times, views (outer -> inner)
-    """
-    
-    view_ims = {ch: {t: {vdv['view']: 
-                            # delayed(lambda x, origin, spacing:
-                            #         image_array.ImageArray(x, origin=origin, spacing=spacing))(
-                                get_layer_from_source_identifier_view_and_ch(
-                                    layers=layers,
-                                    source_identifier=source_identifier,
-                                    view=vdv['view'],
-                                    ch=ch
-                                ).data[t]
-                                # origin=vdv['origin'],
-                                # spacing=vdv['spacing'])
                         for vdv in view_dict.values()}
                     for t in times}
                 for ch in channels}
@@ -148,48 +116,12 @@ def get_source_path_from_viewer(viewer):
     return None
 
 
-def source_identifier_to_str(source_identifier):
-    return f"File: {os.path.basename(source_identifier['filename'])} (Sample: {source_identifier['scene_index']})"
-
-
-def str_to_source_identifier(string):
-    # use regex to extract filename and sample index
-    # regex to match filename from e.g. 'File: /home/.../sample_1.czi (Sample: 1)'
-    filename = re.search(r'File: (.*) \(Sample: \d+\)', string).group(1)
-    scene_index = int(re.search(r'File: .*\ \(Sample: (\d+)\)', string).group(1))
-
-    return {'filename': filename, 'scene_index': scene_index}
-
-
 def layer_was_loaded_by_own_reader(layer):
     if 'napari_stitcher_reader_function' in layer.metadata and\
         layer.metadata['napari_stitcher_reader_function'] == 'read_mosaic_czi':
         return True
     else:
         False
-
-
-def layer_coincides_with_source_identifier(layer, source_identifier):
-    if layer.source.path == source_identifier['filename'] and\
-        layer.data.attrs['scene_index'] == source_identifier['scene_index']:
-        # layer.metadata['scene_index'] == source_identifier['scene_index']:
-        return True
-    else:
-        return False
-
-
-def get_list_of_source_identifiers_from_layers(layers):
-
-    source_identifiers = []
-    for l in layers:
-        if layer_was_loaded_by_own_reader(l):
-            source_identifier = {'filename': l.source.path,
-                                #  'scene_index': l.metadata['scene_index'],
-                                'scene_index': l.data.attrs['scene_index'],
-                                 }
-            source_identifiers.append(source_identifier)
-
-    return source_identifiers
 
 
 def get_str_unique_to_view_from_layer_name(layer_name):
@@ -204,12 +136,27 @@ def get_view_from_layer(layer):
     return layer.metadata['view']
 
 
-# def get_ch_from_layer(layer):
-#     return str(layer.data.coords['C'].data)
-
-
 def filter_layers(layers, view=None, ch=None):
     for l in layers:
         if view is not None and get_str_unique_to_view_from_layer_name(l.name) != view: continue
         if ch is not None and get_str_unique_to_ch_from_layer_name(l.name) != ch: continue
         yield l
+
+
+def duplicate_channel_xims(xims):
+
+    xims_ch_duplicated = [
+        xr.concat([xim] * 2, dim='C')\
+        .assign_coords(C=[
+            xim.coords['C'].data[0],
+            xim.coords['C'].data[0] + '_2']
+        ) for xim in xims]
+    
+    return xims_ch_duplicated
+
+
+def shift_to_matrix(shift):
+    ndim = len(shift)
+    M = np.concatenate([shift, [1]], axis=0)
+    M = np.concatenate([np.eye(ndim + 1)[:,:ndim], M[:,None]], axis=1)
+    return M
