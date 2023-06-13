@@ -277,7 +277,7 @@ class StitcherQWidget(QWidget):
         with _utils.TemporarilyDisabledWidgets([self.container]),\
             _utils.VisibleActivityDock(self.viewer),\
             _utils.TqdmCallback(tqdm_class=_utils.progress,
-                                desc='Register graph tiles', bar_format=" "):
+                                desc='Registering tiles', bar_format=" "):
             g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='threads')
 
         # get node parameters
@@ -309,6 +309,11 @@ class StitcherQWidget(QWidget):
             layers_to_fuse = list(_utils.filter_layers(self.input_layers, ch=ch))
             xims_to_fuse = [l.data for l in layers_to_fuse]
 
+            # restrict timepoints
+            xims_to_fuse = [xim.sel(T=[xim.coords['T'][it]
+                            for it in range(self.times_slider.value[0] + 1,
+                                            self.times_slider.value[1] + 1)])
+                                            for xim in xims_to_fuse]
             
             params_to_fuse = [self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
                               for l in layers_to_fuse]
@@ -413,7 +418,7 @@ class StitcherQWidget(QWidget):
 
 
     def __del__(self):
-        print('deleting widget')
+        print('Deleting napari-stitcher widget')
 
         # clean up callbacks
         self.viewer.dims.events.disconnect(self.update_viewer_transformations)

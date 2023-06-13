@@ -160,7 +160,6 @@ def test_diversity_stitching(ndim, N_c, N_t, dtype, make_napari_viewer):
     layer_tuples = _viewer_utils.create_image_layer_tuples_from_xims(xims)
    
     for lt in layer_tuples:
-        lt[1]['contrast_limits'] = [0, 100]
         viewer.add_image(lt[0], **lt[1])
 
     wdg.button_load_layers_all.clicked()
@@ -173,3 +172,35 @@ def test_diversity_stitching(ndim, N_c, N_t, dtype, make_napari_viewer):
     wdg.run_fusion()
 
     viewer.layers[-N_c:].save(os.path.join(wdg.tmpdir.name, 'test.tif'))
+
+
+def test_time_slider(make_napari_viewer):
+
+    from napari_stitcher import StitcherQWidget
+
+    viewer = make_napari_viewer()
+
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    xims = _sample_data.generate_tiled_dataset(
+        ndim=2, N_t=4, N_c=1,
+        tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1,
+        overlap=5, zoom=10, dtype=np.uint8)
+
+    layer_tuples = _viewer_utils.create_image_layer_tuples_from_xims(xims)
+   
+    for lt in layer_tuples:
+        viewer.add_image(lt[0], **lt[1])
+    
+    wdg.button_load_layers_all.clicked()
+
+    wdg.times_slider.min=-1
+    wdg.times_slider.max=2
+
+    # Run stabilization
+    wdg.run_stitching()
+
+    # Run fusion
+    # stitcher_widget.button_fuse.clicked()
+    wdg.run_fusion()

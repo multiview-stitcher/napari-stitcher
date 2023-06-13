@@ -103,6 +103,7 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
         tile_index = np.array(tile_index)
         tile = tls.blocks[tuple([slice(0, N_c), slice(0, N_t)] + \
                                 [slice(ti, ti+1) for ti in tile_index])]
+        # tile = tile.rechunk((1, 1) + tuple([1 if dim=='z' else 256 for dim in spatial_dims]))
         origin = tile_index * tile_size * spacing - overlap * (1 + tile_index)
         xim = xr.DataArray(
             tile,
@@ -131,8 +132,11 @@ if __name__ == "__main__":
 
     viewer = napari.Viewer()
 
-    xims = generate_tiled_dataset(ndim=2, N_t=20, N_c=1, tile_size=30, tiles_x=5, tiles_y=5, tiles_z=1, overlap=0, zoom=10, dtype=np.uint16)
-    layer_tuples = create_image_layer_tuples_from_xims(xims)
+    xims = generate_tiled_dataset(
+        ndim=2, N_t=20, N_c=1,
+        tile_size=1000, tiles_x=3, tiles_y=3, tiles_z=1,
+        overlap=15, zoom=5, shift_scale=5, drift_scale=2, dtype=np.uint8)
+    layer_tuples = create_image_layer_tuples_from_xims(xims, n_colors=2)
 
     # layer_tuples = make_sample_data()
 
