@@ -1,4 +1,5 @@
 import itertools
+import os
 import numpy as np
 import xarray as xr
 import dask.array as da
@@ -439,6 +440,40 @@ def get_interpolated_image(
     interp_image[missing_y, missing_x] = interp_values
 
     return interp_image
+
+
+def fuse(xims, params, tmpdir=None):
+
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
+    ndim = len(spatial_dims)
+
+    output_stack_properties = calc_stack_properties_from_xims_and_params(
+        xims,
+        params,
+        spacing=_spatial_image_utils.get_spacing_from_xim(xims[0], asarray=True)
+        )
+    
+    xfused = fuse_xims(
+        xims,
+        params,
+        output_origin=output_stack_properties['origin'],
+        output_spacing=output_stack_properties['spacing'],
+        output_shape=output_stack_properties['shape'],
+        output_chunksize=512,
+        interpolate_missing_pixels=True if ndim == 2 else False,
+    )
+
+    xfused.data = da.to_zarr(
+        xfused.data,
+        os.path.join(tmpdir.name, xfused.data.name+'.zarr'),
+        return_stored=True,
+        overwrite=True,
+        compute=True,
+        )
+    
+    xfused = xfused.assign_coords(C=xims[0].coords['C'])
+    
+    return xfused
 
 
 if __name__ == "__main__":

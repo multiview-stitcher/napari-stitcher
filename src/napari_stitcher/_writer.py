@@ -44,9 +44,6 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
     if not path.endswith('.tif'):
         raise ValueError('Only .tif file saving is supported.')
 
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(data[0][0])
-    spacing = _spatial_image_utils.get_spacing_from_xim(data[0][0], asarray=True)
-
     spacings = [_spatial_image_utils.get_spacing_from_xim(d[0], asarray=True) for d in data]
     origins = [_spatial_image_utils.get_origin_from_xim(d[0], asarray=True) for d in data]
     shapes = [_spatial_image_utils.get_shape_from_xim(d[0], asarray=True) for d in data]
@@ -59,27 +56,39 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
 
     xim_to_write = xr.concat([d[0] for d in data], dim='C')
 
-    xim_to_write = xim_to_write.transpose(*tuple(['T', 'C'] + spatial_dims))
+    save_xim_as_tif(path, xim_to_write)
 
-    channels = [ch for ch in xim_to_write.coords['C'].values]
+    # return path to any file(s) that were successfully written
+    
+    return [path]
 
-    xim_to_write = xim_to_write.squeeze(drop=True)
+
+def save_xim_as_tif(path, xim):
+
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
+    spacing = _spatial_image_utils.get_spacing_from_xim(xim, asarray=True)
+
+    xim = xim.transpose(*tuple(['T', 'C'] + spatial_dims))
+
+    channels = [ch for ch in xim.coords['C'].values]
+
+    xim = xim.squeeze(drop=True)
 
     # imagej needs Z to come before C
-    if 'Z' in xim_to_write.dims:
-        axes = list(xim_to_write.dims)
+    if 'Z' in xim.dims:
+        axes = list(xim.dims)
         zpos = axes.index('Z')
         cpos = axes.index('C')
         axes[zpos] = 'C'
         axes[cpos] = 'Z'
-        xim_to_write = xim_to_write.transpose(*tuple([ax for ax in axes]))
+        xim = xim.transpose(*tuple([ax for ax in axes]))
 
-    axes = ''.join(xim_to_write.dims)
+    axes = ''.join(xim.dims)
 
     imwrite(
         path,
-        shape=xim_to_write.shape,
-        dtype=xim_to_write.dtype,
+        shape=xim.shape,
+        dtype=xim.dtype,
         imagej=True,
         resolution=tuple([1. / s for s in spacing]),
         metadata={
@@ -95,13 +104,11 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
     # writing with tifffile is not thread safe,
     # so we need to disable dask's multithreading
     with dask_config.set(scheduler='single-threaded'):
-        da.store(xim_to_write.data, z)#, compute=False)
+        da.store(xim.data, z)#, compute=False)
 
     store.close()
 
-    # return path to any file(s) that were successfully written
-
-    return [path]
+    return
 
 
 if __name__ == "__main__":

@@ -45,7 +45,8 @@ def make_sample_data():
 def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
                            tile_size=30, tiles_x=2, tiles_y=2, tiles_z=1,
                            overlap=5, zoom=6, dtype=np.uint16,
-                           spacing_x=0.5, spacing_y=0.5, spacing_z=2.,):
+                           spacing_x=0.5, spacing_y=0.5, spacing_z=2.,
+                           shift_scale=2., drift_scale=2.):
 
     def transform_input(x, shifts, drifts, im_gt, overlap=0, zoom=10., block_info=None):
                         
@@ -58,16 +59,16 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
         x = x.squeeze()
         
         output_shape = np.array(x.shape)
-        offset = offset/zoom + drift / zoom + shift / zoom
         
-        offset = offset - (overlap * (np.array(block_info[None]['chunk-location'][1:]) + 1)) / zoom
+        offset = offset + drift + shift
+        offset = offset - (overlap * (2 * np.array(block_info[None]['chunk-location'][1:])))
+        offset = offset / zoom
         
         x = ndimage.affine_transform(im_gt,
                                     matrix=np.eye(x.ndim) / zoom,
                                     offset=offset,
                                     output_shape=output_shape,
                                     mode='reflect',
-                                    # dtype=im_gt.dtype,
                                     )[None]
             
         return x
@@ -78,8 +79,8 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
                     chunks=(1,) + (tile_size, ) * ndim, dtype=dtype)
 
     # simulate shifts and drifts
-    shifts = (np.random.random(tiles.numblocks + (ndim, )) - 0.5) * 2.
-    drifts = np.cumsum(np.ones(tiles.numblocks + (ndim, )) * 1., axis=0)
+    shifts = (np.random.random(tiles.numblocks + (ndim, )) - 0.5) * shift_scale
+    drifts = np.cumsum(np.ones(tiles.numblocks + (ndim, )) * drift_scale, axis=0)
 
     np.random.seed(0)
     tls = []
@@ -88,7 +89,7 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
         im_gt = da.random.randint(
             0, 100, [2 * f * tile_size // zoom
                 for f in [tiles_z, tiles_y, tiles_x][-ndim:]], dtype=np.uint16)
-        tl = tiles.map_blocks(transform_input, shifts, drifts, im_gt,
+        tl = tiles.map_blocks(transform_input, shifts, drifts, im_gt, zoom=zoom,
                               overlap=overlap, dtype=tiles.dtype)
         tls.append(tl[None])
         

@@ -5,10 +5,10 @@ def test_overlap():
     view_xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
         _sample_data.get_sample_data_path())
     
-    overlap_nonempty = _mv_graph.get_overlap_between_pair_of_xims(view_xims[0],
+    overlap_area, overlap_coords = _mv_graph.get_overlap_between_pair_of_xims(view_xims[0],
                                                view_xims[1])
     
-    assert(overlap_nonempty > 0)
+    assert(overlap_area > 0)
 
     # make sure second xim doesn't overlap with first one
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(view_xims[0])
@@ -16,10 +16,10 @@ def test_overlap():
         view_xims[1] = view_xims[1].assign_coords(
             {dim: view_xims[1].coords[dim] + view_xims[0].coords[dim][-1] + 0.1})
 
-    overlap_empty = _mv_graph.get_overlap_between_pair_of_xims(view_xims[0],
+    overlap_area, overlap_coords = _mv_graph.get_overlap_between_pair_of_xims(view_xims[0],
                                                                view_xims[1])
     
-    assert(overlap_empty == 0)
+    assert(overlap_area == 0)
     
     return
 
@@ -33,8 +33,6 @@ def test_mv_graph_creation():
     
     assert(len(mv_graph.nodes) == len(view_xims))
     assert(len(mv_graph.edges) == 1)
-
-    # import pdb; pdb.set_trace()
     
     return
 

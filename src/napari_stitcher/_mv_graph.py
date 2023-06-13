@@ -25,10 +25,10 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
         for iview2, xim2 in enumerate(xims):
             if iview1 >= iview2: continue
             
-            overlap = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand)
+            overlap_area, _ = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand)
 
-            if overlap > 0:
-                g.add_edge(iview1, iview2, overlap=overlap)
+            if overlap_area > 0:
+                g.add_edge(iview1, iview2, overlap=overlap_area)
 
     return g
 
@@ -41,8 +41,10 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
 
     # select first time point
 
-    xim1 = xim1.sel(T=xim1.coords['T'][0])
-    xim2 = xim2.sel(T=xim2.coords['T'][0])
+    if 'T' in xim1.dims:
+        xim1 = xim1.sel(T=xim1.coords['T'][0])
+    if 'T' in xim2.dims:
+        xim2 = xim2.sel(T=xim2.coords['T'][0])
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
 
@@ -77,14 +79,19 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
 
     dim_overlap = dim_overlap_opt1 + dim_overlap_opt2
 
+    x_i = np.max([x1_i, x2_i], 0)
+    x_f = np.min([x1_f, x2_f], 0)
+
     if np.all(dim_overlap):
-        overlap = np.min([x2_f, x1_f], 0) - np.max([x2_i, x1_i], 0)
+        # overlap = np.min([x2_f, x1_f], 0) - np.max([x2_i, x1_i], 0)
+        overlap = x_f - x_i
     else:
         overlap = np.array([0] * len(spatial_dims))
         
     overlap_area = np.product(overlap)
 
-    return overlap_area
+    return overlap_area, [{dim: x[idim] for idim, dim in enumerate(spatial_dims)}
+                          for x in [x_i, x_f]]
 
 
 def get_registration_pairs_from_view_dict(view_dict, min_percentile=49):

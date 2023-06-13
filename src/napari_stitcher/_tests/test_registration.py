@@ -13,15 +13,22 @@ def test_pairwise():
 
     xims = [l[0] for l in layers]
 
+    xims = [xim.sel(T=xim.coords['T'][0]) for xim in xims]
+
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
 
-    pd = _registration.register_pair_of_spatial_images(xims,
-            registration_binning={dim: 4 for dim in spatial_dims})
+    pd = _registration.register_pair_of_spatial_images(xims[0], xims[1],
+            registration_binning={dim: 4 for dim in spatial_dims},
+    )
+            # registration_binning=[4] * 2,)
 
-    # p = pd.compute(scheduler='single-threaded')
-    p = pd
+    p = pd.compute(scheduler='single-threaded')
+    # p = pd
 
     assert np.allclose(p,
+        # np.array([[1.        , 0.        , 1.73333333],
+        #           [0.        , 1.        , 7.36666667],
+        #           [0.        , 0.        , 1.        ]]))
         np.array([[1.        , 0.        , 1.73333333],
                   [0.        , 1.        , 7.36666667],
                   [0.        , 0.        , 1.        ]]))
@@ -31,6 +38,8 @@ def test_register_graph():
 
     view_xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
         _sample_data.get_sample_data_path())
+    
+    view_xims = [xim.sel(C=xim.coords['C'][0]) for xim in view_xims]
     
     g = _mv_graph.build_view_adjacency_graph_from_xims(view_xims)
 
@@ -43,12 +52,7 @@ def test_register_graph():
     assert([type(g_reg.edges[e]['transform'].data) == da.core.Array
         for e in g_reg.edges if 'transform' in g_reg.edges[e].keys()])
     
-    # # g_reg = _mv_graph.select_coords_from_graph(g_reg, {'C': [view_xims[0].coords['C'][0]]}, ['transform'])
-    # g_reg = _mv_graph.sel_coords_from_graph(g_reg,
-    #                                            {'C': [view_xims[0].coords['C'][0].data]},
-    #                                            edge_attributes=['transform'])
-
-    g_reg_computed = _mv_graph.compute_graph_edges(g_reg)
+    g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='single-threaded')
     
     assert([type(g_reg_computed.edges[e]['transform'].data) == np.ndarray
         for e in g_reg_computed.edges if 'transform' in g_reg_computed.edges[e].keys()])
@@ -59,8 +63,6 @@ def test_register_graph():
     assert(['transforms' in g_reg_nodes.nodes[n].keys()
             for n in g_reg_nodes.nodes])
     
-    # import pdb; pdb.set_trace()
-
 
 def test_get_stabilization_parameters():
 

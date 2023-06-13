@@ -249,6 +249,12 @@ class StitcherQWidget(QWidget):
 
         xims = [l.data for l in layers]
 
+        # restrict timepoints
+        xims = [x.sel(T=[x.coords['T'][it]
+                         for it in range(self.times_slider.value[0] + 1,
+                                         self.times_slider.value[1] + 1)])
+                                         for x in xims]
+
         # calculate overlap graph with overlap as edge attributes
         g = _mv_graph.build_view_adjacency_graph_from_xims(xims)
 
@@ -259,14 +265,14 @@ class StitcherQWidget(QWidget):
             notifications.notification_manager.receive_info(message)
             return
         
-        # restrict tps
-        if 'T' in xims[0].dims:
-            g_reg = _mv_graph.sel_coords_from_graph(g_reg,
-                        {'T': range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)},
-                        edge_attributes=['transform'],
-                        node_attributes=['xim'],
-                        sel_or_isel='isel',
-                        )
+        # # restrict tps
+        # if 'T' in xims[0].dims:
+        #     g_reg = _mv_graph.sel_coords_from_graph(g_reg,
+        #                 {'T': range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)},
+        #                 edge_attributes=['transform'],
+        #                 node_attributes=['xim'],
+        #                 sel_or_isel='isel',
+        #                 )
 
         with _utils.TemporarilyDisabledWidgets([self.container]),\
             _utils.VisibleActivityDock(self.viewer),\
@@ -303,39 +309,16 @@ class StitcherQWidget(QWidget):
             layers_to_fuse = list(_utils.filter_layers(self.input_layers, ch=ch))
             xims_to_fuse = [l.data for l in layers_to_fuse]
 
-            ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(xims_to_fuse[0]))
-
+            
             params_to_fuse = [self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
                               for l in layers_to_fuse]
-
-            output_stack_properties = _fusion.calc_stack_properties_from_xims_and_params(
-                xims_to_fuse,
-                params_to_fuse,
-                spacing=_spatial_image_utils.get_spacing_from_xim(xims_to_fuse[0], asarray=True)
-                )
-            
-            xfused = _fusion.fuse_xims(
-                xims_to_fuse,
-                params_to_fuse,
-                output_origin=output_stack_properties['origin'],
-                output_spacing=output_stack_properties['spacing'],
-                output_shape=output_stack_properties['shape'],
-                output_chunksize=512,
-                interpolate_missing_pixels=True if ndim == 2 else False,
-            )
 
             with _utils.TemporarilyDisabledWidgets([self.container]),\
                 _utils.VisibleActivityDock(self.viewer),\
                 _utils.TqdmCallback(tqdm_class=_utils.progress,
                                     desc='Fusing tiles of channel %s' %ch, bar_format=" "):
                 
-                xfused.data = da.to_zarr(
-                    xfused.data,
-                    os.path.join(self.tmpdir.name, xfused.data.name+'.zarr'),
-                    return_stored=True,
-                    overwrite=True,
-                    compute=True,
-                    )
+                xfused = _fusion.fuse(xims_to_fuse, params_to_fuse, self.tmpdir)
             
             xfused = xfused.assign_coords(C=ch)
             
