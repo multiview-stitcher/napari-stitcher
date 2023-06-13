@@ -130,7 +130,7 @@ if __name__ == "__main__":
 
     viewer = napari.Viewer()
 
-    xims = generate_tiled_dataset(ndim=2, N_t=20, N_c=1, tile_size=30, tiles_x=3, tiles_y=3, tiles_z=1, overlap=0, zoom=10, dtype=np.uint16)
+    xims = generate_tiled_dataset(ndim=2, N_t=20, N_c=1, tile_size=30, tiles_x=5, tiles_y=5, tiles_z=1, overlap=0, zoom=10, dtype=np.uint16)
     layer_tuples = create_image_layer_tuples_from_xims(xims)
 
     # layer_tuples = make_sample_data()

@@ -87,5 +87,7 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 - Option to load all layers / selected layers
 - Show loaded layers
 - keep layers and xims list according to this
-- add groupwise optimization, e.g. using corners of overlap regions as virtual points. optimize using decomposition parametrizations
+- add groupwise optimization
+    - e.g. using corners of overlap regions as virtual points. optimize using decomposition parametrizations
+    - use the coloring logic to determine / restrict relevant registration pairs
 - look at example data on the bioimage archive, e.g. "https://uk1s3.embassy.ebi.ac.uk/idr/zarr/v0.3/9836842.zarr/"

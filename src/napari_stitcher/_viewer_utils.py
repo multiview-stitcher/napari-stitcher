@@ -3,7 +3,6 @@ import networkx as nx
 
 from napari_stitcher import _mv_graph, _spatial_image_utils
 
-
 def create_image_layer_tuple_from_spatial_xim(xim,
                                               colormap='gray_r',
                                               name_prefix=None,
@@ -14,11 +13,6 @@ def create_image_layer_tuple_from_spatial_xim(xim,
     - xarray.DataArray can have coordinates for dimensions that are not listed in xim.dims (?)
     - useful for channel names
     """
-
-    # if xim.dims['C'] > 1:
-    #     return [create_image_layer_tuples_from_spatial_xim(
-    #         xim.sel(C=ch), colormap=colormap[ich] if isinstance(colormap, list) else colormap, name_prefix=name_prefix)
-    #         for ich, ch in enumerate(xim.coords['C'].data)]
 
     ch_name = str(xim.coords['C'].data)
 
@@ -86,10 +80,11 @@ def create_image_layer_tuples_from_xims(
         xims,
         positional_cmaps=True,
         name_prefix="tile",
+        n_colors=2,
 ):
     
     if positional_cmaps:
-        cmaps = get_cmaps_from_xims(xims)
+        cmaps = get_cmaps_from_xims(xims, n_colors=n_colors)
     else:
         cmaps = [None for xim in xims]
 
@@ -105,13 +100,43 @@ def create_image_layer_tuples_from_xims(
     return out_layers
 
 
-def get_cmaps_from_xims(xims):
+def get_cmaps_from_xims(xims, n_colors=2):
+    """
+    Get colors from view adjacency graph analysis
 
-    # get colors from graph analysis
+    Idea: use the same logic to determine relevant registration edges
+
+    """
+
     mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(xims, expand=True)
-    colors = nx.coloring.greedy_color(mv_graph)
-    
-    # import pdb; pdb.set_trace()
+
+    # thresholds = threshold_multiotsu(overlaps)
+
+    # strategy: remove edges with overlap values of increasing thresholds until
+    # the graph division into n_colors is successful
+
+    # modify overlap values
+    # strategy: add a small amount to edge overlap depending on how many edges the nodes it connects have (betweenness?)
+
+    edge_vals = nx.edge_betweenness(mv_graph)
+    edges = [e for e in mv_graph.edges(data=True)]
+    for e in edges:
+        edge_vals[tuple(e[:2])] = edge_vals[tuple(e[:2])] + e[2]['overlap']
+
+    sorted_unique_vals = sorted(np.unique([v for v in edge_vals.values()]))
+
+    nx.set_edge_attributes(mv_graph, edge_vals, name='edge_val')
+
+    thresh_ind = 0
+    # while max([d for n, d in mv_graph.degree()]) >= n_colors:
+    while 1:
+        colors = nx.coloring.greedy_color(mv_graph)
+        if len(set(colors.values())) <= n_colors:# and nx.coloring.equitable_coloring.is_equitable(mv_graph, colors):
+            break
+        mv_graph.remove_edges_from(
+            [(a,b) for a, b, attrs in mv_graph.edges(data=True)
+            if attrs["edge_val"] <= sorted_unique_vals[thresh_ind]])
+        thresh_ind += 1
 
     cmaps = ['red', 'green', 'blue', 'gray']
     cmaps = {iview: cmaps[color_index % len(cmaps)]
