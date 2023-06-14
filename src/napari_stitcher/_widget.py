@@ -7,7 +7,7 @@ see: https://napari.org/stable/plugins/guides.html?#widgets
 Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
-import pathlib, os, tempfile
+import pathlib, os, tempfile, sys
 
 import numpy as np
 import dask
@@ -58,7 +58,7 @@ class StitcherQWidget(QWidget):
                                             ],
                                             label='Loaded\nlayers:')
 
-        self.times_slider = widgets.RangeSlider(min=0, max=1, label='Timepoints:', enabled=False,
+        self.times_slider = widgets.RangeSlider(min=-1, max=0, label='Timepoints:', enabled=False,
             tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\n(3, 5) means timepoints 4 and 5 are processed')
         
         # self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel:', enabled=False,
@@ -214,6 +214,7 @@ class StitcherQWidget(QWidget):
                                       ch=self.reg_ch_picker.value))
 
         xims = [l.data for l in layers]
+        xims = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims]
 
         times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
 
@@ -248,6 +249,7 @@ class StitcherQWidget(QWidget):
                                       ch=self.reg_ch_picker.value))
 
         xims = [l.data for l in layers]
+        xims = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims]
 
         # restrict timepoints
         xims = [x.sel(T=[x.coords['T'][it]
@@ -297,7 +299,7 @@ class StitcherQWidget(QWidget):
         Split layers into channel groups and fuse each group separately.
         """
 
-        layer_chs = [_utils.get_str_unique_to_ch_from_layer_name(l.name)
+        layer_chs = [_utils.get_str_unique_to_ch_from_layer_name(l.data.coords)
                     for l in self.input_layers]
         
         channels = np.unique(layer_chs)
@@ -308,6 +310,7 @@ class StitcherQWidget(QWidget):
 
             layers_to_fuse = list(_utils.filter_layers(self.input_layers, ch=ch))
             xims_to_fuse = [l.data for l in layers_to_fuse]
+            xims_to_fuse = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims_to_fuse]
 
             # restrict timepoints
             xims_to_fuse = [xim.sel(T=[xim.coords['T'][it]
@@ -342,31 +345,33 @@ class StitcherQWidget(QWidget):
 
     def reset(self):
             
-            self.source_identifier = None
             self.params = dict()
             self.reg_ch_picker.choices = ()
             self.visualization_type_rbuttons.value = CHOICE_METADATA
-            self.times_slider.min, self.times_slider.max = (0, 1)
-            self.times_slider.value = (0, 1)
+            self.times_slider.min, self.times_slider.max = (-1, 0)
+            self.times_slider.value = (-1, 0)
             self.input_layers = []
             self.fused_layers = []
 
     def load_metadata(self):
         
+        reference_xim = self.input_layers[0].data
+        reference_xim = _spatial_image_utils.ensure_time_dim(reference_xim)
+
         # assume dims are the same for all layers
         l0 = self.input_layers[0]
-        if 'T' in l0.data.dims:
+        if 'T' in reference_xim.dims:
             self.times_slider.enabled = True
             # self.times_slider.min = int(l0.data.coords['T'][0] - 1)
             # self.times_slider.max = int(l0.data.coords['T'][-1] - 1)
             self.times_slider.min = -1
-            self.times_slider.max = len(l0.data.coords['T']) - 1
+            self.times_slider.max = len(reference_xim.coords['T']) - 1
             self.times_slider.value = self.times_slider.min, self.times_slider.max
 
         if 'C' in l0.data.coords.keys():
             self.reg_ch_picker.enabled = True
             self.reg_ch_picker.choices = np.unique([
-                _utils.get_str_unique_to_ch_from_layer_name(l.name)
+                _utils.get_str_unique_to_ch_from_layer_name(l.data.coords)
                 for l in self.input_layers])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
@@ -379,10 +384,27 @@ class StitcherQWidget(QWidget):
 
 
     def load_layers_all(self):
+
+        if not len(self.viewer.layers):
+            notifications.notification_manager.receive_info(
+                'No images in the layer list.'
+            )
+            return
+
         self.load_layers(self.viewer.layers)
 
 
     def load_layers_sel(self):
+
+        # import pdb; pdb.set_trace()
+
+        if not len(self.viewer.layers.selection):
+            notifications.notification_manager.receive_info(
+                'Select layers from the layer list (mutliple using shift / %s'\
+                    %('control' if ('command' in sys.platform) else 'shift')
+            )
+            return
+
         self.load_layers([l for l in self.viewer.layers.selection])
 
 
@@ -393,7 +415,16 @@ class StitcherQWidget(QWidget):
 
         self.input_layers = [l for l in layers]
 
-        number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_layer_name(l.name) for l in layers]))
+        # # load in layers as xims
+        # xims = []
+        # for l in layers:
+        #     xim = _spatial_image_utils.ensure_time_dim(l.data)
+        #     xim.attrs['layer_name'] = l.name
+        # xims.append(xim)
+        # self.xims = xims
+
+        # number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_layer_name(l.name) for l in layers]))
+        number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_layer_name(l.data.coords) for l in layers]))
         
         if len(layers) and number_of_channels > 1:
             self.link_channel_layers(layers)
@@ -406,7 +437,7 @@ class StitcherQWidget(QWidget):
         # link channel layers
         from napari.experimental import link_layers
 
-        channels = [_utils.get_str_unique_to_ch_from_layer_name(l.name) for l in layers]
+        channels = [_utils.get_str_unique_to_ch_from_layer_name(l.data.coords) for l in layers]
         for ch in channels:
             ch_layers = list(_utils.filter_layers(layers, ch=ch))
 

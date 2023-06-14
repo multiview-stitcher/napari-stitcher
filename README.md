@@ -91,3 +91,4 @@ If you encounter any problems, please [file an issue] along with a detailed desc
     - e.g. using corners of overlap regions as virtual points. optimize using decomposition parametrizations
     - use the coloring logic to determine / restrict relevant registration pairs
 - look at example data on the bioimage archive, e.g. "https://uk1s3.embassy.ebi.ac.uk/idr/zarr/v0.3/9836842.zarr/"
+- consider converting / backing up input xims into/by (temporary?) rechunked stores for better performance with large inputs

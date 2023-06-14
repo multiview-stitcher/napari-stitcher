@@ -15,14 +15,14 @@ def test_data_loading_while_plugin_open(make_napari_viewer):
 
     test_path = Path(__file__).parent.parent.parent.parent /\
                              "image-datasets" / "mosaic_test.czi"
-    viewer.open(test_path)
+    viewer.open(test_path, plugin='napari-stitcher')
 
     stitcher_widget = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(stitcher_widget)
 
     # test also opening when plugin is already open
     viewer.layers.clear()
-    viewer.open(test_path)
+    viewer.open(test_path, plugin='napari-stitcher')
 
     # import pdb; pdb.set_trace()
 
@@ -42,7 +42,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
     test_path = Path(__file__).parent.parent.parent.parent /\
                              "image-datasets" / "mosaic_test.czi"
     
-    viewer.open(test_path)
+    viewer.open(test_path, plugin='napari-stitcher')
 
     stitcher_widget.button_load_layers_all.clicked()
 

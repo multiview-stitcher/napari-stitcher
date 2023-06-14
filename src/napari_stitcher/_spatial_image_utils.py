@@ -3,6 +3,9 @@ import xarray as xr
 import transformations as tfs
 
 
+SPATIAL_DIMS = ['Z', 'Y', 'X']
+
+
 def assign_si_coords_from_params(xim, p=None):
     """
     Assume that matrix p (shape ndim+1) is given with dim order

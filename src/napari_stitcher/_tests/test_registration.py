@@ -92,3 +92,13 @@ def test_get_stabilization_parameters():
         assert(np.all(np.abs(
             np.mean(np.diff(shifts, axis=0) - np.diff(params, axis=0), axis=0)\
             < np.std((shifts))) / 3))
+
+
+def test_get_optimal_registration_binning():
+
+    ndim = 3
+    xims = [xr.DataArray(da.empty(([1000] * ndim)), dims=_spatial_image_utils.SPATIAL_DIMS)
+            for _ in range(2)]
+    reg_binning = _registration.get_optimal_registration_binning(*tuple(xims))
+
+    assert(min(reg_binning.values()) > 1)

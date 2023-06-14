@@ -57,14 +57,17 @@ def get_optimal_registration_binning(xim1, xim2, max_total_pixels_per_stack=(400
                            for dim in spatial_dims])
                for ixim in range(2)]) >= max_total_pixels_per_stack:
 
-        dim_to_bin = np.argmin(np.min(np.array(spacings), axis=0))
+        # dim_to_bin = np.argmin(np.min(np.array(spacings), axis=0))
+        dim_to_bin = np.argmin([min([spacings[ixim][dim] for ixim in range(2)]) for dim in spatial_dims])
+
         if ndim == 3 and dim_to_bin == 0:
             registration_binning['Z'] = registration_binning['Z'] * 2
         else:
             for dim in ['X', 'Y']:
                 registration_binning[dim] = registration_binning[dim] * 2
 
-        spacings = [spacings[ixim] * registration_binning for ixim in range(2)]
+        spacings = [{dim: spacings[ixim][dim] * registration_binning[dim]
+                    for dim in spatial_dims} for ixim in range(2)]
 
     return registration_binning
 
