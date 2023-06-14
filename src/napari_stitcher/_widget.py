@@ -61,9 +61,6 @@ class StitcherQWidget(QWidget):
         self.times_slider = widgets.RangeSlider(min=-1, max=0, label='Timepoints:', enabled=False,
             tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\n(3, 5) means timepoints 4 and 5 are processed')
         
-        # self.regch_slider = widgets.Slider(min=0, max=1, label='Reg channel:', enabled=False,
-        #     tooltip='Channel to use for computing stitching and stabilization.')
-        
         self.reg_ch_picker = widgets.ComboBox(
             label='Reg channel: ',
             choices=[],
@@ -95,9 +92,6 @@ class StitcherQWidget(QWidget):
                     'blending the overlaps and filling in gaps.')
 
         self.loading_widgets = [
-                            # self.source_identifier_picker,
-                            # self.buttons_load_layers,
-                            # self.layers_selection,
                             self.load_layers_box,
                             ]
 
@@ -135,20 +129,9 @@ class StitcherQWidget(QWidget):
 
         # create temporary directory for storing dask arrays
         self.tmpdir = tempfile.TemporaryDirectory()
-
-        # # run on startup
-        # self.load_metadata()
-        # self.link_channel_layers()
-
-        # link callbacks
-        # self.source_identifier_picker.changed.connect(self.load_metadata)
-        # self.viewer.layers.events.inserted.connect(self.link_channel_layers)
         
         self.visualization_type_rbuttons.changed.connect(self.update_viewer_transformations)
         self.viewer.dims.events.connect(self.update_viewer_transformations)
-
-        # self.viewer.layers.events.inserted.connect(self.on_layers_change)
-        # self.viewer.layers.events.removed.connect(self.on_layers_change)
 
         self.button_stitch.clicked.connect(self.run_stitching)
         self.button_stabilize.clicked.connect(self.run_stabilization)
@@ -163,9 +146,7 @@ class StitcherQWidget(QWidget):
         set transformations for current timepoint
         """
 
-        # if self.source_identifier is None: return
-
-        if not len(self.params) is None: return
+        if not len(self.params): return
 
         reference_xim = self.xims[self.input_layers[0].name]
         spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(reference_xim)
@@ -175,8 +156,6 @@ class StitcherQWidget(QWidget):
             layer_xim = self.xims[l.name]
 
             ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(layer_xim))
-
-            # curr_tp = self.viewer.dims.current_step[0]
 
             # get curr tp
             # handle possibility that there had been no T dimension
@@ -209,15 +188,17 @@ class StitcherQWidget(QWidget):
             else:
                 p = np.eye(ndim + 1)
 
-            vis_p = p
+            ndim_layer_data = len(layer_xim.shape)
 
-            # embed parameters into ndim + ? matrix because of additional axes
-            # ndim_layer_data = len(layer_xim.shape)
-            ndim_layer_data_spatial = len(spatial_dims)
-            full_vis_p = np.eye(ndim_layer_data_spatial + 1)
+            # if stitcher xim has more dimensions than layer data (i.e. time)
+            vis_p = p[-(ndim_layer_data + 1):, -(ndim_layer_data + 1):]
+
+            # if layer data has more dimensions than stitcher xim
+            full_vis_p = np.eye(ndim_layer_data + 1)
             full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
 
             l.affine.affine_matrix = full_vis_p
+
             l.refresh()
 
         # fused layers
@@ -230,8 +211,6 @@ class StitcherQWidget(QWidget):
         layers = list(_utils.filter_layers(self.input_layers, self.xims,
                                       ch=self.reg_ch_picker.value))
 
-        # xims = [l.data for l in layers]
-        # xims = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims]
         xims = [self.xims[l.name] for l in layers]
 
         times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
@@ -266,8 +245,6 @@ class StitcherQWidget(QWidget):
         layers = list(_utils.filter_layers(self.input_layers, self.xims,
                                       ch=self.reg_ch_picker.value))
 
-        # xims = [l.data for l in layers]
-        # xims = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims]
         xims = [self.xims[l.name] for l in layers]
 
         # restrict timepoints
@@ -329,9 +306,6 @@ class StitcherQWidget(QWidget):
 
             layers_to_fuse = list(_utils.filter_layers(self.input_layers, self.xims, ch=ch))
 
-            # xims_to_fuse = [l.data for l in layers_to_fuse]
-            # xims_to_fuse = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims_to_fuse]
-
             xims_to_fuse = [self.xims[l.name] for l in layers_to_fuse]
 
             # restrict timepoints
@@ -379,11 +353,8 @@ class StitcherQWidget(QWidget):
     def load_metadata(self):
         
         reference_xim = self.xims[self.input_layers[0].name]
-        # reference_xim = self.input_layers[0].data
-        # reference_xim = _spatial_image_utils.ensure_time_dim(reference_xim)
 
         # assume dims are the same for all layers
-        # l0 = self.input_layers[0]
         if 'T' in reference_xim.dims:
             self.times_slider.enabled = True
             # self.times_slider.min = int(l0.data.coords['T'][0] - 1)
@@ -420,8 +391,6 @@ class StitcherQWidget(QWidget):
 
     def load_layers_sel(self):
 
-        # import pdb; pdb.set_trace()
-
         if not len(self.viewer.layers.selection):
             notifications.notification_manager.receive_info(
                 'Select layers from the layer list (mutliple using shift / %s'\
@@ -456,9 +425,6 @@ class StitcherQWidget(QWidget):
             xim.attrs['layer_name'] = l.name
             self.xims[l.name] = xim
 
-        # import pdb; pdb.set_trace()
-
-        # number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_layer_name(l.name) for l in layers]))
         number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
                                             for l_name, xim in self.xims.items()]))
         
@@ -479,14 +445,12 @@ class StitcherQWidget(QWidget):
         for ch in channels:
             ch_layers = list(_utils.filter_layers(layers, self.xims, ch=ch))
 
-            # layers_to_link = [l for l in layers_to_link if l is not None]
-            layers_to_link = ch_layers
-
-            if len(layers_to_link):
-                link_layers(layers_to_link, ('contrast_limits', 'visible'))
+            if len(ch_layers):
+                link_layers(ch_layers, ('contrast_limits', 'visible'))
 
 
     def __del__(self):
+
         print('Deleting napari-stitcher widget')
 
         # clean up callbacks
