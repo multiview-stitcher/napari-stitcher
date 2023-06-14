@@ -131,7 +131,7 @@ def get_str_unique_to_view_from_layer_name(layer_name):
 # def get_str_unique_to_ch_from_layer_name(layer_name):
 #     return layer_name.split(' :: ')[1]
 
-def get_str_unique_to_ch_from_layer_name(layer_coords):
+def get_str_unique_to_ch_from_xim_coords(layer_coords):
     return str(layer_coords['C'].values)
 
 
@@ -139,11 +139,11 @@ def get_view_from_layer(layer):
     return layer.metadata['view']
 
 
-def filter_layers(layers, view=None, ch=None):
+def filter_layers(layers, xims, view=None, ch=None):
     for l in layers:
         if view is not None and get_str_unique_to_view_from_layer_name(l.name) != view: continue
         # if ch is not None and get_str_unique_to_ch_from_layer_name(l.name) != ch: continue
-        if ch is not None and get_str_unique_to_ch_from_layer_name(l.data.coords) != ch: continue
+        if ch is not None and get_str_unique_to_ch_from_xim_coords(xims[l.name].coords) != ch: continue
         yield l
 
 

@@ -129,6 +129,7 @@ class StitcherQWidget(QWidget):
 
         # initialize registration parameter dict
         self.input_layers= []
+        self.xims = {}
         self.fused_layers = []
         self.params = dict()
 
@@ -166,7 +167,9 @@ class StitcherQWidget(QWidget):
 
         for l in self.input_layers:
 
-            ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(l.data))
+            layer_xim = self.xims[l.name]
+
+            ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(layer_xim))
 
             curr_tp = self.viewer.dims.current_step[0]
         
@@ -175,7 +178,7 @@ class StitcherQWidget(QWidget):
                 params = self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
 
                 try:
-                    p = np.array(params.sel(T=l.data.coords['T'][curr_tp])).squeeze()
+                    p = np.array(params.sel(T=layer_xim.coords['T'][curr_tp])).squeeze()
                 except:
 
                     # notifications.notification_manager.receive_info(
@@ -186,7 +189,7 @@ class StitcherQWidget(QWidget):
                     # if curr_tp not available, use nearest available parameter
                     notifications.notification_manager.receive_info(
                         'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
-                    p = np.array(params.sel(T=l.data.coords['T'][curr_tp], method='nearest')).squeeze()
+                    p = np.array(params.sel(T=layer_xim.coords['T'][curr_tp], method='nearest')).squeeze()
 
 
                 p = np.linalg.inv(p)
@@ -196,7 +199,7 @@ class StitcherQWidget(QWidget):
             vis_p = p
 
             # embed parameters into ndim + ? matrix because of additional axes
-            ndim_layer_data = len(l.data.shape)
+            ndim_layer_data = len(layer_xim.shape)
             full_vis_p = np.eye(ndim_layer_data + 1)
             full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
 
@@ -210,11 +213,12 @@ class StitcherQWidget(QWidget):
 
     def run_stabilization(self):
 
-        layers = list(_utils.filter_layers(self.input_layers,
+        layers = list(_utils.filter_layers(self.input_layers, self.xims,
                                       ch=self.reg_ch_picker.value))
 
-        xims = [l.data for l in layers]
-        xims = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims]
+        # xims = [l.data for l in layers]
+        # xims = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims]
+        xims = [self.xims[l.name] for l in layers]
 
         times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
 
@@ -245,11 +249,12 @@ class StitcherQWidget(QWidget):
 
     def run_stitching(self):
 
-        layers = list(_utils.filter_layers(self.input_layers,
+        layers = list(_utils.filter_layers(self.input_layers, self.xims,
                                       ch=self.reg_ch_picker.value))
 
-        xims = [l.data for l in layers]
-        xims = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims]
+        # xims = [l.data for l in layers]
+        # xims = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims]
+        xims = [self.xims[l.name] for l in layers]
 
         # restrict timepoints
         xims = [x.sel(T=[x.coords['T'][it]
@@ -299,8 +304,8 @@ class StitcherQWidget(QWidget):
         Split layers into channel groups and fuse each group separately.
         """
 
-        layer_chs = [_utils.get_str_unique_to_ch_from_layer_name(l.data.coords)
-                    for l in self.input_layers]
+        layer_chs = [_utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
+                    for l_name, xim in self.xims.items()]
         
         channels = np.unique(layer_chs)
 
@@ -308,9 +313,12 @@ class StitcherQWidget(QWidget):
 
         for ch in channels:
 
-            layers_to_fuse = list(_utils.filter_layers(self.input_layers, ch=ch))
-            xims_to_fuse = [l.data for l in layers_to_fuse]
-            xims_to_fuse = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims_to_fuse]
+            layers_to_fuse = list(_utils.filter_layers(self.input_layers, self.xims, ch=ch))
+
+            # xims_to_fuse = [l.data for l in layers_to_fuse]
+            # xims_to_fuse = [_spatial_image_utils.ensure_time_dim(xim) for xim in xims_to_fuse]
+
+            xims_to_fuse = [self.xims[l.name] for l in layers_to_fuse]
 
             # restrict timepoints
             xims_to_fuse = [xim.sel(T=[xim.coords['T'][it]
@@ -345,6 +353,7 @@ class StitcherQWidget(QWidget):
 
     def reset(self):
             
+            self.xims = {}
             self.params = dict()
             self.reg_ch_picker.choices = ()
             self.visualization_type_rbuttons.value = CHOICE_METADATA
@@ -355,11 +364,12 @@ class StitcherQWidget(QWidget):
 
     def load_metadata(self):
         
-        reference_xim = self.input_layers[0].data
-        reference_xim = _spatial_image_utils.ensure_time_dim(reference_xim)
+        reference_xim = self.xims[self.input_layers[0].name]
+        # reference_xim = self.input_layers[0].data
+        # reference_xim = _spatial_image_utils.ensure_time_dim(reference_xim)
 
         # assume dims are the same for all layers
-        l0 = self.input_layers[0]
+        # l0 = self.input_layers[0]
         if 'T' in reference_xim.dims:
             self.times_slider.enabled = True
             # self.times_slider.min = int(l0.data.coords['T'][0] - 1)
@@ -368,11 +378,11 @@ class StitcherQWidget(QWidget):
             self.times_slider.max = len(reference_xim.coords['T']) - 1
             self.times_slider.value = self.times_slider.min, self.times_slider.max
 
-        if 'C' in l0.data.coords.keys():
+        if 'C' in reference_xim.coords.keys():
             self.reg_ch_picker.enabled = True
             self.reg_ch_picker.choices = np.unique([
-                _utils.get_str_unique_to_ch_from_layer_name(l.data.coords)
-                for l in self.input_layers])
+                _utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
+                for l_name, xim in self.xims.items()])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
         from collections.abc import Iterable
@@ -415,16 +425,17 @@ class StitcherQWidget(QWidget):
 
         self.input_layers = [l for l in layers]
 
-        # # load in layers as xims
-        # xims = []
-        # for l in layers:
-        #     xim = _spatial_image_utils.ensure_time_dim(l.data)
-        #     xim.attrs['layer_name'] = l.name
-        # xims.append(xim)
-        # self.xims = xims
+        # load in layers as xims
+        for l in layers:
+            xim = _spatial_image_utils.ensure_time_dim(l.data)
+            xim.attrs['layer_name'] = l.name
+            self.xims[l.name] = xim
+
+        # import pdb; pdb.set_trace()
 
         # number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_layer_name(l.name) for l in layers]))
-        number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_layer_name(l.data.coords) for l in layers]))
+        number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
+                                            for l_name, xim in self.xims.items()]))
         
         if len(layers) and number_of_channels > 1:
             self.link_channel_layers(layers)
@@ -437,9 +448,11 @@ class StitcherQWidget(QWidget):
         # link channel layers
         from napari.experimental import link_layers
 
-        channels = [_utils.get_str_unique_to_ch_from_layer_name(l.data.coords) for l in layers]
+        xims = [self.xims[l.name] for l in layers]
+
+        channels = [_utils.get_str_unique_to_ch_from_xim_coords(xim.coords) for xim in xims]
         for ch in channels:
-            ch_layers = list(_utils.filter_layers(layers, ch=ch))
+            ch_layers = list(_utils.filter_layers(layers, self.xims, ch=ch))
 
             # layers_to_link = [l for l in layers_to_link if l is not None]
             layers_to_link = ch_layers
