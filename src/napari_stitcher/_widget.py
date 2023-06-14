@@ -165,13 +165,26 @@ class StitcherQWidget(QWidget):
 
         # if self.source_identifier is None: return
 
+        if not len(self.params) is None: return
+
+        reference_xim = self.xims[self.input_layers[0].name]
+        spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(reference_xim)
+
         for l in self.input_layers:
 
             layer_xim = self.xims[l.name]
 
             ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(layer_xim))
 
-            curr_tp = self.viewer.dims.current_step[0]
+            # curr_tp = self.viewer.dims.current_step[0]
+
+            # get curr tp
+            # handle possibility that there had been no T dimension
+            # when collecting xims from layers
+            if len(self.viewer.dims.current_step) > len(spatial_dims):
+                curr_tp = self.viewer.dims.current_step[-len(spatial_dims)-1]
+            else:
+                curr_tp = 0
         
             if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
 
@@ -199,8 +212,9 @@ class StitcherQWidget(QWidget):
             vis_p = p
 
             # embed parameters into ndim + ? matrix because of additional axes
-            ndim_layer_data = len(layer_xim.shape)
-            full_vis_p = np.eye(ndim_layer_data + 1)
+            # ndim_layer_data = len(layer_xim.shape)
+            ndim_layer_data_spatial = len(spatial_dims)
+            full_vis_p = np.eye(ndim_layer_data_spatial + 1)
             full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
 
             l.affine.affine_matrix = full_vis_p
@@ -427,7 +441,18 @@ class StitcherQWidget(QWidget):
 
         # load in layers as xims
         for l in layers:
-            xim = _spatial_image_utils.ensure_time_dim(l.data)
+            xim = l.data
+            try:
+                len(xim.coords['C'])
+                notifications.notification_manager.receive_info(
+                    "Layer '%s' has more than one channel.Consider splitting the stack (right click on layer -> 'Split Stack')." %l.name
+                )
+                self.layers_selection.choices = []
+                self.reset()
+                return
+            except:
+                pass
+            xim = _spatial_image_utils.ensure_time_dim(xim)
             xim.attrs['layer_name'] = l.name
             self.xims[l.name] = xim
 

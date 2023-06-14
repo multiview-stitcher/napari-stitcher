@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     xims = generate_tiled_dataset(
         ndim=2, N_t=20, N_c=1,
-        tile_size=1000, tiles_x=3, tiles_y=3, tiles_z=1,
+        tile_size=1000, tiles_x=1, tiles_y=1, tiles_z=1,
         overlap=15, zoom=5, shift_scale=5, drift_scale=2, dtype=np.uint8)
     layer_tuples = create_image_layer_tuples_from_xims(xims, n_colors=2)
 

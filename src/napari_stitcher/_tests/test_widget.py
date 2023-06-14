@@ -171,6 +171,12 @@ def test_diversity_stitching(ndim, N_c, N_t, dtype, make_napari_viewer):
     # stitcher_widget.button_fuse.clicked()
     wdg.run_fusion()
 
+    # test scrolling
+    if N_t > 1:
+        current_step = list(viewer.dims.current_step)
+        current_step[0] = 1
+        viewer.dims.current_step = tuple(current_step)
+
     viewer.layers[-N_c:].save(os.path.join(wdg.tmpdir.name, 'test.tif'))
 
 
