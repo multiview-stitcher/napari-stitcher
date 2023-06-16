@@ -118,7 +118,8 @@ def get_cmaps_from_xims(xims, n_colors=2):
     # modify overlap values
     # strategy: add a small amount to edge overlap depending on how many edges the nodes it connects have (betweenness?)
 
-    edge_vals = nx.edge_betweenness(mv_graph)
+    edge_vals = nx.edge_betweenness_centrality(mv_graph)
+
     edges = [e for e in mv_graph.edges(data=True)]
     for e in edges:
         edge_vals[tuple(e[:2])] = edge_vals[tuple(e[:2])] + e[2]['overlap']

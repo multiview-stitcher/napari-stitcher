@@ -1,45 +1,11 @@
 import numpy as np
 import xarray as xr
 
-from mvregfus import io_utils
-from mvregfus.image_array import ImageArray
-
 from dask import delayed, compute
 import dask.array as da
 from tqdm.dask import TqdmCallback
 
 from napari.utils import progress
-
-
-def load_tiles(view_dict: dict,
-               channels: int,
-               times: list,
-               max_project: bool = True,
-               ) -> dict:
-    """
-    Return: dict of delayed dask arrays
-    """
-
-    # load views
-    view_ims = {ch: {t: {vdv['view']: 
-                            da.from_delayed(
-                                delayed(io_utils.read_tile_from_multitile_czi)
-                                   (vdv['filename'],
-                                    vdv['view'],
-                                    ch,
-                                    time_index=t,
-                                    max_project=max_project,
-                                    origin=vdv['origin'],
-                                    spacing=vdv['spacing'],
-                                    ),
-                                shape=tuple(vdv['shape']),
-                                dtype=np.uint16,
-                            )
-                        for vdv in view_dict.values()}
-                    for t in times}
-                for ch in channels}
-
-    return view_ims
 
 
 class TemporarilyDisabledWidgets(object):
@@ -127,9 +93,6 @@ def layer_was_loaded_by_own_reader(layer):
 def get_str_unique_to_view_from_layer_name(layer_name):
     return layer_name.split(' :: ')[0]
 
-
-# def get_str_unique_to_ch_from_layer_name(layer_name):
-#     return layer_name.split(' :: ')[1]
 
 def get_str_unique_to_ch_from_xim_coords(layer_coords):
     return str(layer_coords['C'].values)
