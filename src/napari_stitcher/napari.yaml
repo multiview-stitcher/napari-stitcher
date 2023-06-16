@@ -18,6 +18,9 @@ contributions:
     - id: napari-stitcher.drifting_timelapse_with_stage_shifts_no_overlap_2d
       python_name: napari_stitcher._sample_data:drifting_timelapse_with_stage_shifts_no_overlap_2d
       title: Load sample data from Stitchery
+    - id: napari-stitcher.timelapse_with_stage_shifts_with_overlap_3d
+      python_name: napari_stitcher._sample_data:timelapse_with_stage_shifts_with_overlap_3d
+      title: Load sample data from Stitchery
 
     - id: napari-stitcher.make_qwidget
       python_name: napari_stitcher._widget:StitcherQWidget
@@ -43,6 +46,9 @@ contributions:
     - command: napari-stitcher.drifting_timelapse_with_stage_shifts_no_overlap_2d
       display_name: 2D drifting timelapse with stage shifts and no overlap
       key: unique_id.2
+    - command: napari-stitcher.timelapse_with_stage_shifts_with_overlap_3d
+      display_name: 3D timelapse with stage shifts and overlap
+      key: unique_id.3
   widgets:
     - command: napari-stitcher.make_qwidget
       display_name: Stitcher

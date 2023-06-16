@@ -27,7 +27,8 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
             
             overlap_area, _ = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand)
 
-            if overlap_area > 0:
+            # overlap 0 means one pixel overlap
+            if overlap_area > -1:
                 g.add_edge(iview1, iview2, overlap=overlap_area)
 
     return g
@@ -36,7 +37,10 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
 def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
 
     """
-    How to handle T? For now, only consider first timepoint
+    
+    - if there is no overlap, return overlap area of -1
+    - if there's a one pixel wide overlap, overlap_area is 0
+
     """
 
     # select first time point
@@ -55,15 +59,6 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
     x2_i, x2_f = np.array([[xim2.coords[dim][index].data
                             for dim in spatial_dims]
                             for index in [0, -1]])
-        
-    # # expand limits so that in case of no overlap the neighbours are shown
-    # a = 10
-    # if expand:
-    #     x1_i = x1_i - a * xim1.attrs['spacing'].data
-    #     x2_i = x2_i - a * xim2.attrs['spacing'].data
-
-    #     x1_f = x1_f + a * xim1.attrs['spacing'].data
-    #     x2_f = x2_f + a * xim2.attrs['spacing'].data
 
     # expand limits so that in case of no overlap the neighbours are shown
     a = 10
@@ -83,12 +78,10 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
     x_f = np.min([x1_f, x2_f], 0)
 
     if np.all(dim_overlap):
-        # overlap = np.min([x2_f, x1_f], 0) - np.max([x2_i, x1_i], 0)
         overlap = x_f - x_i
+        overlap_area = np.product(overlap)
     else:
-        overlap = np.array([0] * len(spatial_dims))
-        
-    overlap_area = np.product(overlap)
+        overlap_area = -1
 
     return overlap_area, [{dim: x[idim] for idim, dim in enumerate(spatial_dims)}
                           for x in [x_i, x_f]]

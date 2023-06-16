@@ -49,21 +49,27 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
                            shift_scale=2., drift_scale=2.):
 
     def transform_input(x, shifts, drifts, im_gt, overlap=0, zoom=10., block_info=None):
-                        
-        # t = block_info[None]['array-location'][0][0]
-        offset = np.array([l[0] for l in block_info[None]['array-location'][1:]])
-        
-        shift = shifts[block_info[0]['chunk-location']]
-        drift = drifts[block_info[0]['chunk-location']]
-        
+
         x = x.squeeze()
         
         output_shape = np.array(x.shape)
+
+        shift = shifts[block_info[0]['chunk-location']]
+        drift = drifts[block_info[0]['chunk-location']]
         
+        eff_shape = output_shape - overlap
+        offset = np.array(block_info[None]['chunk-location'][1:]) * eff_shape
+        # offset = offset - overlap * (np.array(block_info[None]['chunk-location'][1:]) > 0)
+
         offset = offset + drift + shift
-        offset = offset - (overlap * (2 * np.array(block_info[None]['chunk-location'][1:])))
+
+        print("eff_shape", eff_shape)
+        print(block_info[0]['chunk-location'], offset)
+
         offset = offset / zoom
-        
+
+        print("output_shape", output_shape)
+                
         x = ndimage.affine_transform(im_gt,
                                     matrix=np.eye(x.ndim) / zoom,
                                     offset=offset,
@@ -104,7 +110,8 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
         tile = tls.blocks[tuple([slice(0, N_c), slice(0, N_t)] + \
                                 [slice(ti, ti+1) for ti in tile_index])]
         # tile = tile.rechunk((1, 1) + tuple([1 if dim=='z' else 256 for dim in spatial_dims]))
-        origin = tile_index * tile_size * spacing - overlap * (1 + tile_index)
+        # origin = tile_index * tile_size * spacing - overlap * (1 + tile_index)
+        origin = tile_index * tile_size * spacing - overlap * (tile_index) * spacing
         xim = xr.DataArray(
             tile,
             dims=['C','T'] + spatial_dims,
@@ -113,14 +120,31 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
             {'C': ['channel ' + str(c) for c in range(N_c)]},
         )
         xims.append(xim)
-
+    
     return xims
 
 
 def drifting_timelapse_with_stage_shifts_no_overlap_2d():
 
-    xims = generate_tiled_dataset(ndim=2, N_t=20, N_c=1, tile_size=30, tiles_x=3, tiles_y=3, tiles_z=1, overlap=0, zoom=8, dtype=np.uint16)
+    xims = generate_tiled_dataset(
+        ndim=2, N_t=20, N_c=1,
+        tile_size=30, tiles_x=3, tiles_y=3, tiles_z=1,
+        drift_scale=2., shift_scale=2.,
+        overlap=0, zoom=8, dtype=np.uint8)
 
+    layer_tuples = create_image_layer_tuples_from_xims(xims)
+
+    return layer_tuples
+
+
+def timelapse_with_stage_shifts_with_overlap_3d():
+
+    xims = generate_tiled_dataset(
+        ndim=3, N_t=20, N_c=1,
+        tile_size=30, tiles_x=3, tiles_y=3, tiles_z=1,
+        drift_scale=0., shift_scale=2.,
+        overlap=3, zoom=8, dtype=np.uint8)
+    
     layer_tuples = create_image_layer_tuples_from_xims(xims)
 
     return layer_tuples

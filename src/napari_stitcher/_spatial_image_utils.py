@@ -122,6 +122,7 @@ def get_spacing_from_xim(xim, asarray=False):
     
     spatial_dims = get_spatial_dims_from_xim(xim)
     spacing = {dim: float(xim.coords[dim][1] - xim.coords[dim][0])
+               if len(xim.coords[dim]) > 1 else 1.0
                for dim in spatial_dims}
 
     if asarray:
