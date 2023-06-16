@@ -6,6 +6,8 @@ from scipy import ndimage
 
 from napari_stitcher import _registration, _sample_data, _spatial_image_utils, _reader, _mv_graph
 
+import pytest
+
 
 def test_pairwise():
 
@@ -32,6 +34,19 @@ def test_pairwise():
         np.array([[1.        , 0.        , 1.73333333],
                   [0.        , 1.        , 7.36666667],
                   [0.        , 0.        , 1.        ]]))
+    
+
+@pytest.mark.parametrize(
+    "ndim", [2, 3]
+)
+def test_register_with_single_pixel_overlap(ndim):
+
+    xims = _sample_data.generate_tiled_dataset(
+            ndim=ndim, overlap=1, N_c=2, N_t=2,
+            tile_size=10, tiles_x=1, tiles_y=2, tiles_z=1,
+            spacing_x=1, spacing_y=1, spacing_z=1)
+    
+    _registration.register_pair_of_spatial_images(xims[0], xims[1])
 
 
 def test_register_graph():
