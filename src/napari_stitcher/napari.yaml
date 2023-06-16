@@ -25,9 +25,6 @@ contributions:
     - id: napari-stitcher.make_qwidget
       python_name: napari_stitcher._widget:StitcherQWidget
       title: Make Stitcher QWidget
-    - id: napari-stitcher.reload_plugin_widget
-      python_name: napari_stitcher._widget:reload_plugin_widget
-      title: Reload stitching plugin widget
   readers:
     - command: napari-stitcher.get_reader
       accepts_directories: false
@@ -52,6 +49,3 @@ contributions:
   widgets:
     - command: napari-stitcher.make_qwidget
       display_name: Stitcher
-    - command: napari-stitcher.reload_plugin_widget
-      autogenerate: true
-      display_name: Reload Stitcher Widget

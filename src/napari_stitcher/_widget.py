@@ -457,23 +457,6 @@ class StitcherQWidget(QWidget):
         self.viewer.dims.events.disconnect(self.update_viewer_transformations)
 
 
-# simple widget to reload the plugin during development
-def reload_plugin_widget(viewer: "napari.Viewer"):
-    import importlib
-    from napari_stitcher import _widget, _utils, _reader, _fusion, _registration
-    _widget = importlib.reload(_widget)
-    _utils = importlib.reload(_utils)
-    _reader = importlib.reload(_reader)
-    _fusion = importlib.reload(_fusion)
-    _registration = importlib.reload(_registration)
-    
-    # viewer.window.remove_dock_widget('all')
-    # viewer.events.disconnect()
-    viewer.layers.events.disconnect()
-    viewer.dims.events.disconnect()
-    viewer.window.add_dock_widget(_widget.StitcherQWidget(viewer))
-    
-
 if __name__ == "__main__":
     import napari
 
