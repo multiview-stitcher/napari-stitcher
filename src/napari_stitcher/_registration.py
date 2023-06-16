@@ -158,6 +158,8 @@ def register_pair_of_spatial_images(
                 overlap_xims_b[i].data, kernel_size=10, clip_limit=0.02, nbins=2 ** 13),
             shape=overlap_xims_b[i].shape, dtype=float)
 
+    # TODO: deal with images of different shapes
+
     param = da.from_delayed(delayed(skimage.registration.phase_cross_correlation)(
             overlap_xims_b[0].data,
             overlap_xims_b[1].data,
