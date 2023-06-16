@@ -1,14 +1,49 @@
+import numpy as np
+
 from napari_stitcher import _sample_data
 
-# add your tests here...
+import pytest
 
 
-def test_generate_tiled_dataset():
+@pytest.mark.parametrize(
+    "ndim, overlap, N_t, N_c", [
+        (ndim, overlap, N_t, N_c)
+        for ndim in [2, 3]
+        for overlap in [0, 2]
+        for N_t in [1, 2]
+        for N_c in [1, 2]
+    ]
+)
+def test_generate_tiled_dataset(ndim, overlap, N_t, N_c):
+        
+    """
+    Could be much more general
+    """
 
-    N_c = 2
-    for ndim in [2, 3]:
+    tile_size = 10
+    spacing_x = 0.5
+    spacing_y = 0.5
+    spacing_z = 0.5
+    xims = _sample_data.generate_tiled_dataset(
+            ndim=ndim, overlap=overlap, N_c=N_c, N_t=N_t,
+            tile_size=tile_size, tiles_x=1, tiles_y=2, tiles_z=1,
+            spacing_x=spacing_x, spacing_y=spacing_y, spacing_z=spacing_z,
+            drift_scale=0, shift_scale=0)
+    
+    assert(xims[0].data.ndim == ndim + 2)
+    
+    assert(xims[1].coords['Y'][0] == spacing_y * (tile_size - overlap))
 
-        xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_c=2, N_t=4)
-        computed = [xim.compute() for xim in xims]
-
-        assert(xims[0].data.ndim == ndim + int(N_c > 1) + 1)
+    if overlap > 0:
+        assert(np.allclose(
+            xims[0].coords['Y'][-overlap:],
+            xims[1].coords['Y'][:overlap])
+            )
+        
+        assert(np.allclose(
+            xims[0].sel(Y=slice(xims[0].coords['Y'][-overlap],
+                                xims[0].coords['Y'][-1])),
+            xims[1].sel(Y=slice(xims[1].coords['Y'][0],
+                                xims[1].coords['Y'][overlap-1]))
+            ))
+            
