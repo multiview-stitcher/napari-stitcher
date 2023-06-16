@@ -202,7 +202,7 @@ def get_registration_graph_from_overlap_graph(
 
     # invert overlap to use as weight in shortest path
     for e in g_reg.edges:
-        g_reg.edges[e]['overlap_inv'] = 1 / g_reg.edges[e]['overlap']
+        g_reg.edges[e]['overlap_inv'] = 1 / (g_reg.edges[e]['overlap'] + 1) # overlap can be zero
 
     # get shortest paths to ref_node
     paths = nx.shortest_path(g_reg, source=ref_node, weight='overlap_inv')

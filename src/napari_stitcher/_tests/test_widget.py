@@ -136,16 +136,17 @@ def test_stabilization_workflow(make_napari_viewer, capsys):
 
 
 @pytest.mark.parametrize(
-    "ndim, N_c, N_t, dtype", [
-        (2, 1, 3, np.uint16),
-        (2, 1, 3, np.uint8),
-        (2, 2, 3, np.uint8),
-        (3, 1, 3, np.uint16),
-        (3, 1, 3, np.uint8),
-        (3, 2, 3, np.uint8),
+    "ndim, overlap, N_c, N_t, dtype", [
+        (2, 1, 1, 3, np.uint16),
+        (2, 5, 1, 3, np.uint16),
+        (2, 5, 1, 3, np.uint8),
+        (2, 5, 2, 3, np.uint8),
+        (3, 5, 2, 3, np.uint16),
+        (3, 1, 1, 3, np.uint8),
+        (3, 5, 1, 3, np.uint8),
     ]
 )
-def test_diversity_stitching(ndim, N_c, N_t, dtype, make_napari_viewer):
+def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer):
 
     from napari_stitcher import StitcherQWidget
 
@@ -155,7 +156,7 @@ def test_diversity_stitching(ndim, N_c, N_t, dtype, make_napari_viewer):
     viewer.window.add_dock_widget(wdg)
 
     xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
-            tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=5, zoom=10, dtype=dtype)
+            tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=overlap, zoom=10, dtype=dtype)
 
     layer_tuples = _viewer_utils.create_image_layer_tuples_from_xims(xims)
    
