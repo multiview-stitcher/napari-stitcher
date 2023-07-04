@@ -59,14 +59,16 @@ def fuse_xims(xims: list,
 
     # else:
         
-    size = [len(xims[0].coords[nsdim]) for nsdim in nsdims] + list(output_shape)
-    res = xr.DataArray(da.zeros(size, dtype=xims[0].dtype),
-                        dims=nsdims + sdims,
-                        coords={nsdim: xds.coords[nsdim] for nsdim in nsdims} |
-                        {sdim: np.arange(output_shape[isdim]) * output_spacing[isdim] + output_origin[isdim]
-                        for isdim, sdim in enumerate(sdims)},
-                        )
+    # size = [len(xims[0].coords[nsdim]) for nsdim in nsdims] + list(output_shape)
+
+    # res = xr.DataArray(da.zeros(size, dtype=xims[0].dtype),#, chunks=output_chunksize),
+    #                     dims=nsdims + sdims,
+    #                     coords={nsdim: xds.coords[nsdim] for nsdim in nsdims} |
+    #                     {sdim: np.arange(output_shape[isdim]) * output_spacing[isdim] + output_origin[isdim]
+    #                     for isdim, sdim in enumerate(sdims)},
+    #                     )
     
+    merges = []
     for ns_coords in itertools.product(*tuple([xds.coords[nsdim] for nsdim in nsdims])):
         
         xim_coord_dict = {ndsim: ns_coords[i] for i, ndsim in enumerate(nsdims)}
@@ -85,8 +87,18 @@ def fuse_xims(xims: list,
             output_chunksize=output_chunksize,
             interpolate_missing_pixels=interpolate_missing_pixels, 
         )
+        
+        merge = merge.expand_dims(nsdims)
+        merge = merge.assign_coords({ns_coord.name: [ns_coord.values] for ns_coord in ns_coords})
 
-        res.loc[xim_coord_dict] = merge
+        # import pdb; pdb.set_trace()
+
+        merges.append(merge)
+    
+    if len(merges) > 1:
+        res = xr.concat(merges, dim=nsdims[0] if len(nsdims) == 1 else nsdims)
+    else:
+        res = merge
 
     return res
 
@@ -106,6 +118,7 @@ def fuse_field(xims,
     # views = sorted(field_ims.keys())
     input_dtype = xims[0].dtype
     ndim = _spatial_image_utils.get_ndim_from_xim(xims[0])
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
 
     field_ims_t = []
     field_ws_t = []
@@ -152,7 +165,6 @@ def fuse_field(xims,
             order=1,
             output_shape=tuple(output_shape),
             output_chunks=tuple([output_chunksize for _ in output_shape]),
-            # output_chunks=tuple(output_shape),
             mode='constant',
             cval=np.nan, # nan indicates no data
             )
@@ -176,10 +188,22 @@ def fuse_field(xims,
         # convert to input dtype
         fused_field = fused_field.astype(input_dtype)
 
-        fused_field = da.from_delayed(delayed(get_interpolated_image)(
-                            fused_field, empty_mask),
-                            shape=fused_field.shape,
-                            dtype=fused_field.dtype)
+        # # currently not chunking when interpolating
+        # fused_field = da.from_delayed(delayed(get_interpolated_image)(
+        #                     fused_field, empty_mask),
+        #                     shape=fused_field.shape,
+        #                     dtype=fused_field.dtype,
+        #                     )
+        
+        fused_field = da.map_overlap(
+            get_interpolated_image,
+            fused_field,
+            empty_mask,
+            depth=tuple([0] + \
+                [0 if not idim else np.min([s, output_chunksize]) // 4
+                 for idim, s in enumerate(fused_field.shape)]),
+            dtype=fused_field.dtype,
+        )
 
     fused_field = xr.DataArray(fused_field, dims=xims[0].dims)
 
@@ -418,6 +442,11 @@ def get_interpolated_image(
         Default is 0, Has no effect for 'nearest'.
     :return: the image with missing values interpolated
     """
+
+    # in case of no known pixels
+    if mask.min():
+        return image
+
     from scipy import interpolate
 
     h, w = image.shape[:2]
@@ -442,10 +471,18 @@ def get_interpolated_image(
     return interp_image
 
 
-def fuse(xims, params, tmpdir=None):
+def fuse(
+    xims,
+    params,
+    tmpdir=None,
+    interpolate_missing_pixels=None,
+    ):
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
     ndim = len(spatial_dims)
+
+    if interpolate_missing_pixels is None:
+        interpolate_missing_pixels = True if ndim == 2 else False
 
     output_stack_properties = calc_stack_properties_from_xims_and_params(
         xims,
@@ -460,18 +497,20 @@ def fuse(xims, params, tmpdir=None):
         output_spacing=output_stack_properties['spacing'],
         output_shape=output_stack_properties['shape'],
         output_chunksize=512,
-        interpolate_missing_pixels=True if ndim == 2 else False,
+        interpolate_missing_pixels=interpolate_missing_pixels,
     )
 
-    xfused.data = da.to_zarr(
-        xfused.data,
-        os.path.join(tmpdir.name, xfused.data.name+'.zarr'),
-        return_stored=True,
-        overwrite=True,
-        compute=True,
-        )
+    if not tmpdir is None:
+        xfused.data = da.to_zarr(
+            xfused.data,
+            os.path.join(tmpdir.name, xfused.data.name+'.zarr'),
+            return_stored=True,
+            overwrite=True,
+            compute=True,
+            )
     
-    xfused = xfused.assign_coords(C=xims[0].coords['C'])
+    if 'C' in xims[0].coords:
+        xfused = xfused.assign_coords(C=xims[0].coords['C'])
     
     return xfused
 

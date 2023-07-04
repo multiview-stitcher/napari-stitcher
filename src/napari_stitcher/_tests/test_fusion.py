@@ -4,6 +4,7 @@ import xarray as xr
 
 from napari_stitcher import _fusion, _registration, _sample_data, _spatial_image_utils, _reader, _mv_graph
 
+
 def test_fuse_field():
 
     xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
