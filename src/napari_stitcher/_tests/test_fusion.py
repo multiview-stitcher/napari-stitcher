@@ -76,8 +76,9 @@ def test_fuse_xims():
     params = [_registration.identity_transform(_spatial_image_utils.get_ndim_from_xim(xim))
                         for xim in xims]
 
-    xfused = _fusion.fuse_xims(xims, params,
-                
+    xfused = _fusion.fuse_xims(
+        xims,
+        params,
         output_origin=[0,0],
         output_shape=[10,11],
         output_spacing=[1,1.],
@@ -85,9 +86,12 @@ def test_fuse_xims():
 
     # check output is dask array and hasn't been converted into numpy array
     assert(type(xfused.data) == da.core.Array)    
+    assert(xfused.dtype == xims[0].dtype)
 
     # xfused.compute()
     xfused = xfused.compute(scheduled='threads')
+
+    assert(xfused.dtype == xims[0].dtype)
 
 
 # def test_calc_stack_properties_from_xims_and_params()

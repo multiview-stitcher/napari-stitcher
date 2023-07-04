@@ -63,12 +63,12 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
 
         offset = offset + drift + shift
 
-        print("eff_shape", eff_shape)
-        print(block_info[0]['chunk-location'], offset)
+        # print("eff_shape", eff_shape)
+        # print(block_info[0]['chunk-location'], offset)
 
         offset = offset / zoom
 
-        print("output_shape", output_shape)
+        # print("output_shape", output_shape)
                 
         x = ndimage.affine_transform(im_gt,
                                     matrix=np.eye(x.ndim) / zoom,

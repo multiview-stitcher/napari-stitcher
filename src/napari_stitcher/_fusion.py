@@ -91,12 +91,11 @@ def fuse_xims(xims: list,
         merge = merge.expand_dims(nsdims)
         merge = merge.assign_coords({ns_coord.name: [ns_coord.values] for ns_coord in ns_coords})
 
-        # import pdb; pdb.set_trace()
-
         merges.append(merge)
     
     if len(merges) > 1:
-        res = xr.concat(merges, dim=nsdims[0] if len(nsdims) == 1 else nsdims)
+        # if xims are named, combine_by_coord returns a dataset
+        res = xr.combine_by_coords([m.rename(None) for m in merges])
     else:
         res = merge
 
@@ -118,7 +117,7 @@ def fuse_field(xims,
     # views = sorted(field_ims.keys())
     input_dtype = xims[0].dtype
     ndim = _spatial_image_utils.get_ndim_from_xim(xims[0])
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
+    # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
 
     field_ims_t = []
     field_ws_t = []
@@ -145,7 +144,6 @@ def fuse_field(xims,
             order=1,
             output_shape=tuple(output_shape),
             output_chunks=tuple([output_chunksize for _ in output_shape]),
-            # output_chunks=tuple(output_shape),
             mode='constant',
             cval=0.,
             )
@@ -202,8 +200,11 @@ def fuse_field(xims,
             depth=tuple([0] + \
                 [0 if not idim else np.min([s, output_chunksize]) // 4
                  for idim, s in enumerate(fused_field.shape)]),
-            dtype=fused_field.dtype,
+            dtype=input_dtype,
         )
+
+    if fused_field.dtype != input_dtype:
+        fused_field = fused_field.astype(input_dtype)
 
     fused_field = xr.DataArray(fused_field, dims=xims[0].dims)
 
@@ -476,6 +477,7 @@ def fuse(
     params,
     tmpdir=None,
     interpolate_missing_pixels=None,
+    output_chunksize=512,
     ):
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
@@ -496,7 +498,7 @@ def fuse(
         output_origin=output_stack_properties['origin'],
         output_spacing=output_stack_properties['spacing'],
         output_shape=output_stack_properties['shape'],
-        output_chunksize=512,
+        output_chunksize=output_chunksize,
         interpolate_missing_pixels=interpolate_missing_pixels,
     )
 
