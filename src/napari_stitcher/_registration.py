@@ -158,7 +158,13 @@ def register_pair_of_spatial_images(
                 overlap_xims_b[i].data, kernel_size=10, clip_limit=0.02, nbins=2 ** 13),
             shape=overlap_xims_b[i].shape, dtype=float)
 
-    # TODO: deal with images of different shapes
+    # trim to strictly the same shape
+    # (seems there can be a 1 pixel difference)
+    reg_shape = np.min([[xim.shape[idim] for idim in range(ndim)]
+                         for xim in overlap_xims_b], 0)
+
+    overlap_xims_b = [xim[tuple([slice(reg_shape[idim]) for idim in range(ndim)])]
+                         for xim in overlap_xims_b]
 
     param = da.from_delayed(delayed(skimage.registration.phase_cross_correlation)(
             overlap_xims_b[0].data,
