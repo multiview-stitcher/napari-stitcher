@@ -8,6 +8,8 @@ https://napari.org/stable/plugins/guides.html?#readers
 import numpy as np
 import xarray as xr
 
+import xml
+
 import dask.array as da
 from dask import delayed
 
@@ -83,11 +85,46 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
     pixel_sizes = aicsim.physical_pixel_sizes._asdict()
 
     spatial_dims = [axis for axis in ['Z','Y','X'] if axis in xim.dims]
+    
 
+    # # For some Zeiss files, the tiles contain duplicate image data at the borders.
+    # # This trims the data at the borders.
+
+    # m_string = xml.etree.ElementTree.tostring(aicsim.metadata)
+    # if (
+    #     b'Zeiss' in m_string and
+    #    (b'Detector: Airyscan' in m_string) and
+    #    (b'TileRegionCoveringMode' in m_string) and # not sure about this one
+    #    (b'AlignedToLocalTileRegion' in m_string) # not sure about this one
+    # ):
+    #     tile_poss = np.array(aicsim.get_mosaic_tile_positions())
+    #     tile_diffs = np.diff(tile_poss, axis=0)
+    #     mosaic_dim = len(tile_poss[0])
+    #     spatial_tile_slices = []
+    #     for itile in range(len(tile_poss)):
+    #         spatial_tile_slice = [slice(None) for _ in range(len(spatial_dims) - mosaic_dim)]
+    #         for dim in range(mosaic_dim):
+    #             if tile_poss[itile][dim] == np.max(tile_poss[:,dim]):
+    #                 dim_slice = slice(0, xim.shape[-mosaic_dim+dim])
+    #             else:
+    #                 dim_slice = slice(0, tile_diffs[itile][dim])
+    #             spatial_tile_slice.append(dim_slice)
+    #         spatial_tile_slices.append(spatial_tile_slice)
+    #     print('LSLSLSL', spatial_tile_slices)
+    # else:
+    #     spatial_tile_slices = [slice(None) for dim in spatial_dims]
+        
     view_xims = []
-    for view in views:
+    for iview, view in enumerate(views):
 
         view_xim = xim.sel(M=view)
+        # import pdb; pdb.set_trace()
+
+        # # preprocess tiles in case of specific mosaic format
+        # # such as in the case of airyscan
+        # view_xim = view_xim.isel(
+        #     {dim: spatial_tile_slices[iview][idim]
+        #      for idim, dim in enumerate(spatial_dims)})
 
         tile_mosaic_position = aicsim.get_mosaic_tile_position(view)
         origin_values = {mosaic_axis: tile_mosaic_position[ima] * pixel_sizes[mosaic_axis]
@@ -100,18 +137,11 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
                               dims=['dim'],
                               coords={'dim': spatial_dims})
         
-        # spacing = xr.DataArray([pixel_sizes[dim] for dim in spatial_dims],
-        #                       dims=['dim'],
-        #                       coords={'dim': spatial_dims})
-        
         for dim in spatial_dims:
             view_xim = view_xim.assign_coords({dim: view_xim.coords[dim] + origin.loc[dim]})
 
         view_xim.attrs.update(dict(
-            # spacing = spacing,
-            # origin = origin,
             scene_index=scene_index,
-            # spatial_dims=spatial_dims,
             source=path,
         ))
 
