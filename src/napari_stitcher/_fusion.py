@@ -236,14 +236,14 @@ def calc_stack_properties_from_xims_and_params(
 
     params_ds = xr.Dataset({i: p for i, p in enumerate(params)})
 
-    if 'T' in params_ds.dims:
+    if 't' in params_ds.dims:
         stack_properties = combine_stack_props(
             [calc_stack_properties_from_view_properties_and_params(
                 views_props,
-                [params_ds.sel(T=t).data_vars[ip].data for ip in range(len(params))],
+                [params_ds.sel(t=t).data_vars[ip].data for ip in range(len(params))],
                 spacing=spacing,
                 mode=mode,
-            ) for t in params_ds.coords['T']]
+            ) for t in params_ds.coords['t']]
         )
 
     else:
@@ -271,22 +271,21 @@ def calc_stack_properties_from_view_properties_and_params(
 
     spacing = np.array(spacing).astype(float)
 
-    if mode == 'sample':
-        volume = get_sample_volume(views_props, params)
-    elif mode == 'union':
-        volume = get_union_volume(views_props, params)
+    vertices = get_transformed_stack_vertices(views_props, params)
+
+    # if mode == 'sample':
+    #     volume = np.min(vertices,0), np.max(vertices,0) # lower, upper
+    if mode == 'union':
+        volume = np.min(vertices,0), np.max(vertices,0)
     elif mode == 'intersection':
-        volume = get_intersection_volume(views_props, params)
+        volume = np.max(np.min(vertices,1),0), np.min(np.max(vertices,1),0)
 
     stack_properties = calc_stack_properties_from_volume(volume, spacing)
 
     return stack_properties
 
 
-def get_sample_volume(stack_properties_list, params):
-    """
-    back project first planes in every view to get maximum volume
-    """
+def get_transformed_stack_vertices(stack_properties_list, params):
 
     ndim = len(stack_properties_list[0]['spacing'])
     generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
@@ -294,54 +293,31 @@ def get_sample_volume(stack_properties_list, params):
     for iim, sp in enumerate(stack_properties_list):
         tmp_vertices = generic_vertices * np.array(sp['shape']) * np.array(sp['spacing']) + np.array(sp['origin'])
         inv_params = np.linalg.inv(((params[iim])))
-        tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]
+        tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]        
         vertices[iim*len(generic_vertices):(iim+1)*len(generic_vertices)] = tmp_vertices_transformed
-
-    lower = np.min(vertices,0)
-    upper = np.max(vertices,0)
-
-    return lower,upper
+    
+    return vertices
 
 
-def get_union_volume(stack_properties_list, params):
-    """
-    back project first planes in every view to get maximum volume
-    """
+# def get_intersection_volume(stack_properties_list, params):
+#     """
+#     back project first planes in every view to get maximum volume
+#     """
 
-    ndim = len(stack_properties_list[0]['spacing'])
-    generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
-    vertices = np.zeros((len(stack_properties_list)*len(generic_vertices),ndim))
-    for iim, sp in enumerate(stack_properties_list):
-        tmp_vertices = generic_vertices * np.array(sp['shape']) * np.array(sp['spacing']) + np.array(sp['origin'])
-        inv_params = np.linalg.inv(((params[iim])))
-        tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]
-        vertices[iim*len(generic_vertices):(iim+1)*len(generic_vertices)] = tmp_vertices_transformed
+#     ndim = len(stack_properties_list[0]['spacing'])
+#     # generic_vertices = np.array([[i,j,k] for i in [0,1] for j in [0,1] for k in [0,1]])
+#     generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
+#     vertices = np.zeros((len(stack_properties_list)*len(generic_vertices),ndim))
+#     for iim, sp in enumerate(stack_properties_list):
+#         tmp_vertices = generic_vertices * np.array(sp['shape']) * np.array(sp['spacing']) + np.array(sp['origin'])
+#         inv_params = np.linalg.inv(((params[iim])))
+#         tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]
+#         vertices[iim,:] = tmp_vertices_transformed
 
-    lower = np.min(vertices,0)
-    upper = np.max(vertices,0)
+#     lower = np.max(np.min(vertices,1),0)
+#     upper = np.min(np.max(vertices,1),0)
 
-    return lower,upper
-
-
-def get_intersection_volume(stack_properties_list, params):
-    """
-    back project first planes in every view to get maximum volume
-    """
-
-    ndim = len(stack_properties_list[0]['spacing'])
-    # generic_vertices = np.array([[i,j,k] for i in [0,1] for j in [0,1] for k in [0,1]])
-    generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
-    vertices = np.zeros((len(stack_properties_list)*len(generic_vertices),ndim))
-    for iim, sp in enumerate(stack_properties_list):
-        tmp_vertices = generic_vertices * np.array(sp['shape']) * np.array(sp['spacing']) + np.array(sp['origin'])
-        inv_params = np.linalg.inv(((params[iim])))
-        tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]
-        vertices[iim,:] = tmp_vertices_transformed
-
-    lower = np.max(np.min(vertices,1),0)
-    upper = np.min(np.max(vertices,1),0)
-
-    return lower,upper
+#     return lower,upper
 
 
 def calc_stack_properties_from_volume(volume, spacing):

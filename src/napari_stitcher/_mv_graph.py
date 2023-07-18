@@ -45,10 +45,10 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
 
     # select first time point
 
-    if 'T' in xim1.dims:
-        xim1 = xim1.sel(T=xim1.coords['T'][0])
-    if 'T' in xim2.dims:
-        xim2 = xim2.sel(T=xim2.coords['T'][0])
+    if 't' in xim1.dims:
+        xim1 = xim1.sel(t=xim1.coords['t'][0])
+    if 't' in xim2.dims:
+        xim2 = xim2.sel(t=xim2.coords['t'][0])
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
     from napari_stitcher import _reader
 
-    xims=_reader.read_mosaic_czi_into_list_of_spatial_xarrays(
+    xims=_reader.read_mosaic_image_into_list_of_spatial_xarrays(
         '../napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi', scene_index=0)
     
     g = build_view_adjacency_graph_from_xims(xims)

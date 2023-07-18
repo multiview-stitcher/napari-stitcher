@@ -1,3 +1,5 @@
+# https://napari.org/stable/plugins/guides.html
+
 name: napari-stitcher
 display_name: napari-stitcher
 contributions:
@@ -31,11 +33,8 @@ contributions:
       filename_patterns: ['*.czi']
   writers:
     - command: napari-stitcher.write_multiple
-      layer_types: ['image*']
+      layer_types: ['image+']
       filename_extensions: ['.tif']
-    # - command: napari-stitcher.write_single_image
-    #   layer_types: ['image']
-    #   filename_extensions: ['.npy']
   sample_data:
     - command: napari-stitcher.make_sample_data
       display_name: Mosaic

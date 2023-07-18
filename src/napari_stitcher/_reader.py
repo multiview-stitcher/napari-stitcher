@@ -47,7 +47,7 @@ def napari_get_reader(path):
         return None
     
 
-def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
+def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
     """
     Read CZI mosaic dataset into xarray containing all information needed for stitching.
     Could eventually be based on https://github.com/spatial-image/spatial-image.
@@ -69,22 +69,33 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
         scene_index = 0
 
     xim =  aicsim.get_xarray_dask_stack()
+
     xim = xim.sel(I=scene_index)
 
+    # xim coords to lower case
+    xim = xim.rename({dim: dim.lower() for dim in xim.dims})
+
     # remove singleton Z
-    # for axis in ['Z', 'T']:
-    for axis in ['Z']:
+    # for axis in ['z', 't']:
+    for axis in ['z']:
         if axis in xim.dims and len(xim.coords[axis]) < 2:
             xim = xim.sel({axis: 0}, drop=True)
     
     # ensure time dimension is present
     xim = _spatial_image_utils.ensure_time_dim(xim)
 
-    views = range(len(xim.coords['M']))
-    
-    pixel_sizes = aicsim.physical_pixel_sizes._asdict()
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
 
-    spatial_dims = [axis for axis in ['Z','Y','X'] if axis in xim.dims]
+    views = range(len(xim.coords['m']))
+    
+    # pixel_sizes = aicsim.physical_pixel_sizes._asdict()
+    pixel_sizes = dict()
+    pixel_sizes['x'] = aicsim.physical_pixel_sizes.X
+    pixel_sizes['y'] = aicsim.physical_pixel_sizes.Y
+    if 'z' in spatial_dims:
+        pixel_sizes['z'] = aicsim.physical_pixel_sizes.Z
+
+    # pixel_sizes = {k: v for k, v in pixel_sizes.items() if v is not None}
     
 
     # # For some Zeiss files, the tiles contain duplicate image data at the borders.
@@ -117,7 +128,7 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
     view_xims = []
     for iview, view in enumerate(views):
 
-        view_xim = xim.sel(M=view)
+        view_xim = xim.sel(m=view)
         # import pdb; pdb.set_trace()
 
         # # preprocess tiles in case of specific mosaic format
@@ -128,10 +139,10 @@ def read_mosaic_czi_into_list_of_spatial_xarrays(path, scene_index=None):
 
         tile_mosaic_position = aicsim.get_mosaic_tile_position(view)
         origin_values = {mosaic_axis: tile_mosaic_position[ima] * pixel_sizes[mosaic_axis]
-                  for ima, mosaic_axis in enumerate(['Y', 'X'])}
+                  for ima, mosaic_axis in enumerate(['y', 'x'])}
         
-        if 'Z' in spatial_dims:
-            origin_values['Z'] = 0
+        if 'z' in spatial_dims:
+            origin_values['z'] = 0
 
         origin = xr.DataArray([origin_values[dim] for dim in spatial_dims],
                               dims=['dim'],
@@ -181,7 +192,7 @@ def read_mosaic_czi(path, scene_index=None):
     # handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
-    xims = read_mosaic_czi_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
+    xims = read_mosaic_image_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
 
     out_layers = _viewer_utils.create_image_layer_tuples_from_xims(xims)
 
@@ -200,8 +211,6 @@ if __name__ == "__main__":
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
     filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
-
-    # xims = read_mosaic_czi_into_list_of_spatial_xarrays(filename)
 
     viewer = napari.Viewer()
     

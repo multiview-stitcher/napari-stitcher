@@ -59,7 +59,7 @@ def get_str_unique_to_view_from_layer_name(layer_name):
 
 
 def get_str_unique_to_ch_from_xim_coords(layer_coords):
-    return str(layer_coords['C'].values)
+    return str(layer_coords['c'].values)
 
 
 def get_view_from_layer(layer):
@@ -77,10 +77,10 @@ def filter_layers(layers, xims, view=None, ch=None):
 def duplicate_channel_xims(xims):
 
     xims_ch_duplicated = [
-        xr.concat([xim] * 2, dim='C')\
-        .assign_coords(C=[
-            xim.coords['C'].data[0],
-            xim.coords['C'].data[0] + '_2']
+        xr.concat([xim] * 2, dim='c')\
+        .assign_coords(c=[
+            xim.coords['c'].data[0],
+            xim.coords['c'].data[0] + '_2']
         ) for xim in xims]
     
     return xims_ch_duplicated

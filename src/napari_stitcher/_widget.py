@@ -170,7 +170,7 @@ class StitcherQWidget(QWidget):
                 params = self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
 
                 try:
-                    p = np.array(params.sel(T=layer_xim.coords['T'][curr_tp])).squeeze()
+                    p = np.array(params.sel(t=layer_xim.coords['t'][curr_tp])).squeeze()
                 except:
 
                     # notifications.notification_manager.receive_info(
@@ -181,7 +181,7 @@ class StitcherQWidget(QWidget):
                     # if curr_tp not available, use nearest available parameter
                     notifications.notification_manager.receive_info(
                         'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
-                    p = np.array(params.sel(T=layer_xim.coords['T'][curr_tp], method='nearest')).squeeze()
+                    p = np.array(params.sel(t=layer_xim.coords['t'][curr_tp], method='nearest')).squeeze()
 
 
                 p = np.linalg.inv(p)
@@ -220,7 +220,7 @@ class StitcherQWidget(QWidget):
             notifications.notification_manager.receive_info(message)
             return
         
-        xims_tsel = [x.sel(T=[x.coords['T'][it] for it in times]) for x in xims]
+        xims_tsel = [x.sel(t=[x.coords['t'][it] for it in times]) for x in xims]
 
         # ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(xims_tsel[0]))
 
@@ -248,7 +248,7 @@ class StitcherQWidget(QWidget):
         xims = [self.xims[l.name] for l in layers]
 
         # restrict timepoints
-        xims = [x.sel(T=[x.coords['T'][it]
+        xims = [x.sel(t=[x.coords['t'][it]
                          for it in range(self.times_slider.value[0] + 1,
                                          self.times_slider.value[1] + 1)])
                                          for x in xims]
@@ -264,9 +264,9 @@ class StitcherQWidget(QWidget):
             return
         
         # # restrict tps
-        # if 'T' in xims[0].dims:
+        # if 't' in xims[0].dims:
         #     g_reg = _mv_graph.sel_coords_from_graph(g_reg,
-        #                 {'T': range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)},
+        #                 {'t': range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)},
         #                 edge_attributes=['transform'],
         #                 node_attributes=['xim'],
         #                 sel_or_isel='isel',
@@ -309,7 +309,7 @@ class StitcherQWidget(QWidget):
             xims_to_fuse = [self.xims[l.name] for l in layers_to_fuse]
 
             # restrict timepoints
-            xims_to_fuse = [xim.sel(T=[xim.coords['T'][it]
+            xims_to_fuse = [xim.sel(t=[xim.coords['t'][it]
                             for it in range(self.times_slider.value[0] + 1,
                                             self.times_slider.value[1] + 1)])
                                             for xim in xims_to_fuse]
@@ -324,7 +324,7 @@ class StitcherQWidget(QWidget):
                 
                 xfused = _fusion.fuse(xims_to_fuse, params_to_fuse, self.tmpdir)
             
-            xfused = xfused.assign_coords(C=ch)
+            xfused = xfused.assign_coords(c=ch)
             
             fused_ch_layer_tuple = _viewer_utils.create_image_layer_tuple_from_spatial_xim(
                 xfused,
@@ -355,15 +355,15 @@ class StitcherQWidget(QWidget):
         reference_xim = self.xims[self.input_layers[0].name]
 
         # assume dims are the same for all layers
-        if 'T' in reference_xim.dims:
+        if 't' in reference_xim.dims:
             self.times_slider.enabled = True
-            # self.times_slider.min = int(l0.data.coords['T'][0] - 1)
-            # self.times_slider.max = int(l0.data.coords['T'][-1] - 1)
+            # self.times_slider.min = int(l0.data.coords['t'][0] - 1)
+            # self.times_slider.max = int(l0.data.coords['t'][-1] - 1)
             self.times_slider.min = -1
-            self.times_slider.max = len(reference_xim.coords['T']) - 1
+            self.times_slider.max = len(reference_xim.coords['t']) - 1
             self.times_slider.value = self.times_slider.min, self.times_slider.max
 
-        if 'C' in reference_xim.coords.keys():
+        if 'c' in reference_xim.coords.keys():
             self.reg_ch_picker.enabled = True
             self.reg_ch_picker.choices = np.unique([
                 _utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
@@ -412,7 +412,7 @@ class StitcherQWidget(QWidget):
         for l in layers:
             xim = l.data
             try:
-                len(xim.coords['C'])
+                len(xim.coords['c'])
                 notifications.notification_manager.receive_info(
                     "Layer '%s' has more than one channel.Consider splitting the stack (right click on layer -> 'Split Stack')." %l.name
                 )

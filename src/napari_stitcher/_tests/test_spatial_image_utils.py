@@ -6,7 +6,7 @@ def test_get_data_to_world_matrix_from_spatial_image():
 
     sample_fn = _sample_data.get_sample_data_path()
 
-    xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(sample_fn)
+    xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(sample_fn)
 
     M = _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(xims[1])
 

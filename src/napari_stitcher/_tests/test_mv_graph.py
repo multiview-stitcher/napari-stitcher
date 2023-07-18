@@ -55,7 +55,7 @@ def test_overlap(ndim, overlap):
 
 def test_mv_graph_creation():
 
-    view_xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
+    view_xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(
         _sample_data.get_sample_data_path())
     
     mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(view_xims)

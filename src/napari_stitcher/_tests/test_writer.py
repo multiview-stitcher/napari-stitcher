@@ -21,13 +21,13 @@ def create_full_layer_data_list(channels=[0],
     Returns a List[FullLayerData].
     """
 
-    spatial_dims = ['Z', 'Y', 'X'][-field_ndim:]
+    spatial_dims = ['z', 'y', 'x'][-field_ndim:]
 
     im = da.random.randint(0, 100, [len(times)] + [spatial_size] * field_ndim,
                                 dtype=dtype,
                                 chunks=(1,) + (spatial_size // 4,) * field_ndim)
     
-    xim = xr.DataArray(im, dims=['T'] + spatial_dims)
+    xim = xr.DataArray(im, dims=['t'] + spatial_dims)
 
     xim = xim.assign_coords({sd: np.arange(len(xim.coords[sd])) * spacing_xy
                                            for sd in spatial_dims})
@@ -35,7 +35,7 @@ def create_full_layer_data_list(channels=[0],
     full_layer_data_list = []
 
     for ch in channels:
-        xim_ch = xim.assign_coords(C=ch)
+        xim_ch = xim.assign_coords(c=ch)
 
         full_layer_data_list.append(
             _viewer_utils.create_image_layer_tuple_from_spatial_xim(
@@ -53,7 +53,7 @@ def test_writer():
     for field_ndim in [2, 3]:
         for times in [[0], [0, 1]]:
             for channels in [
-                # [0],
+                [0],
                 [0, 1]]:
                 full_layer_data_list = create_full_layer_data_list(
                     channels=['ch%s' %ch for ch in channels],
@@ -78,9 +78,9 @@ def test_writer():
                     # https://pypi.org/project/tifffile/#examples
                     tif = tifffile.TiffFile(filepath)
                     assert(tif.series[0].axes,
-                           ['', 'T'][len(times) > 1] +\
-                           ['', 'Z'][field_ndim > 2] +\
-                           ['', 'C'][len(channels) > 1] +\
+                           ['', 't'][len(times) > 1] +\
+                           ['', 'z'][field_ndim > 2] +\
+                           ['', 'c'][len(channels) > 1] +\
                            'YX')
                     
                     resolution_unit_checked = False
@@ -105,3 +105,37 @@ def test_writer():
                     assert(bitspersample_checked)
                     
                     # import pdb; pdb.set_trace()
+
+
+def test_writer_napari(make_napari_viewer):
+
+    viewer = make_napari_viewer()
+
+    spacing_xy = 0.5
+    im_dtype = np.uint8
+
+    for field_ndim in [2, 3]:
+        for times in [[0], [0, 1]]:
+            for channels in [
+                [0],
+                [0, 1]]:
+                full_layer_data_list = create_full_layer_data_list(
+                    channels=['ch%s' %ch for ch in channels],
+                    times=times,
+                    field_ndim=field_ndim,
+                    dtype=im_dtype,
+                    spacing_xy=spacing_xy)
+                
+                viewer.layers.clear()
+                
+                full_layer_data_list = create_full_layer_data_list()
+
+                for l in full_layer_data_list:
+                    viewer.add_image(l[0], **l[1])
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+
+                    filepath = str(Path(tmpdir) / "test.tif")
+                    viewer.layers.save(filepath, plugin='napari-stitcher')
+
+                    tifffile.imread(filepath) # check that file actually exists

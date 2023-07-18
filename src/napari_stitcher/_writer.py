@@ -54,7 +54,7 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
            not np.allclose(shapes[ixim], shapes[0]):
             raise ValueError('Image saving: Data of all layers must occupy the same space.')
 
-    xim_to_write = xr.concat([d[0] for d in data], dim='C')
+    xim_to_write = xr.concat([d[0] for d in data], dim='c')
 
     save_xim_as_tif(path, xim_to_write)
 
@@ -68,22 +68,24 @@ def save_xim_as_tif(path, xim):
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
     spacing = _spatial_image_utils.get_spacing_from_xim(xim, asarray=True)
 
-    xim = xim.transpose(*tuple(['T', 'C'] + spatial_dims))
+    xim = xim.transpose(*tuple(['t', 'c'] + spatial_dims))
 
-    channels = [ch for ch in xim.coords['C'].values]
+    channels = [ch if isinstance(ch, str) else str(ch)
+                for ch in xim.coords['c'].values]
 
     xim = xim.squeeze(drop=True)
 
     # imagej needs Z to come before C
-    if 'Z' in xim.dims:
+    # if 'z' in xim.dims and 'c' in xim.dims:
+    if 'z' in xim.dims:
         axes = list(xim.dims)
-        zpos = axes.index('Z')
-        cpos = axes.index('C')
-        axes[zpos] = 'C'
-        axes[cpos] = 'Z'
+        zpos = axes.index('z')
+        cpos = axes.index('c')
+        axes[zpos] = 'c'
+        axes[cpos] = 'z'
         xim = xim.transpose(*tuple([ax for ax in axes]))
 
-    axes = ''.join(xim.dims)
+    axes = ''.join(xim.dims).upper()
 
     imwrite(
         path,
@@ -115,7 +117,7 @@ if __name__ == "__main__":
 
     from napari_stitcher import _reader
 
-    # xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays("/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi")
+    # xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays("/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi")
     layer_tuples = _reader.read_mosaic_czi("/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi")
 
     write_multiple('/Users/malbert/Desktop/test.tif', [layer_tuples[0]])

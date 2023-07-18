@@ -1,8 +1,9 @@
 import os
 import numpy as np
 from pathlib import Path
+import tempfile
+import tifffile
 
-# from napari_stitcher import ExampleQWidget, example_magic_widget
 from napari_stitcher import StitcherQWidget, _widget, _sample_data, _viewer_utils
 
 import pytest
@@ -178,7 +179,13 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
         current_step[0] = 1
         viewer.dims.current_step = tuple(current_step)
 
-    viewer.layers[-N_c:].save(os.path.join(wdg.tmpdir.name, 'test.tif'))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outfile = str(Path(tmpdir) / "test.tif")
+        # print(N_c)
+        # import pdb; pdb.set_trace()
+        # from napari_stitcher._writer import write_multiple
+        viewer.layers[-N_c:].save(outfile, plugin='napari-stitcher')
+        tifffile.imread(outfile)
 
 
 def test_time_slider(make_napari_viewer):

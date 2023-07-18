@@ -7,12 +7,12 @@ from napari_stitcher import _fusion, _registration, _sample_data, _spatial_image
 
 def test_fuse_field():
 
-    xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
+    xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(
     _sample_data.get_sample_data_path())
 
     for ixim, xim in enumerate(xims):
-        xims[ixim] = xim.sel(C=xim.coords['C'][0],
-                             T=xim.coords['T'][0])
+        xims[ixim] = xim.sel(c=xim.coords['c'][0],
+                             t=xim.coords['t'][0])
         # xims[ixim].name = ixim
         # xim.name = ixim
 
@@ -21,7 +21,7 @@ def test_fuse_field():
 
     xfused = _fusion.fuse_field(
         xims,
-        # [xim.sel(T=xim.coords['T'][0]) for xim in xims],
+        # [xim.sel(t=xim.coords['t'][0]) for xim in xims],
         params,
         output_origin=np.min([_spatial_image_utils.get_origin_from_xim(xim, asarray=True) for xim in xims], 0),
         output_spacing=_spatial_image_utils.get_spacing_from_xim(xims[0], asarray=True),
@@ -62,15 +62,15 @@ def test_fuse_field():
 
 def test_fuse_xims():
 
-    xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
+    xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(
     _sample_data.get_sample_data_path())
 
     # test with two channels
     for ixim, xim in enumerate(xims):
-        xims[ixim] = xr.concat([xim] * 2, dim='C')\
-        .assign_coords(C=[
-            xim.coords['C'].data[0],
-            xim.coords['C'].data[0] + '_2']
+        xims[ixim] = xr.concat([xim] * 2, dim='c')\
+        .assign_coords(c=[
+            xim.coords['c'].data[0],
+            xim.coords['c'].data[0] + '_2']
         )
 
     params = [_registration.identity_transform(_spatial_image_utils.get_ndim_from_xim(xim))

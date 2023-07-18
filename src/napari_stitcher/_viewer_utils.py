@@ -14,7 +14,7 @@ def create_image_layer_tuple_from_spatial_xim(xim,
     - useful for channel names
     """
 
-    ch_name = str(xim.coords['C'].data)
+    ch_name = str(xim.coords['c'].data)
 
     if colormap is None:
         if 'GFP' in ch_name:
@@ -41,9 +41,9 @@ def create_image_layer_tuple_from_spatial_xim(xim,
     origin = _spatial_image_utils.get_origin_from_xim(xim)
     spacing = _spatial_image_utils.get_spacing_from_xim(xim)
 
-    contrast_limit_im = xim.sel(T=xim.coords['T'][0])
-    if 'Z' in xim.dims:
-        contrast_limit_im = contrast_limit_im.sel(Z=xim.coords['Z'][len(xim.coords['Z'])//2])
+    contrast_limit_im = xim.sel(t=xim.coords['t'][0])
+    if 'z' in xim.dims:
+        contrast_limit_im = contrast_limit_im.sel(z=xim.coords['z'][len(xim.coords['z'])//2])
 
     kwargs = \
         {
@@ -90,11 +90,11 @@ def create_image_layer_tuples_from_xims(
 
     out_layers = [
         create_image_layer_tuple_from_spatial_xim(
-                    view_xim.sel(C=ch_coord),
+                    view_xim.sel(c=ch_coord),
                     cmaps[iview],
                     name_prefix=name_prefix + '_%03d' %iview)
             for iview, view_xim in enumerate(xims)
-        for ch_coord in view_xim.coords['C']
+        for ch_coord in view_xim.coords['c']
         ]
     
     return out_layers

@@ -3,7 +3,7 @@ import xarray as xr
 import transformations as tfs
 
 
-SPATIAL_DIMS = ['Z', 'Y', 'X']
+SPATIAL_DIMS = ['z', 'y', 'x']
 
 
 def assign_si_coords_from_params(xim, p=None):
@@ -12,7 +12,7 @@ def assign_si_coords_from_params(xim, p=None):
     equal to those in im (should be Z, Y, X)
     """
 
-    spatial_dims = [dim for dim in ['Z', 'Y', 'X'] if dim in xim.dims]
+    spatial_dims = [dim for dim in ['z', 'y', 'x'] if dim in xim.dims]
     ndim = len(spatial_dims)
 
 
@@ -62,7 +62,7 @@ def compose_params(origin, spacing):
 
 def get_data_to_world_matrix_from_spatial_image(xim):
 
-    spatial_dims = [dim for dim in ['Z', 'Y', 'X'] if dim in xim.dims]
+    spatial_dims = [dim for dim in ['z', 'y', 'x'] if dim in xim.dims]
 
     # ndim = len([dim for dim in xim.dims if dim in spatial_dims])
     # p = np.eye(ndim + 1)
@@ -93,7 +93,7 @@ def get_data_to_world_matrix_from_spatial_image(xim):
 
 
 def get_spatial_dims_from_xim(xim):
-    return [dim for dim in ['Z', 'Y', 'X'] if dim in xim.dims]
+    return [dim for dim in ['z', 'y', 'x'] if dim in xim.dims]
 
 
 def get_origin_from_xim(xim, asarray=False):
@@ -132,8 +132,8 @@ def get_spacing_from_xim(xim, asarray=False):
 
 
 def ensure_time_dim(xim):
-    if 'T' not in xim.dims:
-        xim = xim.expand_dims(['T'])
+    if 't' not in xim.dims:
+        xim = xim.expand_dims(['t'])
     return xim
 
 
@@ -149,7 +149,7 @@ def get_ndim_from_xim(xim):
 
 #     ndim = im.ndim
 
-#     input_dims = ['Z', 'Y', 'X'][-ndim:]
+#     input_dims = ['z', 'y', 'x'][-ndim:]
 
 #     # if p is None:
 #     #     p = np.eye(ndim + 1)

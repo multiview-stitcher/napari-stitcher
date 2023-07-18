@@ -61,9 +61,9 @@ def get_optimal_registration_binning(xim1, xim2, max_total_pixels_per_stack=(400
         dim_to_bin = np.argmin([min([spacings[ixim][dim] for ixim in range(2)]) for dim in spatial_dims])
 
         if ndim == 3 and dim_to_bin == 0:
-            registration_binning['Z'] = registration_binning['Z'] * 2
+            registration_binning['z'] = registration_binning['z'] * 2
         else:
-            for dim in ['X', 'Y']:
+            for dim in ['x', 'y']:
                 registration_binning[dim] = registration_binning[dim] * 2
 
         spacings = [{dim: spacings[ixim][dim] * registration_binning[dim]
@@ -129,7 +129,7 @@ def register_pair_of_spatial_images(
     Return: Transform in homogeneous coordinates
     """
 
-    # xim1, xim2 = [xim.sel(T=xim.coords['T'][0], C=xim.coords['C'][0]) for xim in [xim1, xim2]]
+    # xim1, xim2 = [xim.sel(t=xim.coords['t'][0], C=xim.coords['c'][0]) for xim in [xim1, xim2]]
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1) 
     spacing = _spatial_image_utils.get_spacing_from_xim(xim1, asarray=True)
@@ -191,12 +191,12 @@ def register_pair_of_xims(xim1, xim2,
     xim2 = _spatial_image_utils.ensure_time_dim(xim2)
     
     xp = xr.concat([register_pair_of_spatial_images(
-            xim1.sel(T=t),
-            xim2.sel(T=t),
+            xim1.sel(t=t),
+            xim2.sel(t=t),
             registration_binning=registration_binning)
-                for t in xim1.coords['T'].values], dim='T')
+                for t in xim1.coords['t'].values], dim='t')
     
-    xp = xp.assign_coords({'T': xim1.coords['T'].values})
+    xp = xp.assign_coords({'t': xim1.coords['t'].values})
     
     return xp
 
@@ -264,10 +264,10 @@ def get_node_params_from_reg_graph(g_reg):
         
         # path_params = identity_transform(ndim)
 
-        if 'T' in g_reg.nodes[n]['xim'].dims:
-            path_params = xr.DataArray([np.eye(ndim + 1) for t in g_reg.nodes[n]['xim'].coords['T']],
-                                        dims=['T', 'x_in', 'x_out'],
-                                        coords={'T': g_reg.nodes[n]['xim'].coords['T']})
+        if 't' in g_reg.nodes[n]['xim'].dims:
+            path_params = xr.DataArray([np.eye(ndim + 1) for t in g_reg.nodes[n]['xim'].coords['t']],
+                                        dims=['t', 'x_in', 'x_out'],
+                                        coords={'t': g_reg.nodes[n]['xim'].coords['t']})
         else:
             path_params = identity_transform(ndim)
         
@@ -296,7 +296,7 @@ def get_node_params_from_reg_graph(g_reg):
 
 def register(xims, reg_channel_index=0):
 
-    xims = [xim.sel(C=xim.coords['C'][reg_channel_index]) for xim in xims]
+    xims = [xim.sel(c=xim.coords['c'][reg_channel_index]) for xim in xims]
 
     g = _mv_graph.build_view_adjacency_graph_from_xims(xims)
 
@@ -316,9 +316,9 @@ def register(xims, reg_channel_index=0):
 
 def stabilize(xims, reg_channel_index=0, sigma=2):
 
-    xims = [xim.sel(C=xim.coords['C'][reg_channel_index]) for xim in xims]
+    xims = [xim.sel(c=xim.coords['c'][reg_channel_index]) for xim in xims]
 
-    if len(xims[0].coords['T']) < 8:
+    if len(xims[0].coords['t']) < 8:
         raise(Exception('Need at least 8 time points to perform stabilization.'))
     
     params = [get_stabilization_parameters_from_xim(xim, sigma=sigma) for xim in xims]
@@ -457,22 +457,22 @@ def get_stabilization_parameters_from_xim(xim, sigma=2):
 
     # ndim = len(spatial_dims)
 
-    params = get_stabilization_parameters(xim.transpose(*tuple(["T"] + spatial_dims)), sigma=sigma)
+    params = get_stabilization_parameters(xim.transpose(*tuple(['t'] + spatial_dims)), sigma=sigma)
 
     params = [_utils.shift_to_matrix(
         params[it] * _spatial_image_utils.get_spacing_from_xim(xim, asarray=True))
-                    for it, t in enumerate(xim.coords['T'])]
+                    for it, t in enumerate(xim.coords['t'])]
 
     # params = xr.DataArray(params,
-    #         dims=['T', 'x_in', 'x_out'],
+    #         dims=['t', 'x_in', 'x_out'],
     #         coords={
-    #                 # 'C': xim1.coords['C'],
-    #                 'T': xim.coords['T'],
+    #                 # 'c': xim1.coords['c'],
+    #                 't': xim.coords['t'],
     #                 'x_in': np.arange(ndim+1),
     #                 'x_out': np.arange(ndim+1)})
     
-    params = xr.concat([get_xparam_from_param(p) for p in params], dim='T')
-    params = params.assign_coords({'T': xim.coords['T']})
+    params = xr.concat([get_xparam_from_param(p) for p in params], dim='t')
+    params = params.assign_coords({'t': xim.coords['t']})
     
     return params
 
@@ -530,7 +530,7 @@ if __name__ == "__main__":
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
 
-    xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(filename, scene_index=0)
+    xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(filename, scene_index=0)
 
     # def func(x):
     #     print(x.im1)
@@ -544,11 +544,11 @@ if __name__ == "__main__":
     #     # input_core_dims=[_spatial_image_utils.get_spatial_dims_from_xim(xim) for xim in xims],
     #     input_core_dims=[_spatial_image_utils.get_spatial_dims_from_xim(xims[0])],
 
-    #     output_core_dims=[['Y', 'X']],
+    #     output_core_dims=[['y', 'x']],
     #     dask='allowed',
     #     vectorize=False,
     #     output_dtypes=float,
-    #     # output_sizes={'Y': ndim + 1, 'x_out': ndim + 1},
+    #     # output_sizes={'y': ndim + 1, 'x_out': ndim + 1},
     #     join='left',
     # )
 
@@ -578,7 +578,7 @@ if __name__ == "__main__":
     #     res = xr.DataArray(register_pair_of_spatial_images([x.im1, x.im2]), dims=['x_in', 'x_out'])
     #     return res
 
-    # p = xr.Dataset({'im1': xims[0], 'im2': xims[1]}).groupby('C')
+    # p = xr.Dataset({'im1': xims[0], 'im2': xims[1]}).groupby('c')
     # # t = p.apply(lambda x: xr.DataArray(da.ones((3,3)), dims=['x_in', 'x_out']))
     # t = p.apply(func)
 
@@ -586,14 +586,14 @@ if __name__ == "__main__":
 
     # fxarray.xarray_reduce(
     #     xr.Dataset({'im1': xims[0], 'im2': xims[1]}),
-    #     'C',
+    #     'c',
     #     func=lambda x: xr.Dataset({'M': register_pair_of_spatial_images([x.im1, x.im2])}),
     #     method='blockwise',
     #     )
 
-    # for c in xims[0].coords['C']:
+    # for c in xims[0].coords['c']:
     #     print(c)
-    #     print(register_pair_of_spatial_images([xims[0].sel(C=c), xims[1].sel(C=c)]))
+    #     print(register_pair_of_spatial_images([xims[0].sel(c=c), xims[1].sel(c=c)]))
 
 
     

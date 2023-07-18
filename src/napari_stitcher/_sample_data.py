@@ -101,7 +101,7 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
 
     # generate xims
     xims = []
-    spatial_dims = ['Z', 'Y', 'X'][-ndim:]
+    spatial_dims = ['z', 'y', 'x'][-ndim:]
     spacing = [spacing_z, spacing_y, spacing_x][-ndim:]
     for tile_index in np.ndindex(tls.numblocks[2:]):
         tile_index = np.array(tile_index)
@@ -112,10 +112,10 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
         origin = tile_index * tile_size * spacing - overlap * (tile_index) * spacing
         xim = xr.DataArray(
             tile,
-            dims=['C','T'] + spatial_dims,
+            dims=['c','t'] + spatial_dims,
             coords={spatial_dims[dim]: origin[dim] +\
                     np.arange(tile.shape[2+dim]) * spacing[dim] for dim in range(ndim)} |
-            {'C': ['channel ' + str(c) for c in range(N_c)]},
+            {'c': ['channel ' + str(c) for c in range(N_c)]},
         )
         xims.append(xim)
     

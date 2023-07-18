@@ -15,7 +15,7 @@ def test_pairwise():
 
     xims = [l[0] for l in layers]
 
-    xims = [xim.sel(T=xim.coords['T'][0]) for xim in xims]
+    xims = [xim.sel(t=xim.coords['t'][0]) for xim in xims]
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
 
@@ -51,10 +51,10 @@ def test_register_with_single_pixel_overlap(ndim):
 
 def test_register_graph():
 
-    view_xims = _reader.read_mosaic_czi_into_list_of_spatial_xarrays(
+    view_xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(
         _sample_data.get_sample_data_path())
     
-    view_xims = [xim.sel(C=xim.coords['C'][0]) for xim in view_xims]
+    view_xims = [xim.sel(c=xim.coords['c'][0]) for xim in view_xims]
     
     g = _mv_graph.build_view_adjacency_graph_from_xims(view_xims)
 
