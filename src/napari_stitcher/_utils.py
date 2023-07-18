@@ -54,42 +54,6 @@ def compute_dask_object(dask_object,
     return result
 
 
-def add_metadata_to_tiles(viewims, view_dict):
-
-    channels = list(viewims.keys())
-    times = list(viewims[channels[0]].keys())
-
-    viewims =   {ch:
-                    {t: {vdv['view']:
-                            delayed(lambda x, origin, spacing:
-                                    ImageArray(x, origin=origin, spacing=spacing))(
-                        
-                                        viewims[ch][t][vdv['view']],
-                                        vdv['origin'],
-                                        vdv['spacing'])
-                        for vdv in view_dict.values()}
-                    for t in times}
-                for ch in channels}
-
-    return viewims
-
-
-# get source file path from open layers
-def get_source_path_from_viewer(viewer):
-    for l in viewer.layers:
-        if l.source.path is not None and l.source.path.endswith('.czi'):
-            return l.source.path
-    return None
-
-
-def layer_was_loaded_by_own_reader(layer):
-    if 'napari_stitcher_reader_function' in layer.metadata and\
-        layer.metadata['napari_stitcher_reader_function'] == 'read_mosaic_czi':
-        return True
-    else:
-        False
-
-
 def get_str_unique_to_view_from_layer_name(layer_name):
     return layer_name.split(' :: ')[0]
 

@@ -19,8 +19,6 @@ from napari_stitcher._reader import read_mosaic_czi
 from napari_stitcher._viewer_utils import create_image_layer_tuples_from_xims
 
 
-
-
 def get_sample_data_path():
 
     sample_path = Path(__file__).parent.parent.parent /\

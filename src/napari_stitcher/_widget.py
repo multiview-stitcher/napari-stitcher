@@ -464,9 +464,11 @@ if __name__ == "__main__":
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
 
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
     # filename = '/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi'
+    filename = '/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230710_03_high-res_ant_20X-max-e1-bin-8bit.czi'
+
 
     viewer = napari.Viewer()
     
