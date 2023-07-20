@@ -3,6 +3,8 @@ import networkx as nx
 import xarray as xr
 from dask import compute
 
+from Geometry3D import Point, ConvexPolygon, ConvexPolyhedron
+
 from napari_stitcher import _spatial_image_utils
 
 
@@ -182,6 +184,55 @@ def sel_coords_from_graph(g, mapping_dim_sel, node_attributes=[], edge_attribute
 def get_nodes_dataset_from_graph(g, node_attribute):
     return xr.Dataset({n: g.nodes[n][node_attribute]
                       for n in g.nodes if node_attribute in g.nodes[n].keys()})
+
+
+def get_faces_from_xim(xim, transform=None):
+
+    ndim = _spatial_image_utils.get_ndim_from_xim(xim)
+    gv = np.array([i for i in np.ndindex(tuple([2]*ndim))])
+
+    faces = []
+    for iax in range(len(gv[0])):
+        for l in [0, 1]:
+            face = gv[np.where(gv[:,iax]==l)[0]]
+            faces.append(face)
+
+    faces = np.array(faces)
+
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
+    origin = _spatial_image_utils.get_origin_from_xim(xim, asarray=True)
+    spacing = _spatial_image_utils.get_spacing_from_xim(xim, asarray=True)
+    shape = _spatial_image_utils.get_shape_from_xim(xim, asarray=True)
+    ndim = _spatial_image_utils.get_ndim_from_xim(xim)
+
+    faces = faces * (shape - 1) * spacing + origin
+
+    if not transform is None:
+
+        orig_shape = faces.shape
+        faces = faces.reshape(-1, 3)
+
+        affine = xim.attrs[transform].reshape(ndim+1, ndim+1)
+        faces = np.dot(affine, np.hstack([faces, np.ones((faces.shape[0], 1))]).T).T[:,:-1]
+
+        faces = faces.reshape(orig_shape)
+
+    return faces
+
+
+def get_intersection_volume_from_pair_of_xims(xim1, xim2, transform1=None, transform2=None):
+
+    faces1 = get_faces_from_xim(xim1, transform=transform1)
+    cph1 = ConvexPolyhedron([ConvexPolygon([Point(c) for c in face]) for face in faces1])
+
+    faces2 = get_faces_from_xim(xim2, transform=transform2)
+    cph2 = ConvexPolyhedron([ConvexPolygon([Point(c) for c in face]) for face in faces2])
+
+    if min([f in faces2 for f in faces1]) and min([f in faces1 for f in faces2]):
+        return cph1.volume()
+    else:
+        return cph1.intersection(cph2).volume() 
+
 
 
 if __name__ == "__main__":

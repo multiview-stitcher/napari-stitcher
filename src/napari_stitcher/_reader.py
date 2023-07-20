@@ -16,7 +16,7 @@ from dask import delayed
 # from aicspylibczi import CziFile
 from aicsimageio import AICSImage
 
-from napari_stitcher import _spatial_image_utils, _viewer_utils
+from napari_stitcher import _spatial_image_utils, _viewer_utils, _utils
 
 
 def napari_get_reader(path):
@@ -151,7 +151,11 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
         for dim in spatial_dims:
             view_xim = view_xim.assign_coords({dim: view_xim.coords[dim] + origin.loc[dim]})
 
+        # affine = _utils.shift_to_matrix(
+        #     np.array([origin_values[dim] for dim in spatial_dims]))
+
         view_xim.attrs.update(dict(
+            # affine_metadata=affine,
             scene_index=scene_index,
             source=path,
         ))

@@ -91,3 +91,4 @@ def shift_to_matrix(shift):
     M = np.concatenate([shift, [1]], axis=0)
     M = np.concatenate([np.eye(ndim + 1)[:,:ndim], M[:,None]], axis=1)
     return M
+
