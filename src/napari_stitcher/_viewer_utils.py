@@ -16,7 +16,8 @@ def create_image_layer_tuple_from_msim(msim,
 
     xim = msim['scale0/image']
     scale_keys = _msi_utils.get_sorted_scale_keys(msim)
-    xim_thumb = msim[scale_keys[-1]]['image']
+
+    xim_thumb = msim[scale_keys[-1]]['image'].sel(t=xim.coords['t'][0])
 
     ch_name = str(xim.coords['c'].data)
 

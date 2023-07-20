@@ -77,18 +77,32 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=Non
             xim1, xim2,
             transform_key=transform_key)
 
+    spacing = _spatial_image_utils.get_spacing_from_xim(xim1, asarray=True)
+    small_length = np.min(spacing) / 10.
 
     if intersection_poly_structure is None:
         overlap = -1
     elif isinstance(intersection_poly_structure, Point):
-        overlap = 0
+        if expand:
+            overlap = small_length ** ndim
+        else:
+            overlap = 0
     elif isinstance(intersection_poly_structure, Segment):
-        overlap = 0
+        if expand:
+            overlap = intersection_poly_structure.length() * small_length ** (ndim-1)
+        else:
+            overlap = 0
     elif isinstance(intersection_poly_structure, ConvexPolygon):
         if ndim == 2:
             overlap = intersection_poly_structure.area()
         elif ndim == 3:
-            overlap = 0
+            if expand:
+                overlap = intersection_poly_structure.area() * small_length ** (ndim-2)
+            else:
+                overlap = 0
+            # return nonzero overlap
+            # spacing = _spatial_image_utils.get_spacing_from_xim(xim1, asarray=True)
+            # overlap = intersection_poly_structure.area() * np.min(spacing) / 10.
     elif isinstance(intersection_poly_structure, ConvexPolyhedron):
         overlap = intersection_poly_structure.volume()
 
@@ -97,7 +111,9 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=Non
 
     # get points from intersection_poly_structure
 
-    pts = np.array([[p.z, p.y, p.x] for p in intersection_poly_structure.points])
+    if not intersection_poly_structure is None:
+        pts = np.array([[p.z, p.y, p.x] for p in intersection_poly_structure.points])
+        # get_tr
 
     # back project using transform key
     # for 
@@ -319,7 +335,6 @@ def get_intersection_polyhedron_from_pair_of_xims_3D(xim1, xim2, transform_key):
     if min([any((f == facess[0]).all(1)) for f in facess[1]]) and\
        min([any((f == facess[1]).all(1)) for f in facess[0]]):
         # if xim2.attrs['affine_metadata'][2][3] == 7.5:
-        #     import pdb; pdb.set_trace()
         return cphs[0]
     else:
 

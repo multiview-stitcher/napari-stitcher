@@ -244,6 +244,8 @@ def read_mosaic_image_into_list_of_multiscale_images(path, scene_index=None):
             # chunks=,
             # scale_factors=(),
             )
+        
+        # import pdb; pdb.set_trace()
 
         affine = _utils.shift_to_matrix(
             np.array([origin_values[dim] for dim in spatial_dims]))
@@ -311,12 +313,12 @@ if __name__ == "__main__":
     # from napari_stitcher import StitcherQWidget
 
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi" # somehow doesn't work here. the reader gives xarrays that have a shape different from their computed shape
+    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
 
     viewer = napari.Viewer()
     
@@ -327,9 +329,10 @@ if __name__ == "__main__":
 
     # viewer.open(filename, scene_index=0)
 
-    msims = read_mosaic_image_into_list_of_multiscale_images(filename, scene_index=0)
+    # msims = read_mosaic_image_into_list_of_multiscale_images(filename, scene_index=0)
 
     # lds = _viewer_utils.create_image_layer_tuples_from_msims(msims, transform_key='affine_metadata')
+
     viewer.open(filename, scene_index=0)
 
     # napari.run()
