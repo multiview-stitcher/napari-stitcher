@@ -32,18 +32,19 @@ def test_generate_tiled_dataset(ndim, overlap, N_t, N_c):
     
     assert(xims[0].data.ndim == ndim + 2)
     
-    assert(xims[1].coords['y'][0] == spacing_y * (tile_size - overlap))
+    # the checks below are not valid anymore since introducing affines
+    # assert(xims[1].coords['y'][0] == spacing_y * (tile_size - overlap))
 
-    if overlap > 0:
-        assert(np.allclose(
-            xims[0].coords['y'][-overlap:],
-            xims[1].coords['y'][:overlap])
-            )
+    # if overlap > 0:
+    #     assert(np.allclose(
+    #         xims[0].coords['y'][-overlap:],
+    #         xims[1].coords['y'][:overlap])
+    #         )
         
-        assert(np.allclose(
-            xims[0].sel(y=slice(xims[0].coords['y'][-overlap],
-                                xims[0].coords['y'][-1])),
-            xims[1].sel(y=slice(xims[1].coords['y'][0],
-                                xims[1].coords['y'][overlap-1]))
-            ))
+    #     assert(np.allclose(
+    #         xims[0].sel(y=slice(xims[0].coords['y'][-overlap],
+    #                             xims[0].coords['y'][-1])),
+    #         xims[1].sel(y=slice(xims[1].coords['y'][0],
+    #                             xims[1].coords['y'][overlap-1]))
+    #         ))
             
