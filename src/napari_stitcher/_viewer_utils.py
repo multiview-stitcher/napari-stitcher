@@ -1,19 +1,22 @@
 import numpy as np
 import networkx as nx
 
-from napari_stitcher import _mv_graph, _spatial_image_utils
+from natsort import natsorted
 
-def create_image_layer_tuple_from_spatial_xim(xim,
+from napari_stitcher import _mv_graph, _spatial_image_utils, _msi_utils
+
+def create_image_layer_tuple_from_msim(msim,
                                               colormap='gray_r',
                                               name_prefix=None,
                                               transform_key=None,
                                               ):
 
     """
-    Note:
-    - xarray.DataArray can have coordinates for dimensions that are not listed in xim.dims (?)
-    - useful for channel names
     """
+
+    xim = msim['scale0/image']
+    scale_keys = _msi_utils.get_sorted_scale_keys(msim)
+    xim_thumb = msim[scale_keys[-1]]['image']
 
     ch_name = str(xim.coords['c'].data)
 
@@ -29,34 +32,40 @@ def create_image_layer_tuple_from_spatial_xim(xim,
         name = ch_name
     else:
         name = ' :: '.join([name_prefix, ch_name])
-
-    metadata = \
-        {
-        # 'napari_stitcher_reader_function': 'read_mosaic_czi',
-        # 'channel_name': ch_name,
-        }
     
-    # metadata['xr_attrs'] = xim.attrs.copy()
-
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
-    origin = _spatial_image_utils.get_origin_from_xim(xim)
-    spacing = _spatial_image_utils.get_spacing_from_xim(xim)
-    ndim = _spatial_image_utils.get_ndim_from_xim(xim)
+    # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
+    # origin = _spatial_image_utils.get_origin_from_xim(xim)
+    # spacing = _spatial_image_utils.get_spacing_from_xim(xim)
+    # ndim = _spatial_image_utils.get_ndim_from_xim(xim)
 
     if not transform_key is None:
-        affine_transform = _spatial_image_utils.get_affine_from_xim(xim, transform_key=transform_key)
+        affine_transform_xr = _msi_utils.get_transform_from_msim(msim, transform_key=transform_key)
+        affine_transform = affine_transform_xr.sel(t=xim.coords['t'][0]).data
     else:
         affine_transform = np.eye(ndim + 1)
 
-    contrast_limit_im = xim.sel(t=xim.coords['t'][0])
-    if 'z' in xim.dims:
-        contrast_limit_im = contrast_limit_im.sel(z=xim.coords['z'][len(xim.coords['z'])//2])
+    multiscale_data = []
+    for scale_key in scale_keys:
+        keys = msim[scale_key].data_vars.keys()
+        assert len(keys) == 1
+        dataset_name = [key for key in keys][0]
+        dataset = msim[scale_key].data_vars.get(dataset_name)
+        multiscale_data.append(dataset)
+
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(
+        xim)
+    ndim = len(spatial_dims)
+
+    spacing = _spatial_image_utils.get_spacing_from_xim(xim)
+    origin = _spatial_image_utils.get_origin_from_xim(xim)
+
+    metadata = {'transforms': {transform_key: affine_transform_xr}}
 
     kwargs = \
         {
         'contrast_limits': [v for v in [
-            np.min(np.array(contrast_limit_im.data)),
-            np.max(np.array(contrast_limit_im.data))]],
+            np.min(np.array(xim_thumb.data)),
+            np.max(np.array(xim_thumb.data))]],
         # 'contrast_limits': [np.iinfo(xim.dtype).min,
         #                     np.iinfo(xim.dtype).max],
         # 'contrast_limits': [np.iinfo(xim.dtype).min,
@@ -64,53 +73,48 @@ def create_image_layer_tuple_from_spatial_xim(xim,
         'name': name,
         'colormap': colormap,
         'gamma': 0.6,
-        # 'scale': [
-        #     # xim.attrs['spacing'].loc[dim]
-        #     xim.coords[dim][1] - xim.coords[dim][0]
-        #           for dim in xim.attrs['spatial_dims']],
-        # 'translate': [
-        #     # xim.attrs['origin'].loc[dim]
-        #     xim.coords[dim][0]
-        #             for dim in xim.attrs['spatial_dims']],
+
         'affine': affine_transform,
         'translate': np.array([origin[dim] for dim in spatial_dims]),
         'scale': np.array([spacing[dim] for dim in spatial_dims]),
         'cache': True,
         'blending': 'additive',
         'metadata': metadata,
+        'multiscale': True,
         }
 
-    return (xim, kwargs, 'image')
+    return (multiscale_data, kwargs, 'image')
 
 
-def create_image_layer_tuples_from_xims(
-        xims,
+def create_image_layer_tuples_from_msims(
+        msims,
         positional_cmaps=True,
         name_prefix="tile",
         n_colors=2,
         transform_key=None,
 ):
-    
+
     if positional_cmaps:
-        cmaps = get_cmaps_from_xims(xims, n_colors=n_colors, transform_key=transform_key)
+        cmaps = get_cmaps_from_msims(msims, n_colors=n_colors, transform_key=transform_key)
     else:
-        cmaps = [None for xim in xims]
+        cmaps = [None for _ in msims]
 
     out_layers = [
-        create_image_layer_tuple_from_spatial_xim(
-                    view_xim.sel(c=ch_coord),
+        create_image_layer_tuple_from_msim(
+                    # msim.sel(c=ch_coord),
+                    _msi_utils.multiscale_sel_coords(msim, {'c': ch_coord}),
                     cmaps[iview],
                     name_prefix=name_prefix + '_%03d' %iview,
                     transform_key=transform_key,
                     )
-            for iview, view_xim in enumerate(xims)
-        for ch_coord in view_xim.coords['c']
+            for iview, msim in enumerate(msims)
+        for ch_coord in msim['scale0/image'].coords['c']
         ]
     
     return out_layers
 
 
-def get_cmaps_from_xims(xims, n_colors=2, transform_key=None):
+def get_cmaps_from_msims(msims, n_colors=2, transform_key=None):
     """
     Get colors from view adjacency graph analysis
 
@@ -118,8 +122,8 @@ def get_cmaps_from_xims(xims, n_colors=2, transform_key=None):
 
     """
 
-    mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(
-        xims, expand=True, transform_key=transform_key)
+    mv_graph = _mv_graph.build_view_adjacency_graph_from_msims(
+        msims, expand=True, transform_key=transform_key)
 
     # thresholds = threshold_multiotsu(overlaps)
 

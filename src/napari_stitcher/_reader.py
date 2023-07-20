@@ -8,15 +8,13 @@ https://napari.org/stable/plugins/guides.html?#readers
 import numpy as np
 import xarray as xr
 
-import xml
-
-import dask.array as da
-from dask import delayed
-
 # from aicspylibczi import CziFile
 from aicsimageio import AICSImage
 
-from napari_stitcher import _spatial_image_utils, _viewer_utils, _utils
+import spatial_image as si
+import multiscale_spatial_image as msi
+
+from napari_stitcher import _spatial_image_utils, _viewer_utils, _utils, _msi_utils
 
 
 def napari_get_reader(path):
@@ -47,7 +45,127 @@ def napari_get_reader(path):
         return None
     
 
-def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
+# def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
+#     """
+#     Read CZI mosaic dataset into xarray containing all information needed for stitching.
+#     Could eventually be based on https://github.com/spatial-image/spatial-image.
+#     Use list instead of dict to make sure xarray metadata (coordinates + perhaps attrs)
+#     are self explanatory for downstream code (and don't depend e.g. on view/tile numbering).
+#     """
+
+#     aicsim = AICSImage(path, reconstruct_mosaic=False)
+
+#     if len(aicsim.scenes) > 1 and scene_index is None:
+#         from magicgui.widgets import request_values
+#         scene_index = request_values(
+#             scene_index=dict(annotation=int,
+#                         label="Which scene should be loaded?",
+#                         options={'min': 0, 'max': len(aicsim.scenes) - 1}),
+#             )['scene_index']
+#         aicsim.set_scene(scene_index)
+#     else:
+#         scene_index = 0
+
+#     xim =  aicsim.get_xarray_dask_stack()
+
+#     xim = xim.sel(I=scene_index)
+
+#     # xim coords to lower case
+#     xim = xim.rename({dim: dim.lower() for dim in xim.dims})
+
+#     # remove singleton Z
+#     # for axis in ['z', 't']:
+#     for axis in ['z']:
+#         if axis in xim.dims and len(xim.coords[axis]) < 2:
+#             xim = xim.sel({axis: 0}, drop=True)
+    
+#     # ensure time dimension is present
+#     xim = _spatial_image_utils.ensure_time_dim(xim)
+
+#     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
+
+#     views = range(len(xim.coords['m']))
+    
+#     # pixel_sizes = aicsim.physical_pixel_sizes._asdict()
+#     pixel_sizes = dict()
+#     pixel_sizes['x'] = aicsim.physical_pixel_sizes.X
+#     pixel_sizes['y'] = aicsim.physical_pixel_sizes.Y
+#     if 'z' in spatial_dims:
+#         pixel_sizes['z'] = aicsim.physical_pixel_sizes.Z
+
+#     # pixel_sizes = {k: v for k, v in pixel_sizes.items() if v is not None}
+    
+
+#     # # For some Zeiss files, the tiles contain duplicate image data at the borders.
+#     # # This trims the data at the borders.
+
+#     # m_string = xml.etree.ElementTree.tostring(aicsim.metadata)
+#     # if (
+#     #     b'Zeiss' in m_string and
+#     #    (b'Detector: Airyscan' in m_string) and
+#     #    (b'TileRegionCoveringMode' in m_string) and # not sure about this one
+#     #    (b'AlignedToLocalTileRegion' in m_string) # not sure about this one
+#     # ):
+#     #     tile_poss = np.array(aicsim.get_mosaic_tile_positions())
+#     #     tile_diffs = np.diff(tile_poss, axis=0)
+#     #     mosaic_dim = len(tile_poss[0])
+#     #     spatial_tile_slices = []
+#     #     for itile in range(len(tile_poss)):
+#     #         spatial_tile_slice = [slice(None) for _ in range(len(spatial_dims) - mosaic_dim)]
+#     #         for dim in range(mosaic_dim):
+#     #             if tile_poss[itile][dim] == np.max(tile_poss[:,dim]):
+#     #                 dim_slice = slice(0, xim.shape[-mosaic_dim+dim])
+#     #             else:
+#     #                 dim_slice = slice(0, tile_diffs[itile][dim])
+#     #             spatial_tile_slice.append(dim_slice)
+#     #         spatial_tile_slices.append(spatial_tile_slice)
+#     #     print('LSLSLSL', spatial_tile_slices)
+#     # else:
+#     #     spatial_tile_slices = [slice(None) for dim in spatial_dims]
+        
+#     view_xims = []
+#     for iview, view in enumerate(views):
+
+#         view_xim = xim.sel(m=view)
+#         # import pdb; pdb.set_trace()
+
+#         # # preprocess tiles in case of specific mosaic format
+#         # # such as in the case of airyscan
+#         # view_xim = view_xim.isel(
+#         #     {dim: spatial_tile_slices[iview][idim]
+#         #      for idim, dim in enumerate(spatial_dims)})
+
+#         tile_mosaic_position = aicsim.get_mosaic_tile_position(view)
+#         origin_values = {mosaic_axis: tile_mosaic_position[ima] * pixel_sizes[mosaic_axis]
+#                   for ima, mosaic_axis in enumerate(['y', 'x'])}
+        
+#         if 'z' in spatial_dims:
+#             origin_values['z'] = 0
+
+#         # origin = xr.DataArray([origin_values[dim] for dim in spatial_dims],
+#         #                       dims=['dim'],
+#         #                       coords={'dim': spatial_dims})
+        
+#         # for dim in spatial_dims:
+#         #     view_xim = view_xim.assign_coords({dim: view_xim.coords[dim] + origin.loc[dim]})
+
+#         affine = _utils.shift_to_matrix(
+#             np.array([origin_values[dim] for dim in spatial_dims]))
+
+#         view_xim.attrs.update(dict(
+#             affine_metadata=affine,
+#             scene_index=scene_index,
+#             source=path,
+#         ))
+
+#         view_xim.name = str(view)
+
+#         view_xims.append(view_xim)
+
+#     return view_xims
+
+
+def read_mosaic_image_into_list_of_multiscale_images(path, scene_index=None):
     """
     Read CZI mosaic dataset into xarray containing all information needed for stitching.
     Could eventually be based on https://github.com/spatial-image/spatial-image.
@@ -94,48 +212,11 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
     pixel_sizes['y'] = aicsim.physical_pixel_sizes.Y
     if 'z' in spatial_dims:
         pixel_sizes['z'] = aicsim.physical_pixel_sizes.Z
-
-    # pixel_sizes = {k: v for k, v in pixel_sizes.items() if v is not None}
-    
-
-    # # For some Zeiss files, the tiles contain duplicate image data at the borders.
-    # # This trims the data at the borders.
-
-    # m_string = xml.etree.ElementTree.tostring(aicsim.metadata)
-    # if (
-    #     b'Zeiss' in m_string and
-    #    (b'Detector: Airyscan' in m_string) and
-    #    (b'TileRegionCoveringMode' in m_string) and # not sure about this one
-    #    (b'AlignedToLocalTileRegion' in m_string) # not sure about this one
-    # ):
-    #     tile_poss = np.array(aicsim.get_mosaic_tile_positions())
-    #     tile_diffs = np.diff(tile_poss, axis=0)
-    #     mosaic_dim = len(tile_poss[0])
-    #     spatial_tile_slices = []
-    #     for itile in range(len(tile_poss)):
-    #         spatial_tile_slice = [slice(None) for _ in range(len(spatial_dims) - mosaic_dim)]
-    #         for dim in range(mosaic_dim):
-    #             if tile_poss[itile][dim] == np.max(tile_poss[:,dim]):
-    #                 dim_slice = slice(0, xim.shape[-mosaic_dim+dim])
-    #             else:
-    #                 dim_slice = slice(0, tile_diffs[itile][dim])
-    #             spatial_tile_slice.append(dim_slice)
-    #         spatial_tile_slices.append(spatial_tile_slice)
-    #     print('LSLSLSL', spatial_tile_slices)
-    # else:
-    #     spatial_tile_slices = [slice(None) for dim in spatial_dims]
         
-    view_xims = []
-    for iview, view in enumerate(views):
+    view_msims = []
+    for _, view in enumerate(views):
 
         view_xim = xim.sel(m=view)
-        # import pdb; pdb.set_trace()
-
-        # # preprocess tiles in case of specific mosaic format
-        # # such as in the case of airyscan
-        # view_xim = view_xim.isel(
-        #     {dim: spatial_tile_slices[iview][idim]
-        #      for idim, dim in enumerate(spatial_dims)})
 
         tile_mosaic_position = aicsim.get_mosaic_tile_position(view)
         origin_values = {mosaic_axis: tile_mosaic_position[ima] * pixel_sizes[mosaic_axis]
@@ -144,27 +225,48 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
         if 'z' in spatial_dims:
             origin_values['z'] = 0
 
-        # origin = xr.DataArray([origin_values[dim] for dim in spatial_dims],
-        #                       dims=['dim'],
-        #                       coords={'dim': spatial_dims})
-        
-        # for dim in spatial_dims:
-        #     view_xim = view_xim.assign_coords({dim: view_xim.coords[dim] + origin.loc[dim]})
+        spacing = _spatial_image_utils.get_spacing_from_xim(view_xim)
+        origin = _spatial_image_utils.get_origin_from_xim(view_xim)
+
+        # view_xim.name = str(view)
+        view_sim = si.to_spatial_image(
+            view_xim.data,
+            dims=view_xim.dims,
+            c_coords=view_xim.coords['c'].values,
+            scale=spacing,
+            translation=origin,
+            t_coords=view_xim.coords['t'].values,
+            )
+
+        view_msim = msi.to_multiscale(
+            view_sim,
+            scale_factors=_msi_utils.get_optimal_multi_scale_factors_from_xim(view_sim),
+            # chunks=,
+            # scale_factors=(),
+            )
 
         affine = _utils.shift_to_matrix(
             np.array([origin_values[dim] for dim in spatial_dims]))
+        
+        affine_xr = xr.DataArray(np.stack([affine] * len(view_sim.coords['t'])),
+                                 dims=['t', 'x_in', 'x_out'])
+        
+        view_msim.attrs['transforms'] = xr.Dataset(
+            {'affine_metadata': affine_xr}
+        )
 
-        view_xim.attrs.update(dict(
-            affine_metadata=affine,
-            scene_index=scene_index,
-            source=path,
-        ))
+        # view_msim['transforms'] = {'affine_metadata': affine_xr}
+        # view_msim['affine_metadata'] = affine_xr
 
-        view_xim.name = str(view)
+        # view_msim.attrs.update(dict(
+        #     # affine_metadata=affine,
+        #     scene_index=scene_index,
+        #     source=path,
+        # ))
 
-        view_xims.append(view_xim)
+        view_msims.append(view_msim)
 
-    return view_xims
+    return view_msims
 
 
 def read_mosaic_czi(path, scene_index=None):
@@ -196,9 +298,9 @@ def read_mosaic_czi(path, scene_index=None):
     # handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
-    xims = read_mosaic_image_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
+    msims = read_mosaic_image_into_list_of_multiscale_images(paths[0], scene_index=scene_index)
 
-    out_layers = _viewer_utils.create_image_layer_tuples_from_xims(xims, transform_key='affine_metadata')
+    out_layers = _viewer_utils.create_image_layer_tuples_from_msims(msims, transform_key='affine_metadata')
 
     return out_layers
 
@@ -223,6 +325,11 @@ if __name__ == "__main__":
     # wdg = StitcherQWidget(viewer)
     # viewer.window.add_dock_widget(wdg)
 
+    # viewer.open(filename, scene_index=0)
+
+    msims = read_mosaic_image_into_list_of_multiscale_images(filename, scene_index=0)
+
+    # lds = _viewer_utils.create_image_layer_tuples_from_msims(msims, transform_key='affine_metadata')
     viewer.open(filename, scene_index=0)
 
     # napari.run()

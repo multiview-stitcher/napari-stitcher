@@ -7,10 +7,10 @@ import logging
 
 from Geometry3D import Point, ConvexPolygon, ConvexPolyhedron, Segment, Point
 
-from napari_stitcher import _spatial_image_utils
+from napari_stitcher import _spatial_image_utils, _msi_utils
 
 
-def build_view_adjacency_graph_from_xims(xims, expand=False, transform_key=None):
+def build_view_adjacency_graph_from_msims(msims, expand=False, transform_key=None):
     """
     Build graph representing view overlap relationships from list of xarrays.
     Will be used for
@@ -19,11 +19,17 @@ def build_view_adjacency_graph_from_xims(xims, expand=False, transform_key=None)
     """
 
     g = nx.Graph()
-    for iview, xim in enumerate(xims):
+    for iview, msim in enumerate(msims):
         g.add_node(
             iview,
             # xim.name,
-            xim=xim)
+            msim=msim)
+    
+    # xims = [_msi_utils.get_xim_from_msim(msim.sel(t=msim['scale0/image'].coords['t'][0])) for msim in msims]
+
+    xims = [_msi_utils.get_xim_from_msim(
+        _msi_utils.multiscale_sel_coords(msim, {'t': msim['scale0/image'].coords['t'][0]}))
+        for msim in msims]
         
     for iview1, xim1 in enumerate(xims):
         for iview2, xim2 in enumerate(xims):
@@ -258,7 +264,8 @@ def get_faces_from_xim(xim, transform_key=None):
         orig_shape = faces.shape
         faces = faces.reshape(-1, ndim)
 
-        affine = xim.attrs[transform_key].reshape(ndim+1, ndim+1)
+        affine = _spatial_image_utils.get_affine_from_xim(xim, transform_key=transform_key)
+        # affine = xim.attrs[transform_key].reshape(ndim+1, ndim+1)
         faces = np.dot(affine, np.hstack([faces, np.ones((faces.shape[0], 1))]).T).T[:,:-1]
 
         faces = faces.reshape(orig_shape)

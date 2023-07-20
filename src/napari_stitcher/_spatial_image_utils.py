@@ -144,7 +144,7 @@ def get_ndim_from_xim(xim):
 def get_affine_from_xim(xim, transform_key=None):
 
     ndim = get_ndim_from_xim(xim)
-    affine = np.array(xim.attrs[transform_key]).reshape((ndim + 1, ndim + 1))
+    affine = np.array(xim.attrs['transforms'][transform_key]).reshape((ndim + 1, ndim + 1))
 
     return affine
 

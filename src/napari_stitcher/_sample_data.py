@@ -16,7 +16,7 @@ from scipy import ndimage
 from pathlib import Path
 
 from napari_stitcher._reader import read_mosaic_czi
-from napari_stitcher._viewer_utils import create_image_layer_tuples_from_xims
+from napari_stitcher._viewer_utils import create_image_layer_tuples_from_msims
 from napari_stitcher._utils import shift_to_matrix
 
 
