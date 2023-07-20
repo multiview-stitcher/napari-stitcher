@@ -141,6 +141,29 @@ def get_ndim_from_xim(xim):
     return len(get_spatial_dims_from_xim(xim))
 
 
+def get_affine_from_xim(xim, transform_key=None):
+
+    ndim = get_ndim_from_xim(xim)
+    affine = np.array(xim.attrs[transform_key]).reshape((ndim + 1, ndim + 1))
+
+    return affine
+
+
+def get_center_of_xim(xim, transform_key=None):
+    
+    ndim = get_ndim_from_xim(xim)
+
+    center = np.array([xim.coords[dim][len(xim.coords[dim])//2]
+                    for dim in get_spatial_dims_from_xim(xim)])
+    
+    if transform_key is not None:
+        affine = get_affine_from_xim(xim, transform_key=transform_key)
+        center = np.concatenate([center, np.ones(1)])
+        center = np.matmul(affine, center)[:ndim]
+
+    return center
+
+
 # def get_spatial_image_from_array_and_params(im, p=None):
 #     """
 #     Assume that matrix p (shape ndim+1) is given with dim order

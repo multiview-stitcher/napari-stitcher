@@ -3,12 +3,14 @@ import networkx as nx
 import xarray as xr
 from dask import compute
 
-from Geometry3D import Point, ConvexPolygon, ConvexPolyhedron
+import logging
+
+from Geometry3D import Point, ConvexPolygon, ConvexPolyhedron, Segment, Point
 
 from napari_stitcher import _spatial_image_utils
 
 
-def build_view_adjacency_graph_from_xims(xims, expand=False):
+def build_view_adjacency_graph_from_xims(xims, expand=False, transform_key=None):
     """
     Build graph representing view overlap relationships from list of xarrays.
     Will be used for
@@ -27,7 +29,7 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
         for iview2, xim2 in enumerate(xims):
             if iview1 >= iview2: continue
             
-            overlap_area, _ = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand)
+            overlap_area, _ = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand, transform_key=transform_key)
 
             # overlap 0 means one pixel overlap
             if overlap_area > -1:
@@ -36,7 +38,7 @@ def build_view_adjacency_graph_from_xims(xims, expand=False):
     return g
 
 
-def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
+def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=None):
 
     """
     
@@ -52,41 +54,75 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False):
     if 't' in xim2.dims:
         xim2 = xim2.sel(t=xim2.coords['t'][0])
 
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
-
-    x1_i, x1_f = np.array([[xim1.coords[dim][index].data
-                            for dim in spatial_dims]
-                            for index in [0, -1]])
+    assert(_spatial_image_utils.get_ndim_from_xim(xim1)
+        == _spatial_image_utils.get_ndim_from_xim(xim2))
     
-    x2_i, x2_f = np.array([[xim2.coords[dim][index].data
-                            for dim in spatial_dims]
-                            for index in [0, -1]])
+    ndim = _spatial_image_utils.get_ndim_from_xim(xim1)
 
-    # expand limits so that in case of no overlap the neighbours are shown
-    a = 10
-    if expand:
-        x1_i = x1_i - a * np.array([xim1.coords[dim][1] - xim1.coords[dim][0] for dim in spatial_dims])
-        x2_i = x2_i - a * np.array([xim2.coords[dim][1] - xim2.coords[dim][0] for dim in spatial_dims])
+    if ndim == 2:
 
-        x1_f = x1_f + a * np.array([xim1.coords[dim][1] - xim1.coords[dim][0] for dim in spatial_dims])
-        x2_f = x2_f + a * np.array([xim2.coords[dim][1] - xim2.coords[dim][0] for dim in spatial_dims])
+        intersection_poly_structure = get_intersection_polygon_from_pair_of_xims_2D(
+            xim1, xim2,
+            transform_key=transform_key)
+        
+    elif ndim == 3:
+            
+        intersection_poly_structure = get_intersection_polyhedron_from_pair_of_xims_3D(
+            xim1, xim2,
+            transform_key=transform_key)
 
-    dim_overlap_opt1 = (x1_f >= x2_i) * (x1_f <= x2_f)
-    dim_overlap_opt2 = (x2_f >= x1_i) * (x2_f <= x1_f)
 
-    dim_overlap = dim_overlap_opt1 + dim_overlap_opt2
+    if intersection_poly_structure is None:
+        overlap = -1
+    elif isinstance(intersection_poly_structure, Point):
+        overlap = 0
+    elif isinstance(intersection_poly_structure, Segment):
+        overlap = 0
+    elif isinstance(intersection_poly_structure, ConvexPolygon):
+        if ndim == 2:
+            overlap = intersection_poly_structure.area()
+        elif ndim == 3:
+            overlap = 0
+    elif isinstance(intersection_poly_structure, ConvexPolyhedron):
+        overlap = intersection_poly_structure.volume()
 
-    x_i = np.max([x1_i, x2_i], 0)
-    x_f = np.min([x1_f, x2_f], 0)
+    return overlap, intersection_poly_structure
 
-    if np.all(dim_overlap):
-        overlap = x_f - x_i
-        overlap_area = np.product(overlap)
-    else:
-        overlap_area = -1
+    # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
 
-    return overlap_area, [{dim: x[idim] for idim, dim in enumerate(spatial_dims)}
-                          for x in [x_i, x_f]]
+    # x1_i, x1_f = np.array([[xim1.coords[dim][index].data
+    #                         for dim in spatial_dims]
+    #                         for index in [0, -1]])
+    
+    # x2_i, x2_f = np.array([[xim2.coords[dim][index].data
+    #                         for dim in spatial_dims]
+    #                         for index in [0, -1]])
+
+    # # expand limits so that in case of no overlap the neighbours are shown
+    # a = 10
+    # if expand:
+    #     x1_i = x1_i - a * np.array([xim1.coords[dim][1] - xim1.coords[dim][0] for dim in spatial_dims])
+    #     x2_i = x2_i - a * np.array([xim2.coords[dim][1] - xim2.coords[dim][0] for dim in spatial_dims])
+
+    #     x1_f = x1_f + a * np.array([xim1.coords[dim][1] - xim1.coords[dim][0] for dim in spatial_dims])
+    #     x2_f = x2_f + a * np.array([xim2.coords[dim][1] - xim2.coords[dim][0] for dim in spatial_dims])
+
+    # dim_overlap_opt1 = (x1_f >= x2_i) * (x1_f <= x2_f)
+    # dim_overlap_opt2 = (x2_f >= x1_i) * (x2_f <= x1_f)
+
+    # dim_overlap = dim_overlap_opt1 + dim_overlap_opt2
+
+    # x_i = np.max([x1_i, x2_i], 0)
+    # x_f = np.min([x1_f, x2_f], 0)
+
+    # if np.all(dim_overlap):
+    #     overlap = x_f - x_i
+    #     overlap_area = np.product(overlap)
+    # else:
+    #     overlap_area = -1
+
+    # return overlap_area, [{dim: x[idim] for idim, dim in enumerate(spatial_dims)}
+    #                       for x in [x_i, x_f]]
 
 
 def get_registration_pairs_from_view_dict(view_dict, min_percentile=49):
@@ -186,7 +222,7 @@ def get_nodes_dataset_from_graph(g, node_attribute):
                       for n in g.nodes if node_attribute in g.nodes[n].keys()})
 
 
-def get_faces_from_xim(xim, transform=None):
+def get_faces_from_xim(xim, transform_key=None):
 
     ndim = _spatial_image_utils.get_ndim_from_xim(xim)
     gv = np.array([i for i in np.ndindex(tuple([2]*ndim))])
@@ -199,7 +235,7 @@ def get_faces_from_xim(xim, transform=None):
 
     faces = np.array(faces)
 
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
+    # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
     origin = _spatial_image_utils.get_origin_from_xim(xim, asarray=True)
     spacing = _spatial_image_utils.get_spacing_from_xim(xim, asarray=True)
     shape = _spatial_image_utils.get_shape_from_xim(xim, asarray=True)
@@ -207,12 +243,12 @@ def get_faces_from_xim(xim, transform=None):
 
     faces = faces * (shape - 1) * spacing + origin
 
-    if not transform is None:
+    if not transform_key is None:
 
         orig_shape = faces.shape
-        faces = faces.reshape(-1, 3)
+        faces = faces.reshape(-1, ndim)
 
-        affine = xim.attrs[transform].reshape(ndim+1, ndim+1)
+        affine = xim.attrs[transform_key].reshape(ndim+1, ndim+1)
         faces = np.dot(affine, np.hstack([faces, np.ones((faces.shape[0], 1))]).T).T[:,:-1]
 
         faces = faces.reshape(orig_shape)
@@ -220,19 +256,76 @@ def get_faces_from_xim(xim, transform=None):
     return faces
 
 
-def get_intersection_volume_from_pair_of_xims(xim1, xim2, transform1=None, transform2=None):
+def xims_are_far_apart(xim1, xim2, transform_key):
 
-    faces1 = get_faces_from_xim(xim1, transform=transform1)
-    cph1 = ConvexPolyhedron([ConvexPolygon([Point(c) for c in face]) for face in faces1])
+    centers = [_spatial_image_utils.get_center_of_xim(xim, transform_key=transform_key) for xim in [xim1, xim2]]
+    distance_centers = np.linalg.norm(centers[1] - centers[0], axis=0)
 
-    faces2 = get_faces_from_xim(xim2, transform=transform2)
-    cph2 = ConvexPolyhedron([ConvexPolygon([Point(c) for c in face]) for face in faces2])
-
-    if min([f in faces2 for f in faces1]) and min([f in faces1 for f in faces2]):
-        return cph1.volume()
+    diagonal_lengths = [np.linalg.norm(
+         np.array([xim.coords[dim][-1] - xim.coords[dim][0]
+            for dim in _spatial_image_utils.get_spatial_dims_from_xim(xim)]))
+            for xim in [xim1, xim2]]
+    
+    if distance_centers > np.sum(diagonal_lengths) / 2.:
+        logging.info('xims are far apart')
+        return True
     else:
-        return cph1.intersection(cph2).volume() 
+        logging.info('xims are close: %02d' %(100 * distance_centers / (np.sum(diagonal_lengths) / 2.)))
+        return False
 
+
+def get_intersection_polyhedron_from_pair_of_xims_3D(xim1, xim2, transform_key):
+
+    """
+    
+    """
+
+    # perform basic check to see if there can be overlap
+
+    if xims_are_far_apart(xim1, xim2, transform_key):
+        return None
+        
+    cphs = []
+    facess = []
+    for xim in [xim1, xim2]:
+        faces = get_faces_from_xim(xim, transform_key=transform_key)
+        cps = ConvexPolyhedron([ConvexPolygon([Point(c) for c in face]) for face in faces])
+        facess.append(faces.reshape((-1, 3)))
+        cphs.append(cps)
+
+    # faces1 = get_faces_from_xim(xim1, transform_key=transform_key1)
+    # cph1 = ConvexPolyhedron([ConvexPolygon([Point(c) for c in face]) for face in faces1])
+
+    # faces2 = get_faces_from_xim(xim2, transform_key=transform_key2)
+    # cph2 = ConvexPolyhedron([ConvexPolygon([Point(c) for c in face]) for face in faces2])
+
+    if min([any((f == facess[0]).all(1)) for f in facess[1]]) and\
+       min([any((f == facess[1]).all(1)) for f in facess[0]]):
+        # if xim2.attrs['affine_metadata'][2][3] == 7.5:
+        #     import pdb; pdb.set_trace()
+        return cphs[0]
+    else:
+
+    # np.any((facess[1][1] == facess[0]).all(1))
+        return cphs[0].intersection(cphs[1])
+
+
+def get_intersection_polygon_from_pair_of_xims_2D(xim1, xim2, transform_key=None):
+
+    """
+    For 2D, the intersection is a polygon. Still three-dimensional, but with z=0.
+    """
+
+    if xims_are_far_apart(xim1, xim2, transform_key):
+        return None
+
+    cps = []
+    for xim in [xim1, xim2]:
+        corners = np.unique(get_faces_from_xim(xim, transform_key=transform_key).reshape((-1, 2)), axis=0)
+        cp = ConvexPolygon([Point([0]+list(c)) for c in corners])
+        cps.append(cp)
+
+    return cps[0].intersection(cps[1])
 
 
 if __name__ == "__main__":

@@ -144,18 +144,18 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
         if 'z' in spatial_dims:
             origin_values['z'] = 0
 
-        origin = xr.DataArray([origin_values[dim] for dim in spatial_dims],
-                              dims=['dim'],
-                              coords={'dim': spatial_dims})
+        # origin = xr.DataArray([origin_values[dim] for dim in spatial_dims],
+        #                       dims=['dim'],
+        #                       coords={'dim': spatial_dims})
         
-        for dim in spatial_dims:
-            view_xim = view_xim.assign_coords({dim: view_xim.coords[dim] + origin.loc[dim]})
+        # for dim in spatial_dims:
+        #     view_xim = view_xim.assign_coords({dim: view_xim.coords[dim] + origin.loc[dim]})
 
-        # affine = _utils.shift_to_matrix(
-        #     np.array([origin_values[dim] for dim in spatial_dims]))
+        affine = _utils.shift_to_matrix(
+            np.array([origin_values[dim] for dim in spatial_dims]))
 
         view_xim.attrs.update(dict(
-            # affine_metadata=affine,
+            affine_metadata=affine,
             scene_index=scene_index,
             source=path,
         ))
@@ -198,7 +198,7 @@ def read_mosaic_czi(path, scene_index=None):
 
     xims = read_mosaic_image_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
 
-    out_layers = _viewer_utils.create_image_layer_tuples_from_xims(xims)
+    out_layers = _viewer_utils.create_image_layer_tuples_from_xims(xims, transform_key='affine_metadata')
 
     return out_layers
 
@@ -223,6 +223,6 @@ if __name__ == "__main__":
     # wdg = StitcherQWidget(viewer)
     # viewer.window.add_dock_widget(wdg)
 
-    viewer.open(filename)
+    viewer.open(filename, scene_index=0)
 
     # napari.run()

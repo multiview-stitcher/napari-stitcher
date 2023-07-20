@@ -17,6 +17,7 @@ from pathlib import Path
 
 from napari_stitcher._reader import read_mosaic_czi
 from napari_stitcher._viewer_utils import create_image_layer_tuples_from_xims
+from napari_stitcher._utils import shift_to_matrix
 
 
 def get_sample_data_path():
@@ -44,7 +45,8 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
                            tile_size=30, tiles_x=2, tiles_y=2, tiles_z=1,
                            overlap=5, zoom=6, dtype=np.uint16,
                            spacing_x=0.5, spacing_y=0.5, spacing_z=2.,
-                           shift_scale=2., drift_scale=2.):
+                           shift_scale=2., drift_scale=2.,
+                           transform_key='affine_metadata'):
 
     def transform_input(x, shifts, drifts, im_gt, overlap=0, zoom=10., block_info=None):
 
@@ -113,10 +115,14 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
         xim = xr.DataArray(
             tile,
             dims=['c','t'] + spatial_dims,
-            coords={spatial_dims[dim]: origin[dim] +\
+            coords={spatial_dims[dim]:
+                    # origin[dim] +\
                     np.arange(tile.shape[2+dim]) * spacing[dim] for dim in range(ndim)} |
             {'c': ['channel ' + str(c) for c in range(N_c)]},
         )
+
+        xim.attrs[transform_key] = shift_to_matrix(origin)
+
         xims.append(xim)
     
     return xims
@@ -130,7 +136,8 @@ def drifting_timelapse_with_stage_shifts_no_overlap_2d():
         drift_scale=2., shift_scale=2.,
         overlap=0, zoom=8, dtype=np.uint8)
 
-    layer_tuples = create_image_layer_tuples_from_xims(xims)
+    layer_tuples = create_image_layer_tuples_from_xims(
+        xims, transform_key='affine_metadata')
 
     return layer_tuples
 
@@ -143,30 +150,31 @@ def timelapse_with_stage_shifts_with_overlap_3d():
         drift_scale=0., shift_scale=2.,
         overlap=3, zoom=8, dtype=np.uint8)
     
-    layer_tuples = create_image_layer_tuples_from_xims(xims)
+    layer_tuples = create_image_layer_tuples_from_xims(
+        xims, transform_key='affine_metadata')
 
     return layer_tuples
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    import napari
+#     import napari
 
-    viewer = napari.Viewer()
+#     viewer = napari.Viewer()
 
-    xims = generate_tiled_dataset(
-        ndim=2, N_t=20, N_c=1,
-        tile_size=1000, tiles_x=1, tiles_y=1, tiles_z=1,
-        overlap=15, zoom=5, shift_scale=5, drift_scale=2, dtype=np.uint8)
-    layer_tuples = create_image_layer_tuples_from_xims(xims, n_colors=2)
+#     xims = generate_tiled_dataset(
+#         ndim=2, N_t=20, N_c=1,
+#         tile_size=1000, tiles_x=1, tiles_y=1, tiles_z=1,
+#         overlap=15, zoom=5, shift_scale=5, drift_scale=2, dtype=np.uint8)
+#     layer_tuples = create_image_layer_tuples_from_xims(xims, n_colors=2)
 
-    # layer_tuples = make_sample_data()
+#     # layer_tuples = make_sample_data()
 
-    for lt in layer_tuples:
-        lt[1]['contrast_limits'] = [0, 100]
-        viewer.add_image(lt[0], **lt[1])
+#     for lt in layer_tuples:
+#         lt[1]['contrast_limits'] = [0, 100]
+#         viewer.add_image(lt[0], **lt[1])
 
-    from napari_stitcher import StitcherQWidget
+#     from napari_stitcher import StitcherQWidget
 
-    wdg = StitcherQWidget(viewer)
-    viewer.window.add_dock_widget(wdg)
+#     wdg = StitcherQWidget(viewer)
+#     viewer.window.add_dock_widget(wdg)

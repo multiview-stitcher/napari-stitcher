@@ -6,6 +6,7 @@ from napari_stitcher import _mv_graph, _spatial_image_utils
 def create_image_layer_tuple_from_spatial_xim(xim,
                                               colormap='gray_r',
                                               name_prefix=None,
+                                              transform_key=None,
                                               ):
 
     """
@@ -40,6 +41,12 @@ def create_image_layer_tuple_from_spatial_xim(xim,
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
     origin = _spatial_image_utils.get_origin_from_xim(xim)
     spacing = _spatial_image_utils.get_spacing_from_xim(xim)
+    ndim = _spatial_image_utils.get_ndim_from_xim(xim)
+
+    if not transform_key is None:
+        affine_transform = _spatial_image_utils.get_affine_from_xim(xim, transform_key=transform_key)
+    else:
+        affine_transform = np.eye(ndim + 1)
 
     contrast_limit_im = xim.sel(t=xim.coords['t'][0])
     if 'z' in xim.dims:
@@ -65,7 +72,7 @@ def create_image_layer_tuple_from_spatial_xim(xim,
         #     # xim.attrs['origin'].loc[dim]
         #     xim.coords[dim][0]
         #             for dim in xim.attrs['spatial_dims']],
-        # 'affine': _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(xim),
+        'affine': affine_transform,
         'translate': np.array([origin[dim] for dim in spatial_dims]),
         'scale': np.array([spacing[dim] for dim in spatial_dims]),
         'cache': True,
@@ -81,10 +88,11 @@ def create_image_layer_tuples_from_xims(
         positional_cmaps=True,
         name_prefix="tile",
         n_colors=2,
+        transform_key=None,
 ):
     
     if positional_cmaps:
-        cmaps = get_cmaps_from_xims(xims, n_colors=n_colors)
+        cmaps = get_cmaps_from_xims(xims, n_colors=n_colors, transform_key=transform_key)
     else:
         cmaps = [None for xim in xims]
 
@@ -92,7 +100,9 @@ def create_image_layer_tuples_from_xims(
         create_image_layer_tuple_from_spatial_xim(
                     view_xim.sel(c=ch_coord),
                     cmaps[iview],
-                    name_prefix=name_prefix + '_%03d' %iview)
+                    name_prefix=name_prefix + '_%03d' %iview,
+                    transform_key=transform_key,
+                    )
             for iview, view_xim in enumerate(xims)
         for ch_coord in view_xim.coords['c']
         ]
@@ -100,7 +110,7 @@ def create_image_layer_tuples_from_xims(
     return out_layers
 
 
-def get_cmaps_from_xims(xims, n_colors=2):
+def get_cmaps_from_xims(xims, n_colors=2, transform_key=None):
     """
     Get colors from view adjacency graph analysis
 
@@ -108,7 +118,8 @@ def get_cmaps_from_xims(xims, n_colors=2):
 
     """
 
-    mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(xims, expand=True)
+    mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(
+        xims, expand=True, transform_key=transform_key)
 
     # thresholds = threshold_multiotsu(overlaps)
 
