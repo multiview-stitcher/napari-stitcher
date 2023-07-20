@@ -86,6 +86,16 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=Non
     elif isinstance(intersection_poly_structure, ConvexPolyhedron):
         overlap = intersection_poly_structure.volume()
 
+    # get max and min indices of overlap region for each input image
+    # this is in the "physical space" of the image, i.e. xim coordinates
+
+    # get points from intersection_poly_structure
+
+    pts = np.array([[p.z, p.y, p.x] for p in intersection_poly_structure.points])
+
+    # back project using transform key
+    # for 
+
     return overlap, intersection_poly_structure
 
     # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
