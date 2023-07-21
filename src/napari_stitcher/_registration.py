@@ -378,7 +378,6 @@ def correct_random_drift(ims, reg_ch=0, zoom_factor=10, particle_reinstantiation
     with ProgressBar():
         fs=np.array(dask.compute(fs)[0])#*zoom_factor
 
-
     print('Tracking virtual particles...')
 
     # coordinates to be tracked
@@ -514,7 +513,7 @@ def get_drift_correction_parameters(tl, sigma=2):
     ps = da.stack([da.from_delayed(delayed(skimage.registration.phase_cross_correlation)(
             tl[t-1],
             tl[t],
-            upsample_factor=10,
+            upsample_factor=2,
             normalization=None)[0], shape=(ndim, ), dtype=float)
             for t in range(1, tl.shape[0])])
 
