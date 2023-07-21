@@ -5,12 +5,13 @@ from dask import compute
 
 import logging
 
-from Geometry3D import Point, ConvexPolygon, ConvexPolyhedron, Segment, Point
+from Geometry3D import Point, ConvexPolygon, ConvexPolyhedron, Segment, Point, get_eps, set_eps
+set_eps( get_eps()*100000) #https://github.com/GouMinghao/Geometry3D/issues/8
 
 from napari_stitcher import _spatial_image_utils, _msi_utils
 
 
-def build_view_adjacency_graph_from_msims(msims, expand=False, transform_key=None):
+def build_view_adjacency_graph_from_xims(xims, expand=False, transform_key=None):
     """
     Build graph representing view overlap relationships from list of xarrays.
     Will be used for
@@ -19,17 +20,17 @@ def build_view_adjacency_graph_from_msims(msims, expand=False, transform_key=Non
     """
 
     g = nx.Graph()
-    for iview, msim in enumerate(msims):
+    for iview, xim in enumerate(xims):
         g.add_node(
             iview,
             # xim.name,
-            msim=msim)
+            xim=xim)
     
     # xims = [_msi_utils.get_xim_from_msim(msim.sel(t=msim['scale0/image'].coords['t'][0])) for msim in msims]
 
-    xims = [_msi_utils.get_xim_from_msim(
-        _msi_utils.multiscale_sel_coords(msim, {'t': msim['scale0/image'].coords['t'][0]}))
-        for msim in msims]
+    # xims = [_msi_utils.get_xim_from_msim(
+    #     _msi_utils.multiscale_sel_coords(msim, {'t': msim['scale0/image'].coords['t'][0]}))
+    #     for msim in msims]
         
     for iview1, xim1 in enumerate(xims):
         for iview2, xim2 in enumerate(xims):
@@ -42,6 +43,40 @@ def build_view_adjacency_graph_from_msims(msims, expand=False, transform_key=Non
                 g.add_edge(iview1, iview2, overlap=overlap_area)
 
     return g
+
+
+# def build_view_adjacency_graph_from_msims(msims, expand=False, transform_key=None):
+#     """
+#     Build graph representing view overlap relationships from list of xarrays.
+#     Will be used for
+#       - groupwise registration
+#       - determining visualization colors
+#     """
+
+#     g = nx.Graph()
+#     for iview, msim in enumerate(msims):
+#         g.add_node(
+#             iview,
+#             # xim.name,
+#             msim=msim)
+    
+#     # xims = [_msi_utils.get_xim_from_msim(msim.sel(t=msim['scale0/image'].coords['t'][0])) for msim in msims]
+
+#     xims = [_msi_utils.get_xim_from_msim(
+#         _msi_utils.multiscale_sel_coords(msim, {'t': msim['scale0/image'].coords['t'][0]}))
+#         for msim in msims]
+        
+#     for iview1, xim1 in enumerate(xims):
+#         for iview2, xim2 in enumerate(xims):
+#             if iview1 >= iview2: continue
+            
+#             overlap_area, _ = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand, transform_key=transform_key)
+
+#             # overlap 0 means one pixel overlap
+#             if overlap_area > -1:
+#                 g.add_edge(iview1, iview2, overlap=overlap_area)
+
+#     return g
 
 
 def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=None):
@@ -82,16 +117,19 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=Non
 
     if intersection_poly_structure is None:
         overlap = -1
+        intersection_poly_structure = None
     elif isinstance(intersection_poly_structure, Point):
         if expand:
             overlap = small_length ** ndim
         else:
             overlap = 0
+        intersection_poly_structure = None
     elif isinstance(intersection_poly_structure, Segment):
         if expand:
             overlap = intersection_poly_structure.length() * small_length ** (ndim-1)
         else:
             overlap = 0
+        intersection_poly_structure=None
     elif isinstance(intersection_poly_structure, ConvexPolygon):
         if ndim == 2:
             overlap = intersection_poly_structure.area()
@@ -100,6 +138,7 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=Non
                 overlap = intersection_poly_structure.area() * small_length ** (ndim-2)
             else:
                 overlap = 0
+            intersection_poly_structure = None
             # return nonzero overlap
             # spacing = _spatial_image_utils.get_spacing_from_xim(xim1, asarray=True)
             # overlap = intersection_poly_structure.area() * np.min(spacing) / 10.
@@ -111,9 +150,9 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=Non
 
     # get points from intersection_poly_structure
 
-    if not intersection_poly_structure is None:
-        pts = np.array([[p.z, p.y, p.x] for p in intersection_poly_structure.points])
-        # get_tr
+    # if not intersection_poly_structure is None:
+    #     pts = np.array([[p.z, p.y, p.x] for p in intersection_poly_structure.points])
+    #     # get_tr
 
     # back project using transform key
     # for 

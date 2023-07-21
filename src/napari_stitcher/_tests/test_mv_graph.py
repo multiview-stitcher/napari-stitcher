@@ -16,9 +16,11 @@ def test_overlap(ndim, overlap):
     spacing_y=0.5
     spacing_z=2
     xims = _sample_data.generate_tiled_dataset(
-        ndim=ndim, overlap=overlap, N_c=2, N_t=2,
+        ndim=ndim, overlap=overlap, N_c=2, N_t=1,
         tile_size=15, tiles_x=3, tiles_y=3, tiles_z=3,
         spacing_x=spacing_x, spacing_y=spacing_y, spacing_z=spacing_z)
+    
+    xims = [xim.sel(t=0) for xim in xims]
     
     overlap_areas = []
     for ixim1, xim1 in enumerate(xims):

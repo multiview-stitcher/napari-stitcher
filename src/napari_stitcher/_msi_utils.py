@@ -5,6 +5,7 @@ import datatree
 from functools import wraps
 from pathlib import Path
 
+import spatial_image as si
 import multiscale_spatial_image as msi
 
 from napari_stitcher import _spatial_image_utils
@@ -44,7 +45,9 @@ def get_transform_from_msim(msim, transform_key=None):
     Get transform from msim. If transform_key is None, get the transform from the first scale.
     """
 
-    return msim.attrs['transforms'][transform_key]
+    return msim['scale0'][transform_key]
+
+    # return msim.attrs['transforms'][transform_key]
 
 
 def multiscale_sel_coords(mxim, sel_dict):
@@ -56,15 +59,11 @@ def multiscale_sel_coords(mxim, sel_dict):
         except:
             print('failed to sel for %s' %child)
 
-    # sel transforms which are xr.Datasets in the mxim attributes
-    for data_var in mxim.attrs['transforms']:
-        for k, v in sel_dict.items():
-            if k in out_mxim.attrs['transforms'][data_var].dims:
-                out_mxim.attrs['transforms'][data_var] = out_mxim.attrs['transforms'][data_var].sel({k: v})
-
-        # out_mxim.attrs['transforms'][data_var] = out_mxim.attrs['transforms'][data_var].sel(sel_dict)
-
-    # import pdb; pdb.set_trace()
+    # # sel transforms which are xr.Datasets in the mxim attributes
+    # for data_var in mxim.attrs['transforms']:
+    #     for k, v in sel_dict.items():
+    #         if k in out_mxim.attrs['transforms'][data_var].dims:
+    #             out_mxim.attrs['transforms'][data_var] = out_mxim.attrs['transforms'][data_var].sel({k: v})
 
     return out_mxim
 
@@ -93,7 +92,14 @@ def get_first_scale_above_target_spacing(mxim, target_spacing, dim='y'):
 
 def multiscale_spatial_image_from_zarr(path):
 
-    multiscale = datatree.open_datatree(path, engine="zarr")
+    ndim = _spatial_image_utils.get_ndim_from_xim(datatree.open_datatree(path, engine="zarr")['scale0/image'])
+
+    if ndim == 2:
+        chunks = {'y': 256, 'x': 256}
+    elif ndim == 3:
+        chunks = {'z': 64, 'y': 64, 'x': 64}
+
+    multiscale = datatree.open_datatree(path, engine="zarr", chunks=chunks)
 
     return multiscale
 
@@ -111,11 +117,71 @@ def get_optimal_multi_scale_factors_from_xim(sim):
     return factors
 
 
-def get_xim_from_msim(msim):
+def get_transforms_from_dataset_as_dict(dataset):
+    transforms_dict = {}
+    for data_var, transform in dataset.items():
+        if data_var == 'image': continue
+        transform_key = data_var
+        transforms_dict[transform_key] = transform
+    return transforms_dict
+
+
+def get_xim_from_msim(msim, scale='scale0'):
     """
     highest scale sim from msim with affine transforms
     """
-    xim = msim['scale0/image'].copy()
-    xim.attrs['transforms'] = msim.attrs['transforms']
+    xim = msim['%s/image' %scale].copy()
+    xim.attrs['transforms'] = get_transforms_from_dataset_as_dict(msim['scale0'])
 
     return xim
+
+
+def get_msim_from_xim(xim, scale_factors=None):
+    """
+    highest scale sim from msim with affine transforms
+    """
+
+    spacing = _spatial_image_utils.get_spacing_from_xim(xim)
+    origin = _spatial_image_utils.get_origin_from_xim(xim)
+
+    # view_xim.name = str(view)
+    sim = si.to_spatial_image(
+        xim.data,
+        dims=xim.dims,
+        c_coords=xim.coords['c'].values,
+        scale=spacing,
+        translation=origin,
+        t_coords=xim.coords['t'].values,
+        )
+
+    if scale_factors is None:
+        scale_factors = get_optimal_multi_scale_factors_from_xim(sim)
+
+    msim = msi.to_multiscale(
+        sim,
+        # scale_factors=_msi_utils.get_optimal_multi_scale_factors_from_xim(view_sim),
+        # chunks=,
+        scale_factors=scale_factors,
+        )
+    
+    scale_keys = get_sorted_scale_keys(msim)
+    for sk in scale_keys:
+        for transform_key, transform in xim.attrs['transforms'].items():
+            msim[sk][transform_key] = transform
+    
+    # msim.attrs['transforms'] = xim.attrs['transforms']
+
+    return msim
+
+
+import xarray as xr
+def set_affine_transform(msim, affine, transform_key):
+
+    if not isinstance(affine, xr.DataArray):
+        affine = xr.DataArray(
+            np.stack([affine] * len(msim['scale0/image'].coords['t'])),
+            dims=['t', 'x_in', 'x_out'])
+
+    scale_keys = get_sorted_scale_keys(msim)
+    for sk in scale_keys:
+        msim[sk][transform_key] = affine

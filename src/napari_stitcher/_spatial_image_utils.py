@@ -164,6 +164,23 @@ def get_center_of_xim(xim, transform_key=None):
     return center
 
 
+def xim_sel_coords(xim, sel_dict):
+    """
+    Select coords from xim and its transform attributes
+    """
+
+    sxim = xim.copy(deep=True)
+    sxim = sxim.sel(sel_dict)
+
+    # sel transforms which are xr.Datasets in the mxim attributes
+    for data_var in xim.attrs['transforms']:
+        for k, v in sel_dict.items():
+            if k in xim.attrs['transforms'][data_var].dims:
+                sxim.attrs['transforms'][data_var] = sxim.attrs['transforms'][data_var].sel({k: v})
+
+    return sxim
+
+
 # def get_spatial_image_from_array_and_params(im, p=None):
 #     """
 #     Assume that matrix p (shape ndim+1) is given with dim order

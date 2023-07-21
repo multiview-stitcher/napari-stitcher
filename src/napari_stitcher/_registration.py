@@ -10,7 +10,7 @@ import dask.array as da
 import skimage.registration
 import skimage.exposure
 
-from napari_stitcher import _spatial_image_utils, _mv_graph, _utils
+from napari_stitcher import _spatial_image_utils, _mv_graph, _utils, _transformation
 
 
 def apply_recursive_dict(func, d):
@@ -76,7 +76,7 @@ def register_pair_of_spatial_images(
                    xim1, xim2,
                    transform_key=None,
                    registration_binning=None,
-                   use_only_overlap_region=True,
+                   use_only_overlap_region=False,
                    ) -> dict:
     """
     Register input spatial images. Assume there's no C and T.
@@ -90,47 +90,92 @@ def register_pair_of_spatial_images(
     spacing = _spatial_image_utils.get_spacing_from_xim(xim1, asarray=True)
     ndim = len(spatial_dims)
 
-    overlap_area, coords = _mv_graph.get_overlap_between_pair_of_xims(
-        xim1, xim2, transform_key=transform_key)
+    if use_only_overlap_region:
+        overlap_area, coords = _mv_graph.get_overlap_between_pair_of_xims(
+            xim1, xim2, transform_key=transform_key)
 
-    overlap_xims = [xim.sel({
-        dim: slice(coords[0][dim], coords[1][dim])
-        # dim: (xim.coords[dim] > coords[ixim][idim]) *  (xim.coords[dim] > coords[ixim][idim])
-            for dim in spatial_dims})
-                for xim in [xim1, xim2]]
+        overlap_xims = [xim.sel({
+            dim: slice(coords[0][dim], coords[1][dim])
+            # dim: (xim.coords[dim] > coords[ixim][idim]) *  (xim.coords[dim] > coords[ixim][idim])
+                for dim in spatial_dims})
+                    for xim in [xim1, xim2]]
+        reg_xims = overlap_xims
+    else:
+        reg_xims = [xim1, xim2]
 
     if registration_binning is None:
-        registration_binning = get_optimal_registration_binning(overlap_xims[0], overlap_xims[1])
+        registration_binning = get_optimal_registration_binning(reg_xims[0], reg_xims[1])
 
-    if registration_binning is not None or min(registration_binning) > 1:
-        overlap_xims_b = [xim.coarsen(registration_binning,
-                                boundary="trim").mean().astype(xim.dtype) for xim in overlap_xims]
+    if registration_binning is not None and min(registration_binning.values()) > 1:
+        reg_xims_b = [xim.coarsen(registration_binning,
+                                boundary="trim").mean().astype(xim.dtype) for xim in reg_xims]
     else:
-        overlap_xims_b = overlap_xims
+        reg_xims_b = reg_xims
 
-    for i in range(2):
-        overlap_xims_b[i].data = da.from_delayed(
-            delayed(skimage.exposure.equalize_adapthist)(
-                overlap_xims_b[i].data, kernel_size=10, clip_limit=0.02, nbins=2 ** 13),
-            shape=overlap_xims_b[i].shape, dtype=float)
+    # # CLAHE
+    # for i in range(2):
+    #     # reg_xims_b[i].data = da.from_delayed(
+    #     #     delayed(skimage.exposure.equalize_adapthist)(
+    #     #         reg_xims_b[i].data, kernel_size=10, clip_limit=0.02, nbins=2 ** 13),
+    #     #     shape=reg_xims_b[i].shape, dtype=float)
 
-    # trim to strictly the same shape
-    # (seems there can be a 1 pixel difference)
-    reg_shape = np.min([[xim.shape[idim] for idim in range(ndim)]
-                         for xim in overlap_xims_b], 0)
+    #     reg_xims_b[i].data = da.map_overlap(
+    #         skimage.exposure.equalize_adapthist,
+    #         reg_xims_b[i].data,
+    #         kernel_size=10,
+    #         clip_limit=0.02,
+    #         nbins=2 ** 13,
+    #         depth={idim: 10 for idim, k in enumerate(spatial_dims)},
+    #         dtype=float
+    #         )
 
-    overlap_xims_b = [xim[tuple([slice(reg_shape[idim]) for idim in range(ndim)])]
-                         for xim in overlap_xims_b]
+    # get images into the same physical space (that of xim1)
+
+    ndim = _spatial_image_utils.get_ndim_from_xim(reg_xims_b[0])
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(reg_xims_b[0])
+    affines = [xim.attrs['transforms'][transform_key].squeeze().data for xim in reg_xims_b]
+    transf_affine = np.matmul(np.linalg.inv(affines[1]), affines[0])
+
+    corners = np.concatenate([_mv_graph.get_faces_from_xim(xim, transform_key=transform_key).reshape(-1, ndim)
+                            for xim in reg_xims_b], axis=0)
+
+    corners = np.hstack((corners, np.ones((corners.shape[0], 1), dtype=corners.dtype)))
+    corners_xim1_phys = np.matmul(np.linalg.inv(affines[0]), corners.T).T[:,:ndim]
+
+    lower, upper = np.min(corners_xim1_phys, axis=0), np.max(corners_xim1_phys, axis=0)
+
+    spacing = _spatial_image_utils.get_spacing_from_xim(reg_xims_b[0], asarray=True)
+
+    reg_xims_b_t = [_transformation.transform_xim(
+        xim,
+        [None, transf_affine][ixim],
+        output_origin=lower,
+        output_spacing=spacing,
+        output_shape=np.ceil(np.array(upper-lower) / spacing).astype(np.uint16),
+    ) for ixim, xim in enumerate(reg_xims_b)]
+
+    # # trim to strictly the same shape
+    # # (seems there can be a 1 pixel difference)
+    # reg_shape = np.min([[xim.shape[idim] for idim in range(ndim)]
+    #                     for xim in overlap_xims_b], 0)
+
+    # overlap_xims_b = [xim[tuple([slice(reg_shape[idim]) for idim in range(ndim)])]
+    #                     for xim in overlap_xims_b]
 
     param = da.from_delayed(delayed(skimage.registration.phase_cross_correlation)(
-            overlap_xims_b[0].data,
-            overlap_xims_b[1].data,
-            upsample_factor=10,
+            reg_xims_b_t[0].data,
+            reg_xims_b_t[1].data,
+            upsample_factor=1,
+            # upsample_factor=10,
             normalization=None)[0], shape=(ndim, ), dtype=float)
 
-    param = - param * spacing * np.array([registration_binning[dim] for dim in spatial_dims])
+    param = - param * spacing# * np.array([registration_binning[dim] for dim in spatial_dims])
 
-    param = _utils.shift_to_matrix(param)
+    displ_endpts = [np.zeros(ndim), param]
+    pt_world = [np.dot(affines[0], np.concatenate([pt, np.ones(1)]))[:ndim] for pt in displ_endpts]
+    displ_world = pt_world[1] - pt_world[0]
+
+    param = _utils.shift_to_matrix(-displ_world)
 
     param = get_xparam_from_param(param)
 
@@ -148,8 +193,10 @@ def register_pair_of_xims(xim1, xim2,
     xim2 = _spatial_image_utils.ensure_time_dim(xim2)
     
     xp = xr.concat([register_pair_of_spatial_images(
-            xim1.sel(t=t),
-            xim2.sel(t=t),
+            # xim1.sel(t=t),
+            # xim2.sel(t=t),
+            _spatial_image_utils.xim_sel_coords(xim1, {'t': t}),
+            _spatial_image_utils.xim_sel_coords(xim2, {'t': t}),
             transform_key=transform_key,
             registration_binning=registration_binning)
                 for t in xim1.coords['t'].values], dim='t')
@@ -259,13 +306,13 @@ def get_node_params_from_reg_graph(g_reg):
     return g_reg
 
 
-def register(xims, reg_channel_index=0, transform_key=None):
+def register(xims, reg_channel_index=0, transform_key=None, registration_binning=None):
 
     xims = [xim.sel(c=xim.coords['c'][reg_channel_index]) for xim in xims]
 
     g = _mv_graph.build_view_adjacency_graph_from_xims(xims, transform_key=transform_key)
 
-    g_reg = get_registration_graph_from_overlap_graph(g)
+    g_reg = get_registration_graph_from_overlap_graph(g, registration_binning=registration_binning, transform_key=transform_key)
 
     if not len(g_reg.edges):
         raise(Exception('No overlap between views for stitching. Consider stabilizing the tiles instead.'))

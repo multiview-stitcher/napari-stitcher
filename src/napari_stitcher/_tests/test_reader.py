@@ -37,8 +37,3 @@ def test_reader():
 
     # make sure it's the same as it started
     # np.testing.assert_allclose(original_data, layer_data_tuple[0])
-
-
-# def test_get_reader_pass():
-#     reader = napari_get_reader("fake.file")
-#     assert reader is None

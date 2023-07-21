@@ -76,8 +76,8 @@ def save_xim_as_tif(path, xim):
     xim = xim.squeeze(drop=True)
 
     # imagej needs Z to come before C
-    # if 'z' in xim.dims and 'c' in xim.dims:
-    if 'z' in xim.dims:
+    if 'z' in xim.dims and 'c' in xim.dims:
+    # if 'z' in xim.dims:
         axes = list(xim.dims)
         zpos = axes.index('z')
         cpos = axes.index('c')
@@ -92,10 +92,10 @@ def save_xim_as_tif(path, xim):
         shape=xim.shape,
         dtype=xim.dtype,
         imagej=True,
-        resolution=tuple([1. / s for s in spacing]),
+        # resolution=tuple([1. / s for s in spacing]),
         metadata={
             'axes': axes,
-            'unit': 'um',
+            # 'unit': 'um',
             'Labels': channels,
             }
     )

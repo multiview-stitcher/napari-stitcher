@@ -121,7 +121,16 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
             {'c': ['channel ' + str(c) for c in range(N_c)]},
         )
 
-        xim.attrs[transform_key] = shift_to_matrix(origin)
+        # xim.attrs[transform_key] = shift_to_matrix(origin)
+
+        affine = shift_to_matrix(origin)
+        
+        affine_xr = xr.DataArray(np.stack([affine] * len(xim.coords['t'])),
+                                 dims=['t', 'x_in', 'x_out'])
+        
+        xim.attrs['transforms'] = xr.Dataset(
+            {'affine_metadata': affine_xr}
+        )
 
         xims.append(xim)
     

@@ -92,3 +92,19 @@ def shift_to_matrix(shift):
     M = np.concatenate([np.eye(ndim + 1)[:,:ndim], M[:,None]], axis=1)
     return M
 
+
+def matmul_xparams(xparams1, xparams2):
+    return xr.apply_ufunc(np.matmul,
+        xparams1,
+        xparams2,
+        input_core_dims=[['x_in', 'x_out']]*2,
+        output_core_dims=[['x_in', 'x_out']],
+        vectorize=True)
+
+
+def invert_xparams(xparams):
+    return xr.apply_ufunc(np.linalg.inv,
+        xparams,
+        input_core_dims=[['x_in', 'x_out']],
+        output_core_dims=[['x_in', 'x_out']],
+        vectorize=True)

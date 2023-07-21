@@ -44,29 +44,6 @@ def fuse_xims(xims: list,
         {(view, 'xim'): xims[view] for view in range(len(xims))} |
         {(view, 'param'): params[view] for view in range(len(xims))},
     )
-
-    # if not len(nsdims):
-
-    #     res = fuse_field(
-    #         xims,
-    #         params,
-    #         output_origin=output_origin,
-    #         output_shape=output_shape,
-    #         output_spacing=output_spacing,
-    #         output_chunksize=output_chunksize,
-    #         interpolate_missing_pixels=interpolate_missing_pixels, 
-    #     )
-
-    # else:
-        
-    # size = [len(xims[0].coords[nsdim]) for nsdim in nsdims] + list(output_shape)
-
-    # res = xr.DataArray(da.zeros(size, dtype=xims[0].dtype),#, chunks=output_chunksize),
-    #                     dims=nsdims + sdims,
-    #                     coords={nsdim: xds.coords[nsdim] for nsdim in nsdims} |
-    #                     {sdim: np.arange(output_shape[isdim]) * output_spacing[isdim] + output_origin[isdim]
-    #                     for isdim, sdim in enumerate(sdims)},
-    #                     )
     
     merges = []
     for ns_coords in itertools.product(*tuple([xds.coords[nsdim] for nsdim in nsdims])):
