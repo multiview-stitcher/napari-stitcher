@@ -97,7 +97,8 @@ def multiscale_spatial_image_from_zarr(path):
     if ndim == 2:
         chunks = {'y': 256, 'x': 256}
     elif ndim == 3:
-        chunks = {'z': 64, 'y': 64, 'x': 64}
+        # chunks = {'z': 64, 'y': 64, 'x': 64}
+        chunks = {'z': 256, 'y': 256, 'x': 256}
 
     multiscale = datatree.open_datatree(path, engine="zarr", chunks=chunks)
 
@@ -160,7 +161,7 @@ def get_msim_from_xim(xim, scale_factors=None):
     msim = msi.to_multiscale(
         sim,
         # scale_factors=_msi_utils.get_optimal_multi_scale_factors_from_xim(view_sim),
-        # chunks=,
+        chunks=256,
         scale_factors=scale_factors,
         )
     

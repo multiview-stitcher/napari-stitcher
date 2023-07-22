@@ -428,6 +428,7 @@ def get_interpolated_image(
 def fuse(
     xims,
     params,
+    output_spacing, # dict
     tmpdir=None,
     interpolate_missing_pixels=None,
     output_chunksize=512,
@@ -442,7 +443,8 @@ def fuse(
     output_stack_properties = calc_stack_properties_from_xims_and_params(
         xims,
         params,
-        spacing=_spatial_image_utils.get_spacing_from_xim(xims[0], asarray=True)
+        # spacing=_spatial_image_utils.get_spacing_from_xim(xims[0], asarray=True)
+        spacing=np.array([output_spacing[dim] for dim in spatial_dims]),
         )
     
     xfused = fuse_xims(
