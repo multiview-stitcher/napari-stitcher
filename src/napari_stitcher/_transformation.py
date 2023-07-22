@@ -17,6 +17,7 @@ def transform_xim(
         output_spacing=None,
         output_origin=None,
         output_chunksize=64,
+        order=1,
         ):
     
     ndim = _spatial_image_utils.get_ndim_from_xim(xim)
@@ -52,7 +53,7 @@ def transform_xim(
         xim.data,
         matrix=matrix_prime,
         offset=offset_prime,
-        order=1,
+        order=order,
         output_shape=tuple(output_shape),
         output_chunks=tuple([output_chunksize for _ in output_shape]),
         mode='constant',

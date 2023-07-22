@@ -247,54 +247,54 @@ def calc_stack_properties_from_view_properties_and_params(
     """
 
     spacing = np.array(spacing).astype(float)
+    ndim = len(spacing)
 
-    vertices = get_transformed_stack_vertices(views_props, params)
+    # import pdb; pdb.set_trace()
+
+    stack_vertices = np.array([i for i in np.ndindex(tuple([2] * ndim))]).astype(float)
+
+    if mode == 'sample':
+        zero_z_face_vertices = stack_vertices[np.where(stack_vertices[:, 0]==0)]
+        zero_z_face_vertices[:, 1] = np.mean(zero_z_face_vertices[:, 1]) # take mean in x
+        transformed_vertices = get_transformed_stack_vertices(zero_z_face_vertices, views_props, params)
+        volume = (np.min(transformed_vertices, 0),
+                  np.max(transformed_vertices, 0)) # lower, upper
+        
+    elif mode == 'union':
+        transformed_vertices = get_transformed_stack_vertices(stack_vertices, views_props, params)
+        volume = np.min(transformed_vertices, 0), np.max(transformed_vertices, 0)
+
+    elif mode == 'intersection':
+        transformed_vertices = get_transformed_stack_vertices(stack_vertices, views_props, params)
+        volume = np.max(np.min(transformed_vertices, 1), 0), np.min(np.max(transformed_vertices, 1), 0)
 
     # if mode == 'sample':
-    #     volume = np.min(vertices,0), np.max(vertices,0) # lower, upper
-    if mode == 'union':
-        volume = np.min(vertices,0), np.max(vertices,0)
-    elif mode == 'intersection':
-        volume = np.max(np.min(vertices,1),0), np.min(np.max(vertices,1),0)
+    #     modified_vertices = vertices[np.where(generic_vertices[:, 0]==0)] # front face of each view
+    #     # modified_vertices = np.mean(modified_vertices, -1) # take mean in x
+    #     volume = (np.min(modified_vertices,0),
+    #               np.max(modified_vertices,0)) # lower, upper
+    # if mode == 'union':
+    #     volume = np.min(vertices,0), np.max(vertices,0)
+    # elif mode == 'intersection':
+    #     volume = np.max(np.min(vertices,1),0), np.min(np.max(vertices,1),0)
 
     stack_properties = calc_stack_properties_from_volume(volume, spacing)
 
     return stack_properties
 
 
-def get_transformed_stack_vertices(stack_properties_list, params):
+def get_transformed_stack_vertices(stack_keypoints, stack_properties_list, params):
 
     ndim = len(stack_properties_list[0]['spacing'])
-    generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
-    vertices = np.zeros((len(stack_properties_list)*len(generic_vertices),ndim))
+    # generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
+    vertices = np.zeros((len(stack_properties_list) * len(stack_keypoints), ndim))
     for iim, sp in enumerate(stack_properties_list):
-        tmp_vertices = generic_vertices * np.array(sp['shape']) * np.array(sp['spacing']) + np.array(sp['origin'])
+        tmp_vertices = stack_keypoints * np.array(sp['shape']) * np.array(sp['spacing']) + np.array(sp['origin'])
         inv_params = np.linalg.inv(((params[iim])))
         tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]        
-        vertices[iim*len(generic_vertices):(iim+1)*len(generic_vertices)] = tmp_vertices_transformed
+        vertices[iim*len(stack_keypoints):(iim+1)*len(stack_keypoints)] = tmp_vertices_transformed
     
     return vertices
-
-
-# def get_intersection_volume(stack_properties_list, params):
-#     """
-#     back project first planes in every view to get maximum volume
-#     """
-
-#     ndim = len(stack_properties_list[0]['spacing'])
-#     # generic_vertices = np.array([[i,j,k] for i in [0,1] for j in [0,1] for k in [0,1]])
-#     generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
-#     vertices = np.zeros((len(stack_properties_list)*len(generic_vertices),ndim))
-#     for iim, sp in enumerate(stack_properties_list):
-#         tmp_vertices = generic_vertices * np.array(sp['shape']) * np.array(sp['spacing']) + np.array(sp['origin'])
-#         inv_params = np.linalg.inv(((params[iim])))
-#         tmp_vertices_transformed = np.dot(inv_params[:ndim,:ndim], tmp_vertices.T).T + inv_params[:ndim,ndim]
-#         vertices[iim,:] = tmp_vertices_transformed
-
-#     lower = np.max(np.min(vertices,1),0)
-#     upper = np.min(np.max(vertices,1),0)
-
-#     return lower,upper
 
 
 def calc_stack_properties_from_volume(volume, spacing):
@@ -431,7 +431,7 @@ def fuse(
     output_spacing, # dict
     tmpdir=None,
     interpolate_missing_pixels=None,
-    output_chunksize=512,
+    output_chunksize=256,
     ):
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
@@ -443,8 +443,8 @@ def fuse(
     output_stack_properties = calc_stack_properties_from_xims_and_params(
         xims,
         params,
-        # spacing=_spatial_image_utils.get_spacing_from_xim(xims[0], asarray=True)
         spacing=np.array([output_spacing[dim] for dim in spatial_dims]),
+        mode='union',
         )
     
     xfused = fuse_xims(
@@ -481,26 +481,3 @@ if __name__ == "__main__":
     filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
 
     from napari_stitcher import _utils, _reader
-    # from mvregfus import io_utils, mv_utils
-
-    # xims = 
-
-    # view_dict = io_utils.build_view_dict_from_multitile_czi(filename, max_project=False)
-    # views = np.array([view for view in sorted(view_dict.keys())])
-    # pairs = mv_utils.get_registration_pairs_from_view_dict(view_dict)
-
-    # viewims = _utils.load_tiles(view_dict, [0],
-    #                 [0], max_project=False)
-    
-    # params = {0: {view: mv_utils.matrix_to_params(np.eye(len(view_dict[0]['origin'])+1)) for view in views}}
-
-    # fused_da, fusion_stack_props_d, field_stack_props_d = \
-    #     fuse_tiles(viewims, params, view_dict)
-
-    # fused = fused_da.compute()
-
-    # import tifffile
-    # tifffile.imwrite('delme1.tif', fused.astype(np.float32))
-
-    # for view in views:
-    #     tifffile.imwrite('delme_%s.tif' % view, viewims[0][0][view].compute().astype(np.float32))

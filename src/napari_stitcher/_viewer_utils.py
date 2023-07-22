@@ -172,7 +172,7 @@ def get_cmaps_from_xims(xims, n_colors=2, transform_key=None):
             if attrs["edge_val"] <= sorted_unique_vals[thresh_ind]])
         thresh_ind += 1
 
-    cmaps = ['red', 'green', 'blue', 'gray']
+    cmaps = ['red', 'green', 'blue', 'yellow']
     cmaps = {iview: cmaps[color_index % len(cmaps)]
              for iview, color_index in colors.items()}
     
