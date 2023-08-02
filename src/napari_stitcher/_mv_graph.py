@@ -373,7 +373,6 @@ def get_intersection_polyhedron_from_pair_of_xims_3D(xim1, xim2, transform_key):
 
     if min([any((f == facess[0]).all(1)) for f in facess[1]]) and\
        min([any((f == facess[1]).all(1)) for f in facess[0]]):
-        # if xim2.attrs['affine_metadata'][2][3] == 7.5:
         return cphs[0]
     else:
 

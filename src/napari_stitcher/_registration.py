@@ -162,27 +162,36 @@ def register_pair_of_spatial_images(
     # overlap_xims_b = [xim[tuple([slice(reg_shape[idim]) for idim in range(ndim)])]
     #                     for xim in overlap_xims_b]
 
-    param = da.from_delayed(delayed(skimage.registration.phase_cross_correlation)(
-            reg_xims_b_t[0].data,
-            reg_xims_b_t[1].data,
-            upsample_factor=1,
-            # upsample_factor=10,
-            normalization=None)[0], shape=(ndim, ), dtype=float)
+    shift_pc = da.from_delayed(
+        delayed(np.array)(
+        # lambda *args, **kwargs: skimage.registration.phase_cross_correlation(*args, **kwargs)[0])(
+        delayed(skimage.registration.phase_cross_correlation)(
+            delayed(lambda x: np.array(x))(reg_xims_b_t[0].data),
+            delayed(lambda x: np.array(x))(reg_xims_b_t[1].data),
+            # reg_xims_b_t[0].data,
+            # reg_xims_b_t[1].data,
+            upsample_factor=(10 if ndim==2 else 2),
+            disambiguate=True,
+            normalization='phase',
+            )[0]), shape=(ndim, ), dtype=float)
 
-    param = - param * spacing# * np.array([registration_binning[dim] for dim in spatial_dims])
+    # skimage.registration.phase_cross_correlation(np.array(reg_xims_b_t[0].data), np.array(reg_xims_b_t[1].data), disambiguate=True, normalization=None)
+    # import pdb; pdb.set_trace()
 
-    displ_endpts = [np.zeros(ndim), param]
+    shift = - shift_pc * spacing# * np.array([registration_binning[dim] for dim in spatial_dims])
+
+    displ_endpts = [np.zeros(ndim), shift]
     pt_world = [np.dot(affines[0], np.concatenate([pt, np.ones(1)]))[:ndim] for pt in displ_endpts]
     displ_world = pt_world[1] - pt_world[0]
 
     param = _utils.shift_to_matrix(-displ_world)
 
-    param = get_xparam_from_param(param)
+    xparam = get_xparam_from_param(param)
 
-    return param
+    return xparam
 
 
-def register_pair_of_xims(xim1, xim2,
+def register_pair_of_xims_over_time(xim1, xim2,
                           registration_binning=None,
                           transform_key=None):
     """
@@ -193,8 +202,6 @@ def register_pair_of_xims(xim1, xim2,
     xim2 = _spatial_image_utils.ensure_time_dim(xim2)
     
     xp = xr.concat([register_pair_of_spatial_images(
-            # xim1.sel(t=t),
-            # xim2.sel(t=t),
             _spatial_image_utils.xim_sel_coords(xim1, {'t': t}),
             _spatial_image_utils.xim_sel_coords(xim2, {'t': t}),
             transform_key=transform_key,
@@ -235,7 +242,7 @@ def get_registration_graph_from_overlap_graph(
             pair = (sp[i], sp[i + 1])
 
             g_reg.edges[(pair[0], pair[1])]['transform'] = \
-                (register_pair_of_xims)(
+                (register_pair_of_xims_over_time)(
                     g.nodes[pair[0]]['xim'],
                     g.nodes[pair[1]]['xim'],
                     registration_binning=registration_binning,

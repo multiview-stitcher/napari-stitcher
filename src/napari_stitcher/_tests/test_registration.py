@@ -4,6 +4,8 @@ import xarray as xr
 
 from scipy import ndimage
 
+from napari_stitcher._reader import READER_METADATA_TRANSFORM_KEY
+
 from napari_stitcher import _registration, _sample_data, _spatial_image_utils, _reader, _mv_graph
 
 import pytest
@@ -11,29 +13,34 @@ import pytest
 
 def test_pairwise():
 
-    layers = _sample_data.make_sample_data()
+    # layers = _sample_data.make_sample_data()
+    # xims = [l[0] for l in layers]
 
-    xims = [l[0] for l in layers]
+    example_data_path = _sample_data.get_sample_data_path()
+    xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(example_data_path)
 
-    xims = [xim.sel(t=xim.coords['t'][0]) for xim in xims]
+    xims = [_spatial_image_utils.xim_sel_coords(xim,
+                {
+                    # 't': xim.coords['t'][0],
+                    'c': xim.coords['c'][0],
+                    })
+
+            for xim in xims]
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
 
-    pd = _registration.register_pair_of_spatial_images(xims[0], xims[1],
-            registration_binning={dim: 4 for dim in spatial_dims},
+    pd = _registration.register_pair_of_xims_over_time(xims[0], xims[1],
+            registration_binning={dim: 1 for dim in spatial_dims},
+            transform_key='affine_metadata',
     )
-            # registration_binning=[4] * 2,)
 
-    p = pd.compute(scheduler='single-threaded')
-    # p = pd
+    # p = pd.compute(scheduler='single-threaded')
+    p = pd.compute()
 
-    assert np.allclose(p,
-        # np.array([[1.        , 0.        , 1.73333333],
-        #           [0.        , 1.        , 7.36666667],
-        #           [0.        , 0.        , 1.        ]]))
-        np.array([[1.        , 0.        , 1.73333333],
-                  [0.        , 1.        , 7.36666667],
-                  [0.        , 0.        , 1.        ]]))
+    assert np.allclose(p.sel(t=0),
+        np.array([[ 1.        ,  0.        , -1.95      ],
+                  [ 0.        ,  1.        , -7.58333333],
+                  [ 0.        ,  0.        ,  1.        ]]))
     
 
 @pytest.mark.parametrize(
@@ -46,7 +53,8 @@ def test_register_with_single_pixel_overlap(ndim):
             tile_size=10, tiles_x=1, tiles_y=2, tiles_z=1,
             spacing_x=1, spacing_y=1, spacing_z=1)
     
-    _registration.register_pair_of_spatial_images(xims[0], xims[1])
+    # _registration.register_pair_of_spatial_images(xims[0], xims[1])
+    _registration.register_pair_of_xims_over_time(xims[0], xims[1])
 
 
 def test_register_graph():

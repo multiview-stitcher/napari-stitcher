@@ -3,9 +3,23 @@ import networkx as nx
 
 from natsort import natsorted
 
+import multiscale_spatial_image as msi
+
 from napari_stitcher import _mv_graph, _spatial_image_utils, _msi_utils
 
 from napari.experimental import link_layers
+
+
+def image_layer_to_msim(l):
+
+    if l.multiscale:
+        msim = msi.MultiscaleSpatialImage()
+        for ixim, xim in enumerate(l.data):
+            msi.MultiscaleSpatialImage(name='scale%s' %ixim, data=xim, parent=msim)
+        return msim
+    else:
+        raise(Exception('Napari image layer not supported.'))
+
 
 def add_image_layer_tuples_to_viewer(viewer, lds, do_link_layers=False):
     """

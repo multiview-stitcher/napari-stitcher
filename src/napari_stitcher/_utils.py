@@ -69,7 +69,6 @@ def get_view_from_layer(layer):
 def filter_layers(layers, xims, view=None, ch=None):
     for l in layers:
         if view is not None and get_str_unique_to_view_from_layer_name(l.name) != view: continue
-        # if ch is not None and get_str_unique_to_ch_from_layer_name(l.name) != ch: continue
         if ch is not None and get_str_unique_to_ch_from_xim_coords(xims[l.name].coords) != ch: continue
         yield l
 

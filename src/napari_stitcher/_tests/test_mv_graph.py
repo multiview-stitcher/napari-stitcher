@@ -1,5 +1,7 @@
 import numpy as np
 
+from napari_stitcher._reader import READER_METADATA_TRANSFORM_KEY
+
 from napari_stitcher import _mv_graph, _sample_data, _reader, _spatial_image_utils
 
 import pytest
@@ -25,7 +27,8 @@ def test_overlap(ndim, overlap):
     overlap_areas = []
     for ixim1, xim1 in enumerate(xims):
         for ixim2, xim2 in enumerate(xims):
-            overlap_area, _ = _mv_graph.get_overlap_between_pair_of_xims(xim1, xim2, transform_key='affine_metadata')
+            overlap_area, _ = _mv_graph.get_overlap_between_pair_of_xims(
+                xim1, xim2, transform_key=READER_METADATA_TRANSFORM_KEY)
             overlap_areas.append(overlap_area)
 
     overlap_areas = np.array(overlap_areas).reshape((len(xims), len(xims)))
@@ -86,7 +89,7 @@ def test_get_intersection_polygon_from_pair_of_xims_2D():
     
     intersection_polygon = _mv_graph.get_intersection_polygon_from_pair_of_xims_2D(
         view_xims[0], view_xims[1],
-        transform_key='affine_metadata')
+        transform_key=READER_METADATA_TRANSFORM_KEY)
     
     assert(intersection_polygon.area() > 0)
 

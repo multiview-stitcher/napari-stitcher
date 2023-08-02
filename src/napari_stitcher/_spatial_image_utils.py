@@ -1,6 +1,9 @@
 import numpy as np
 import xarray as xr
 import transformations as tfs
+import copy
+
+import spatial_image as si
 
 
 SPATIAL_DIMS = ['z', 'y', 'x']
@@ -131,10 +134,45 @@ def get_spacing_from_xim(xim, asarray=False):
     return spacing
 
 
-def ensure_time_dim(xim):
-    if 't' not in xim.dims:
-        xim = xim.expand_dims(['t'])
-    return xim
+# def ensure_time_dim(xim):
+#     if 't' not in xim.dims:
+#         xim = xim.expand_dims(['t'])
+#     return xim
+
+
+def ensure_time_dim(sim):
+
+    if 't' in sim.dims:
+        return sim
+    else:
+        xim = sim.expand_dims(['t'], axis=0)
+    
+    sim = get_sim_from_xim(xim)
+
+    # sim.attrs = sim.attrs.update(copy.deepcopy(xim.attrs))
+    sim.attrs.update(copy.deepcopy(xim.attrs))
+    
+    return sim
+
+
+def get_sim_from_xim(xim):
+
+    spacing = get_spacing_from_xim(xim)
+    origin = get_origin_from_xim(xim)
+
+    sim = si.to_spatial_image(
+        xim,
+        dims = xim.dims,
+        scale=spacing,
+        translation=origin,
+        t_coords=xim.coords['t'] if 't' in xim.dims else None,
+        c_coords=xim.coords['c'] if 'c' in xim.dims else None,
+    )
+
+    # sim.attrs = sim.attrs.update(copy.deepcopy(xim.attrs))
+    sim.attrs.update(copy.deepcopy(xim.attrs))
+
+    return sim
 
 
 def get_ndim_from_xim(xim):

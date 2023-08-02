@@ -15,9 +15,10 @@ from scipy import ndimage
 
 from pathlib import Path
 
-from napari_stitcher._reader import read_mosaic_czi
+from napari_stitcher._reader import read_mosaic_czi, READER_METADATA_TRANSFORM_KEY
 from napari_stitcher._viewer_utils import create_image_layer_tuples_from_msims
 from napari_stitcher._utils import shift_to_matrix
+from napari_stitcher import _spatial_image_utils, _msi_utils
 
 
 def get_sample_data_path():
@@ -46,7 +47,7 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
                            overlap=5, zoom=6, dtype=np.uint16,
                            spacing_x=0.5, spacing_y=0.5, spacing_z=2.,
                            shift_scale=2., drift_scale=2.,
-                           transform_key='affine_metadata'):
+                           transform_key=READER_METADATA_TRANSFORM_KEY):
 
     def transform_input(x, shifts, drifts, im_gt, overlap=0, zoom=10., block_info=None):
 
@@ -59,16 +60,10 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
         
         eff_shape = output_shape - overlap
         offset = np.array(block_info[None]['chunk-location'][1:]) * eff_shape
-        # offset = offset - overlap * (np.array(block_info[None]['chunk-location'][1:]) > 0)
 
         offset = offset + drift + shift
 
-        # print("eff_shape", eff_shape)
-        # print(block_info[0]['chunk-location'], offset)
-
         offset = offset / zoom
-
-        # print("output_shape", output_shape)
                 
         x = ndimage.affine_transform(im_gt,
                                     matrix=np.eye(x.ndim) / zoom,
@@ -109,8 +104,6 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
         tile_index = np.array(tile_index)
         tile = tls.blocks[tuple([slice(0, N_c), slice(0, N_t)] + \
                                 [slice(ti, ti+1) for ti in tile_index])]
-        # tile = tile.rechunk((1, 1) + tuple([1 if dim=='z' else 256 for dim in spatial_dims]))
-        # origin = tile_index * tile_size * spacing - overlap * (1 + tile_index)
         origin = tile_index * tile_size * spacing - overlap * (tile_index) * spacing
         xim = xr.DataArray(
             tile,
@@ -121,15 +114,13 @@ def generate_tiled_dataset(ndim=2, N_c=2, N_t=20,
             {'c': ['channel ' + str(c) for c in range(N_c)]},
         )
 
-        # xim.attrs[transform_key] = shift_to_matrix(origin)
-
         affine = shift_to_matrix(origin)
         
         affine_xr = xr.DataArray(np.stack([affine] * len(xim.coords['t'])),
                                  dims=['t', 'x_in', 'x_out'])
         
         xim.attrs['transforms'] = xr.Dataset(
-            {'affine_metadata': affine_xr}
+            {transform_key: affine_xr}
         )
 
         xims.append(xim)
@@ -144,9 +135,11 @@ def drifting_timelapse_with_stage_shifts_no_overlap_2d():
         tile_size=30, tiles_x=3, tiles_y=3, tiles_z=1,
         drift_scale=2., shift_scale=2.,
         overlap=0, zoom=8, dtype=np.uint8)
+    
+    msims = [_msi_utils.get_msim_from_xim(xim) for xim in xims]
 
-    layer_tuples = create_image_layer_tuples_from_xims(
-        xims, transform_key='affine_metadata')
+    layer_tuples = create_image_layer_tuples_from_msims(
+        msims, transform_key=READER_METADATA_TRANSFORM_KEY)
 
     return layer_tuples
 
@@ -159,8 +152,10 @@ def timelapse_with_stage_shifts_with_overlap_3d():
         drift_scale=0., shift_scale=2.,
         overlap=3, zoom=8, dtype=np.uint8)
     
-    layer_tuples = create_image_layer_tuples_from_xims(
-        xims, transform_key='affine_metadata')
+    msims = [_msi_utils.get_msim_from_xim(xim) for xim in xims]
+
+    layer_tuples = create_image_layer_tuples_from_msims(
+        msims, transform_key=READER_METADATA_TRANSFORM_KEY)
 
     return layer_tuples
 

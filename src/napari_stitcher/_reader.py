@@ -8,13 +8,16 @@ https://napari.org/stable/plugins/guides.html?#readers
 import numpy as np
 import xarray as xr
 
-# from aicspylibczi import CziFile
 from aicsimageio import AICSImage
+import tifffile
 
 import spatial_image as si
-import multiscale_spatial_image as msi
+# import multiscale_spatial_image as msi
 
 from napari_stitcher import _spatial_image_utils, _viewer_utils, _utils, _msi_utils
+
+
+READER_METADATA_TRANSFORM_KEY = 'affine_metadata'
 
 
 def napari_get_reader(path):
@@ -83,6 +86,9 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
     xim = _spatial_image_utils.ensure_time_dim(xim)
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
+    # ndim = _spatial_image_utils.get_ndim_from_xim(xim)
+    # spacing = _spatial_image_utils.get_spacing_from_xim(xim)
+    # origin = _spatial_image_utils.get_origin_from_xim(xim)
 
     views = range(len(xim.coords['m']))
     
@@ -93,10 +99,12 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
     if 'z' in spatial_dims:
         pixel_sizes['z'] = aicsim.physical_pixel_sizes.Z
         
-    view_xims = []
+    view_sims = []
     for iview, view in enumerate(views):
 
         view_xim = xim.sel(m=view)
+
+        view_sim = _spatial_image_utils.get_sim_from_xim(view_xim)
 
         tile_mosaic_position = aicsim.get_mosaic_tile_position(view)
         origin_values = {mosaic_axis: tile_mosaic_position[ima] * pixel_sizes[mosaic_axis]
@@ -108,21 +116,20 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
         affine = _utils.shift_to_matrix(
             np.array([origin_values[dim] for dim in spatial_dims]))
         
-        affine_xr = xr.DataArray(np.stack([affine] * len(view_xim.coords['t'])),
+        affine_xr = xr.DataArray(np.stack([affine] * len(view_sim.coords['t'])),
                                  dims=['t', 'x_in', 'x_out'])
         
-        view_xim.attrs['transforms'] = xr.Dataset(
-            {'affine_metadata': affine_xr}
+        view_sim.attrs['transforms'] = xr.Dataset(
+            {READER_METADATA_TRANSFORM_KEY: affine_xr}
         )
 
-        view_xim.name = str(view)
+        view_sim.name = str(iview)
 
-        view_xims.append(view_xim)
+        view_sims.append(view_sim)
 
-    return view_xims
+    return view_sims
 
 
-import tifffile
 def read_tiff_into_spatial_xarray(
         filename,
         scale=None, translation=None,
@@ -134,8 +141,6 @@ def read_tiff_into_spatial_xarray(
 
     if translation is None:
         translation = {ax: 0 for ax in ['z', 'y', 'x']}
-
-    # im = tifffile.imread(filename)
 
     aicsimage = AICSImage(filename)
     xim = aicsimage.get_xarray_dask_stack().squeeze(drop=True)
@@ -165,7 +170,7 @@ def read_tiff_into_spatial_xarray(
         dims=['t', 'x_in', 'x_out'])
     
     sim.attrs['transforms'] = xr.Dataset(
-        {'affine_metadata': affine_xr}
+        {READER_METADATA_TRANSFORM_KEY: affine_xr}
     )
 
     return sim
@@ -208,7 +213,9 @@ def read_mosaic_czi(path, scene_index=None):
     xims = read_mosaic_image_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
     msims = [_msi_utils.get_msim_from_xim(xim) for xim in xims]
 
-    out_layers = _viewer_utils.create_image_layer_tuples_from_msims(msims, transform_key='affine_metadata')
+    out_layers = _viewer_utils.create_image_layer_tuples_from_msims(
+        msims,
+        transform_key=READER_METADATA_TRANSFORM_KEY)
 
     return out_layers
 
@@ -228,7 +235,6 @@ if __name__ == "__main__":
 
     # xims = read_mosaic_image_into_list_of_spatial_xarrays(filename, scene_index=0)
     # msims =[_msi_utils.get_msim_from_xim(xim) for xim in xims]
-    # lds = _viewer_utils.create_image_layer_tuples_from_msims(msims, transform_key='affine_metadata')
 
     viewer = napari.Viewer()
     viewer.open(filename, scene_index=0)

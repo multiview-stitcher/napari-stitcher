@@ -21,7 +21,7 @@ from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget
 # from mvregfus import mv_utils
 
 from napari_stitcher import _utils, _registration, _fusion,\
-    _mv_graph, _spatial_image_utils, _viewer_utils
+    _mv_graph, _spatial_image_utils, _viewer_utils, _msi_utils
 
 if TYPE_CHECKING:
     import napari
@@ -123,7 +123,7 @@ class StitcherQWidget(QWidget):
 
         # initialize registration parameter dict
         self.input_layers= []
-        self.xims = {}
+        self.msims = {}
         self.fused_layers = []
         self.params = dict()
 
@@ -148,12 +148,13 @@ class StitcherQWidget(QWidget):
 
         if not len(self.params): return
 
-        reference_xim = self.xims[self.input_layers[0].name]
+        reference_xim = _msi_utils.get_xim_from_msim(self.msims[self.input_layers[0].name])
         spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(reference_xim)
 
         for l in self.input_layers:
 
-            layer_xim = self.xims[l.name]
+            # layer_xim = self.msims[l.name]
+            layer_xim = _msi_utils.get_xim_from_msim(self.msims[l.name])
 
             ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(layer_xim))
 
@@ -208,10 +209,12 @@ class StitcherQWidget(QWidget):
 
     def run_stabilization(self):
 
-        layers = list(_utils.filter_layers(self.input_layers, self.xims,
-                                      ch=self.reg_ch_picker.value))
+        layers = list(_utils.filter_layers(
+            self.input_layers,
+            {lname: _msi_utils.get_xim_from_msim(msim) for lname, msim in self.msims.items()},
+            ch=self.reg_ch_picker.value))
 
-        xims = [self.xims[l.name] for l in layers]
+        xims = [_msi_utils.get_xim_from_msim(self.msims[l.name]) for l in layers]
 
         times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
 
@@ -242,19 +245,30 @@ class StitcherQWidget(QWidget):
 
     def run_stitching(self):
 
-        layers = list(_utils.filter_layers(self.input_layers, self.xims,
+        layers = list(_utils.filter_layers(self.input_layers, self.msims,
                                       ch=self.reg_ch_picker.value))
 
-        xims = [self.xims[l.name] for l in layers]
+        msims = [msim for lname, msim in self.msims
+                 if self.reg_ch_picker.value in _msi_utils.get_xim_from_msim(msim).coords['c']]
+
+        sims = [_msi_utils.get_xim_from_msim(msim) for msim in msims]
 
         # restrict timepoints
-        xims = [x.sel(t=[x.coords['t'][it]
+        _spatial_image_utils.xim_sel_coords()
+
+        sims = [_spatial_image_utils.xim_sel_coords(sim,
+                {'t': [sim.coords['t'][it]
                          for it in range(self.times_slider.value[0] + 1,
-                                         self.times_slider.value[1] + 1)])
-                                         for x in xims]
+                                         self.times_slider.value[1] + 1)]})
+                  for sim in sims]
+
+        # xims = [x.sel(t=[x.coords['t'][it]
+        #                  for it in range(self.times_slider.value[0] + 1,
+        #                                  self.times_slider.value[1] + 1)])
+        #                                  for x in xims]
 
         # calculate overlap graph with overlap as edge attributes
-        g = _mv_graph.build_view_adjacency_graph_from_xims(xims)
+        g = _mv_graph.build_view_adjacency_graph_from_xims(sims)
 
         g_reg = _registration.get_registration_graph_from_overlap_graph(g)
 
@@ -295,8 +309,9 @@ class StitcherQWidget(QWidget):
         Split layers into channel groups and fuse each group separately.
         """
 
-        layer_chs = [_utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
-                    for l_name, xim in self.xims.items()]
+        layer_chs = [_utils.get_str_unique_to_ch_from_xim_coords(
+            _msi_utils.get_xim_from_msim(msim).coords)
+                    for l_name, msim in self.msims.items()]
         
         channels = np.unique(layer_chs)
 
@@ -304,9 +319,9 @@ class StitcherQWidget(QWidget):
 
         for ch in channels:
 
-            layers_to_fuse = list(_utils.filter_layers(self.input_layers, self.xims, ch=ch))
+            layers_to_fuse = list(_utils.filter_layers(self.input_layers, self.msims, ch=ch))
 
-            xims_to_fuse = [self.xims[l.name] for l in layers_to_fuse]
+            xims_to_fuse = [self.msims[l.name] for l in layers_to_fuse]
 
             # restrict timepoints
             xims_to_fuse = [xim.sel(t=[xim.coords['t'][it]
@@ -341,7 +356,7 @@ class StitcherQWidget(QWidget):
 
     def reset(self):
             
-            self.xims = {}
+            self.msims = {}
             self.params = dict()
             self.reg_ch_picker.choices = ()
             self.visualization_type_rbuttons.value = CHOICE_METADATA
@@ -350,10 +365,12 @@ class StitcherQWidget(QWidget):
             self.input_layers = []
             self.fused_layers = []
 
+
     def load_metadata(self):
         
-        reference_xim = self.xims[self.input_layers[0].name]
-
+        # reference_xim = self.msims[self.input_layers[0].name]
+        reference_xim = _msi_utils.get_xim_from_msim(self.msims[self.input_layers[0].name])
+        
         # assume dims are the same for all layers
         if 't' in reference_xim.dims:
             self.times_slider.enabled = True
@@ -366,8 +383,8 @@ class StitcherQWidget(QWidget):
         if 'c' in reference_xim.coords.keys():
             self.reg_ch_picker.enabled = True
             self.reg_ch_picker.choices = np.unique([
-                _utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
-                for l_name, xim in self.xims.items()])
+                _utils.get_str_unique_to_ch_from_xim_coords(_msi_utils.get_xim_from_msim(msim).coords)
+                for l_name, msim in self.msims.items()])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
         from collections.abc import Iterable
@@ -410,23 +427,26 @@ class StitcherQWidget(QWidget):
 
         # load in layers as xims
         for l in layers:
-            xim = l.data
-            try:
-                len(xim.coords['c'])
+
+            msim = _viewer_utils.image_layer_to_msim()
+
+            # xim = l.data
+            # try:
+            #     len(xim.coords['c'])
+            if 'c' in msim['scale0/image'].dims:
                 notifications.notification_manager.receive_info(
                     "Layer '%s' has more than one channel.Consider splitting the stack (right click on layer -> 'Split Stack')." %l.name
                 )
                 self.layers_selection.choices = []
                 self.reset()
                 return
-            except:
-                pass
-            xim = _spatial_image_utils.ensure_time_dim(xim)
-            xim.attrs['layer_name'] = l.name
-            self.xims[l.name] = xim
+            
+            msim = _msi_utils.ensure_time_dim(msim)
+            msim.attrs['layer_name'] = l.name
+            self.msims[l.name] = msim
 
         number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
-                                            for l_name, xim in self.xims.items()]))
+                                            for l_name, xim in self.msims.items()]))
         
         if len(layers) and number_of_channels > 1:
             self.link_channel_layers(layers)
@@ -439,11 +459,12 @@ class StitcherQWidget(QWidget):
         # link channel layers
         from napari.experimental import link_layers
 
-        xims = [self.xims[l.name] for l in layers]
+        msims = [self.msims[l.name] for l in layers]
+        sims = [_msi_utils.get_sim_from_msim(msim) for msim in msims]
 
-        channels = [_utils.get_str_unique_to_ch_from_xim_coords(xim.coords) for xim in xims]
+        channels = [_utils.get_str_unique_to_ch_from_xim_coords(sim.coords) for sim in sims]
         for ch in channels:
-            ch_layers = list(_utils.filter_layers(layers, self.xims, ch=ch))
+            ch_layers = list(_utils.filter_layers(layers, self.msims, ch=ch))
 
             if len(ch_layers):
                 link_layers(ch_layers, ('contrast_limits', 'visible'))

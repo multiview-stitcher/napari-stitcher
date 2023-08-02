@@ -1,4 +1,5 @@
 import numpy as np
+import xarray as xr
 
 import datatree
 
@@ -106,14 +107,19 @@ def multiscale_spatial_image_from_zarr(path):
 
 
 def get_optimal_multi_scale_factors_from_xim(sim):
+    """
+    This is currently simply downscaling z and xy until a minimum size is reached.
+    Probably it'd make more sense to downscale considering the dims spacing.
+    """
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(sim)
     current_shape = {dim: len(sim.coords[dim]) for dim in spatial_dims}
     factors = []
     while 1:
-        current_shape = {k: s/2 for k, s in current_shape.items()}
-        if max (current_shape.values()) < 256: break
-        factors.append({dim: 2 if current_shape[dim] >=1 else 1 for dim in current_shape})
+        curr_factors = {dim: 2 if current_shape[dim] >= 256 else 1 for dim in current_shape}
+        if max(curr_factors.values()) == 1: break
+        current_shape = {dim: int(current_shape[dim] / curr_factors[dim]) for dim in current_shape}
+        factors.append(curr_factors)
         
     return factors
 
@@ -145,6 +151,9 @@ def get_msim_from_xim(xim, scale_factors=None):
     spacing = _spatial_image_utils.get_spacing_from_xim(xim)
     origin = _spatial_image_utils.get_origin_from_xim(xim)
 
+    if 'c' in xim.dims and 't' in xim.dims:
+        xim = xim.transpose(*tuple(['t', 'c'] + [dim for dim in xim.dims if dim not in ['c', 't']]))
+
     # view_xim.name = str(view)
     sim = si.to_spatial_image(
         xim.data,
@@ -175,7 +184,6 @@ def get_msim_from_xim(xim, scale_factors=None):
     return msim
 
 
-import xarray as xr
 def set_affine_transform(msim, affine, transform_key):
 
     if not isinstance(affine, xr.DataArray):
@@ -186,3 +194,15 @@ def set_affine_transform(msim, affine, transform_key):
     scale_keys = get_sorted_scale_keys(msim)
     for sk in scale_keys:
         msim[sk][transform_key] = affine
+
+
+def ensure_time_dim(msim):
+
+    if 't' in msim['scale0/image'].dims:
+        return msim
+    
+    scale_keys = get_sorted_scale_keys(msim)
+    for sk in scale_keys:
+        msim[sk] = _spatial_image_utils.ensure_time_dim(msim[sk])
+
+    return msim
