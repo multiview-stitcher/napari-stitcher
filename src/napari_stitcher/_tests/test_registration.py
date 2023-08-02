@@ -31,7 +31,7 @@ def test_pairwise():
 
     pd = _registration.register_pair_of_xims_over_time(xims[0], xims[1],
             registration_binning={dim: 1 for dim in spatial_dims},
-            transform_key='affine_metadata',
+            transform_key=READER_METADATA_TRANSFORM_KEY,
     )
 
     # p = pd.compute(scheduler='single-threaded')
@@ -49,12 +49,18 @@ def test_pairwise():
 def test_register_with_single_pixel_overlap(ndim):
 
     xims = _sample_data.generate_tiled_dataset(
-            ndim=ndim, overlap=1, N_c=2, N_t=2,
+            ndim=ndim, overlap=1, N_c=1, N_t=2,
             tile_size=10, tiles_x=1, tiles_y=2, tiles_z=1,
             spacing_x=1, spacing_y=1, spacing_z=1)
+
+    xims = [_spatial_image_utils.xim_sel_coords(xim, {'c': xim.coords['c'][0]})
+            for xim in xims]
     
     # _registration.register_pair_of_spatial_images(xims[0], xims[1])
-    _registration.register_pair_of_xims_over_time(xims[0], xims[1])
+    p = _registration.register_pair_of_xims_over_time(
+        xims[0], xims[1],
+        transform_key=READER_METADATA_TRANSFORM_KEY,
+        )
 
 
 def test_register_graph():
@@ -64,10 +70,12 @@ def test_register_graph():
     
     view_xims = [xim.sel(c=xim.coords['c'][0]) for xim in view_xims]
     
-    g = _mv_graph.build_view_adjacency_graph_from_xims(view_xims)
+    g = _mv_graph.build_view_adjacency_graph_from_xims(
+        view_xims, transform_key=READER_METADATA_TRANSFORM_KEY)
 
     # g_pairs = _registration.get_registration_pair_graph(g)
-    g_reg = _registration.get_registration_graph_from_overlap_graph(g)
+    g_reg = _registration.get_registration_graph_from_overlap_graph(
+        g, transform_key=READER_METADATA_TRANSFORM_KEY)
 
     assert(max(['transform' in g_reg.edges[e].keys()
         for e in g_reg.edges]))

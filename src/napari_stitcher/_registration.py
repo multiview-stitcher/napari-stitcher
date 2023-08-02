@@ -23,7 +23,11 @@ def apply_recursive_dict(func, d):
     return res
 
 
-def get_optimal_registration_binning(xim1, xim2, max_total_pixels_per_stack=(400)**3):
+def get_optimal_registration_binning(
+        xim1, xim2,
+        max_total_pixels_per_stack=(400)**3,
+        use_only_overlap_region=False,
+        ):
     """
     Heuristic to find good registration binning.
 
@@ -45,9 +49,16 @@ def get_optimal_registration_binning(xim1, xim2, max_total_pixels_per_stack=(400
 
     registration_binning = {dim: 1 for dim in spatial_dims}
 
-    _, overlap_coords = _mv_graph.get_overlap_between_pair_of_xims(xim1, xim2)
-    # overlap = overlap_coords[1] - overlap_coords[0]
-    overlap = {dim: overlap_coords[1][dim] - overlap_coords[0][dim] for dim in spatial_dims}
+    if use_only_overlap_region:
+        raise(NotImplementedError("use_only_overlap_region"))
+
+        _, overlap_structure = _mv_graph.get_overlap_between_pair_of_xims(xim1, xim2)
+        # overlap = overlap_coords[1] - overlap_coords[0]
+        overlap = {dim: overlap_coords[1][dim] - overlap_coords[0][dim] for dim in spatial_dims}
+
+    # overlap = np.max([xim.shape for xim in [xim1, xim2]], axis=0)
+    overlap = {dim: max(xim1.shape[idim], xim2.shape[idim])
+               for idim, dim in enumerate(spatial_dims)}
 
     # bin coordinate with largest spacing until we're below the threshold
     # while max([np.product([o / s / b for o, s, b in zip(overlap, spacings[ixim], registration_binning)])
