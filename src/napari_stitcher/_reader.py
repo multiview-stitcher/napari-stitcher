@@ -119,9 +119,16 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
         affine_xr = xr.DataArray(np.stack([affine] * len(view_sim.coords['t'])),
                                  dims=['t', 'x_in', 'x_out'])
         
-        view_sim.attrs['transforms'] = xr.Dataset(
-            {READER_METADATA_TRANSFORM_KEY: affine_xr}
-        )
+
+        _spatial_image_utils.set_xim_affine(
+            view_sim,
+            affine_xr,
+            READER_METADATA_TRANSFORM_KEY
+            )
+
+        # view_sim.attrs['transforms'] = xr.Dataset(
+        #     {READER_METADATA_TRANSFORM_KEY: affine_xr}
+        # )
 
         view_sim.name = str(iview)
 
@@ -167,10 +174,13 @@ def read_tiff_into_spatial_xarray(
 
     affine_xr = xr.DataArray(
         np.stack([affine_transform] * len(xim.coords['t'])),
-        dims=['t', 'x_in', 'x_out'])
-    
-    sim.attrs['transforms'] = xr.Dataset(
-        {READER_METADATA_TRANSFORM_KEY: affine_xr}
+        dims=['t', 'x_in', 'x_out'],
+        coords={'t': xim.coords['t']})
+
+    _spatial_image_utils.set_xim_affine(
+        sim,
+        affine_xr,
+        READER_METADATA_TRANSFORM_KEY,
     )
 
     return sim

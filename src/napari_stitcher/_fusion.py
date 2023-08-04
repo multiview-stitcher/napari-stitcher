@@ -8,7 +8,7 @@ from dask import delayed
 from scipy import ndimage
 from dask_image import ndinterp
 
-from napari_stitcher import _spatial_image_utils
+from napari_stitcher import _spatial_image_utils, _utils
 
 
 def combine_stack_props(stack_props_list):
@@ -23,13 +23,16 @@ def combine_stack_props(stack_props_list):
     return combined_stack_props
 
 
-def fuse_xims(xims: list,
-               params: list,
-               output_origin=None,
-               output_spacing=None,
-               output_shape=None,
-               output_chunksize=512,
-               interpolate_missing_pixels=True,
+def fuse(
+        xims:list,
+        transform_key:str=None,
+        output_spacing=None,
+        output_stack_mode='union',
+        output_origin=None,
+        output_shape=None,
+        output_chunksize=512,
+        interpolate_missing_pixels=None,
+        tmpdir=None,
 ):
     
     """
@@ -39,6 +42,31 @@ def fuse_xims(xims: list,
     sdims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
     nsdims = [dim for dim in xims[0].dims
               if dim not in sdims]
+    
+    if interpolate_missing_pixels is None:
+        interpolate_missing_pixels = True if sdims == 2 else False
+
+    params = [_spatial_image_utils.get_affine_from_xim(xim, transform_key=transform_key)
+              for xim in xims]
+    
+    if output_spacing is None:
+        output_spacing = _spatial_image_utils.get_spacing_from_xim(xims[0])#, asarray=False)
+
+    if output_stack_mode is not None:
+        output_stack_properties = calc_stack_properties_from_xims_and_params(
+            xims,
+            params,
+            spacing=np.array([output_spacing[dim] for dim in sdims]),
+            mode=output_stack_mode,
+            )
+    else:
+        output_stack_properties = dict()
+
+    if output_origin is not None:
+        output_stack_properties['origin'] = output_origin
+
+    if output_shape is not None:
+        output_stack_properties['shape'] = output_shape
 
     xds = xr.Dataset(
         {(view, 'xim'): xims[view] for view in range(len(xims))} |
@@ -58,9 +86,9 @@ def fuse_xims(xims: list,
         merge = fuse_field(
             sxims,
             sparams,
-            output_origin=output_origin,
-            output_shape=output_shape,
-            output_spacing=output_spacing,
+            output_origin=output_stack_properties['origin'],
+            output_shape=output_stack_properties['shape'],
+            output_spacing=output_stack_properties['spacing'],
             output_chunksize=output_chunksize,
             interpolate_missing_pixels=interpolate_missing_pixels, 
         )
@@ -76,6 +104,21 @@ def fuse_xims(xims: list,
     else:
         res = merge
 
+    res = _spatial_image_utils.get_sim_from_xim(res)
+    _spatial_image_utils.set_xim_affine(
+        res,
+        _utils.identity_transform(len(sdims), res.coords['t'])
+        )
+
+    if not tmpdir is None:
+        res.data = da.to_zarr(
+            res.data,
+            os.path.join(tmpdir.name, res.data.name+'.zarr'),
+            return_stored=True,
+            overwrite=True,
+            compute=False,
+            )
+
     return res
 
 
@@ -89,6 +132,7 @@ def fuse_field(xims,
                ):
     """
     fuse tiles from single timepoint and channel
+    todo: use _transformations and avoid duplication
     """
 
     # views = sorted(field_ims.keys())
@@ -425,51 +469,51 @@ def get_interpolated_image(
     return interp_image
 
 
-def fuse(
-    xims,
-    params,
-    output_spacing, # dict
-    tmpdir=None,
-    interpolate_missing_pixels=None,
-    output_chunksize=256,
-    ):
+# def fuse(
+#     xims,
+#     params,
+#     output_spacing, # dict
+#     tmpdir=None,
+#     interpolate_missing_pixels=None,
+#     output_chunksize=256,
+#     ):
 
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
-    ndim = len(spatial_dims)
+#     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
+#     ndim = len(spatial_dims)
 
-    if interpolate_missing_pixels is None:
-        interpolate_missing_pixels = True if ndim == 2 else False
+#     if interpolate_missing_pixels is None:
+#         interpolate_missing_pixels = True if ndim == 2 else False
 
-    output_stack_properties = calc_stack_properties_from_xims_and_params(
-        xims,
-        params,
-        spacing=np.array([output_spacing[dim] for dim in spatial_dims]),
-        mode='union',
-        )
+#     output_stack_properties = calc_stack_properties_from_xims_and_params(
+#         xims,
+#         params,
+#         spacing=np.array([output_spacing[dim] for dim in spatial_dims]),
+#         mode='union',
+#         )
     
-    xfused = fuse_xims(
-        xims,
-        params,
-        output_origin=output_stack_properties['origin'],
-        output_spacing=output_stack_properties['spacing'],
-        output_shape=output_stack_properties['shape'],
-        output_chunksize=output_chunksize,
-        interpolate_missing_pixels=interpolate_missing_pixels,
-    )
+#     xfused = fuse_xims(
+#         xims,
+#         params,
+#         output_origin=output_stack_properties['origin'],
+#         output_spacing=output_stack_properties['spacing'],
+#         output_shape=output_stack_properties['shape'],
+#         output_chunksize=output_chunksize,
+#         interpolate_missing_pixels=interpolate_missing_pixels,
+#     )
 
-    if not tmpdir is None:
-        xfused.data = da.to_zarr(
-            xfused.data,
-            os.path.join(tmpdir.name, xfused.data.name+'.zarr'),
-            return_stored=True,
-            overwrite=True,
-            compute=True,
-            )
+#     if not tmpdir is None:
+#         xfused.data = da.to_zarr(
+#             xfused.data,
+#             os.path.join(tmpdir.name, xfused.data.name+'.zarr'),
+#             return_stored=True,
+#             overwrite=True,
+#             compute=True,
+#             )
     
-    if 'C' in xims[0].coords:
-        xfused = xfused.assign_coords(C=xims[0].coords['C'])
+#     if 'C' in xims[0].coords:
+#         xfused = xfused.assign_coords(C=xims[0].coords['C'])
     
-    return xfused
+#     return xfused
 
 
 if __name__ == "__main__":

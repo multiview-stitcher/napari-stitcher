@@ -133,3 +133,4 @@ def test_get_optimal_registration_binning():
     reg_binning = _registration.get_optimal_registration_binning(*tuple(xims))
 
     assert(min(reg_binning.values()) > 1)
+    assert(max(reg_binning.values()) < 4)

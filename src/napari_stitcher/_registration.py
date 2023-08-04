@@ -266,15 +266,6 @@ def get_registration_graph_from_overlap_graph(
     return g_reg
 
 
-def identity_transform(ndim):
-
-    params = xr.DataArray(
-        np.eye(ndim + 1),
-        dims=['x_in', 'x_out'])
-    
-    return params
-
-
 def get_node_params_from_reg_graph(g_reg):
     """
     Get final transform parameters by concatenating transforms
@@ -292,14 +283,12 @@ def get_node_params_from_reg_graph(g_reg):
         path_pairs = [[reg_path[i], reg_path[i+1]]
                       for i in range(len(reg_path) - 1)]
         
-        # path_params = identity_transform(ndim)
-
         if 't' in g_reg.nodes[n]['xim'].dims:
             path_params = xr.DataArray([np.eye(ndim + 1) for t in g_reg.nodes[n]['xim'].coords['t']],
                                         dims=['t', 'x_in', 'x_out'],
                                         coords={'t': g_reg.nodes[n]['xim'].coords['t']})
         else:
-            path_params = identity_transform(ndim)
+            path_params = _utils.identity_transform(ndim)
         
         for pair in path_pairs:
             path_params = xr.apply_ufunc(np.matmul,

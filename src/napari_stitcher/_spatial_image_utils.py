@@ -134,12 +134,6 @@ def get_spacing_from_xim(xim, asarray=False):
     return spacing
 
 
-# def ensure_time_dim(xim):
-#     if 't' not in xim.dims:
-#         xim = xim.expand_dims(['t'])
-#     return xim
-
-
 def ensure_time_dim(sim):
 
     if 't' in sim.dims:
@@ -149,7 +143,6 @@ def ensure_time_dim(sim):
     
     sim = get_sim_from_xim(xim)
 
-    # sim.attrs = sim.attrs.update(copy.deepcopy(xim.attrs))
     sim.attrs.update(copy.deepcopy(xim.attrs))
     
     return sim
@@ -169,7 +162,6 @@ def get_sim_from_xim(xim):
         c_coords=xim.coords['c'] if 'c' in xim.dims else None,
     )
 
-    # sim.attrs = sim.attrs.update(copy.deepcopy(xim.attrs))
     sim.attrs.update(copy.deepcopy(xim.attrs))
 
     return sim
@@ -181,10 +173,22 @@ def get_ndim_from_xim(xim):
 
 def get_affine_from_xim(xim, transform_key=None):
 
-    ndim = get_ndim_from_xim(xim)
-    affine = np.array(xim.attrs['transforms'][transform_key]).reshape((ndim + 1, ndim + 1))
+    # ndim = get_ndim_from_xim(xim)
+    affine = xim.attrs['transforms'][transform_key]#.reshape((ndim + 1, ndim + 1))
 
     return affine
+
+
+def set_xim_affine(xim, xaffine, transform_key=None):
+
+    # xim = copy.deepcopy(xim)
+
+    if 'transforms' not in xim.attrs.keys():
+        xim.attrs['transforms'] = dict()
+
+    xim.attrs['transforms'][transform_key] = xaffine
+
+    return
 
 
 def get_center_of_xim(xim, transform_key=None):
@@ -196,6 +200,8 @@ def get_center_of_xim(xim, transform_key=None):
     
     if transform_key is not None:
         affine = get_affine_from_xim(xim, transform_key=transform_key)
+        # affine = np.array(affine.sel(t=affine.coords['t'][0]))
+        affine = np.array(affine)
         center = np.concatenate([center, np.ones(1)])
         center = np.matmul(affine, center)[:ndim]
 

@@ -92,6 +92,21 @@ def shift_to_matrix(shift):
     return M
 
 
+def identity_transform(ndim, t_coords=None):
+
+    if t_coords is None:
+        params = xr.DataArray(
+            np.eye(ndim + 1),
+            dims=['x_in', 'x_out'])
+    else:
+        params = xr.DataArray(
+            len(t_coords) * [np.eye(ndim + 1)],
+            dims=['t', 'x_in', 'x_out'],
+            coords={'t': t_coords})
+
+    return params
+
+
 def matmul_xparams(xparams1, xparams2):
     return xr.apply_ufunc(np.matmul,
         xparams1,

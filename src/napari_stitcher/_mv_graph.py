@@ -91,9 +91,11 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=Non
     # select first time point
 
     if 't' in xim1.dims:
-        xim1 = xim1.sel(t=xim1.coords['t'][0])
+        # xim1 = xim1.sel(t=xim1.coords['t'][0])
+        xim1 = _spatial_image_utils.xim_sel_coords(xim1, {'t': xim1.coords['t'][0]})
     if 't' in xim2.dims:
-        xim2 = xim2.sel(t=xim2.coords['t'][0])
+        # xim2 = xim2.sel(t=xim2.coords['t'][0])
+        xim2 = _spatial_image_utils.xim_sel_coords(xim2, {'t': xim2.coords['t'][0]})
 
     assert(_spatial_image_utils.get_ndim_from_xim(xim1)
         == _spatial_image_utils.get_ndim_from_xim(xim2))

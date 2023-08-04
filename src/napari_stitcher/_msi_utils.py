@@ -188,7 +188,8 @@ def set_affine_transform(msim, affine, transform_key):
 
     if not isinstance(affine, xr.DataArray):
         affine = xr.DataArray(
-            np.stack([affine] * len(msim['scale0/image'].coords['t'])),
+            # np.stack([affine] * len(msim['scale0/image'].coords['t'])),
+            affine,
             dims=['t', 'x_in', 'x_out'])
 
     scale_keys = get_sorted_scale_keys(msim)
