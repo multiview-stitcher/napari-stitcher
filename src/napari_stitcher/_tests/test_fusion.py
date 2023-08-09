@@ -94,3 +94,4 @@ def test_fuse_xims():
     xfused = xfused.compute(scheduled='threads')
 
     assert(xfused.dtype == xims[0].dtype)
+    assert(READER_METADATA_TRANSFORM_KEY in _spatial_image_utils.get_tranform_keys_from_xim(xfused))

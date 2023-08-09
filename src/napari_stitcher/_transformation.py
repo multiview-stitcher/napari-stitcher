@@ -2,6 +2,8 @@ import numpy as np
 import xarray as xr
 import transformations as tfs
 
+from collections.abc import Iterable
+
 from napari_stitcher import _spatial_image_utils
 
 import dask.array as da
@@ -48,6 +50,11 @@ def transform_xim(
     offset_prime = np.dot(np.linalg.inv(Sy),
         offset - _spatial_image_utils.get_origin_from_xim(xim, asarray=True) +
         np.dot(matrix, output_origin))
+    
+    if isinstance(output_chunksize, Iterable):
+        output_chunks = output_chunksize
+    else:
+        output_chunks = tuple([output_chunksize for _ in output_shape])
 
     out_da = dask_image_affine_transform(
         xim.data,
@@ -55,7 +62,7 @@ def transform_xim(
         offset=offset_prime,
         order=order,
         output_shape=tuple(output_shape),
-        output_chunks=tuple([output_chunksize for _ in output_shape]),
+        output_chunks=output_chunks,
         mode='constant',
         cval=0.,
         )

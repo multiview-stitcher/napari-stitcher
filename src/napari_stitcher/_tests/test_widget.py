@@ -43,6 +43,8 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
     test_path = Path(__file__).parent.parent.parent.parent /\
                              "image-datasets" / "mosaic_test.czi"
     
+    ndim = 2
+    
     viewer.open(test_path, plugin='napari-stitcher')
 
     stitcher_widget.button_load_layers_all.clicked()
@@ -58,17 +60,16 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 
     # First, view 0 is not shifted
     assert(np.allclose(
-        # _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
-        np.eye(viewer.layers[0].data.ndim + 1),
-        viewer.layers[0].affine.affine_matrix))
+        np.eye(ndim + 1),
+        viewer.layers[0].affine.affine_matrix[-(ndim+1):, -(ndim+1):]))
     
     # Toggle showing the registrations
     stitcher_widget.visualization_type_rbuttons.value=_widget.CHOICE_REGISTERED
+    
     # Make sure view 0 is shifted now
     assert(~np.allclose(
-        # _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
-        np.eye(viewer.layers[0].data.ndim + 1),
-        viewer.layers[0].affine.affine_matrix))
+        np.eye(ndim + 1),
+        viewer.layers[1].affine.affine_matrix[-(ndim+1):, -(ndim+1):]))
 
     # Run fusion
     # stitcher_widget.button_fuse.clicked()

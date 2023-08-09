@@ -73,6 +73,13 @@ def filter_layers(layers, xims, view=None, ch=None):
         yield l
 
 
+# def filter_layers_based_on_xims(xims, view=None, ch=None):
+#     for ind in range(len(xims)):
+#         if view is not None and get_str_unique_to_view_from_layer_name(l.name) != view: continue
+#         if ch is not None and get_str_unique_to_ch_from_xim_coords(xims[l.name].coords) != ch: continue
+#         yield ind
+
+
 def duplicate_channel_xims(xims):
 
     xims_ch_duplicated = [
@@ -90,35 +97,3 @@ def shift_to_matrix(shift):
     M = np.concatenate([shift, [1]], axis=0)
     M = np.concatenate([np.eye(ndim + 1)[:,:ndim], M[:,None]], axis=1)
     return M
-
-
-def identity_transform(ndim, t_coords=None):
-
-    if t_coords is None:
-        params = xr.DataArray(
-            np.eye(ndim + 1),
-            dims=['x_in', 'x_out'])
-    else:
-        params = xr.DataArray(
-            len(t_coords) * [np.eye(ndim + 1)],
-            dims=['t', 'x_in', 'x_out'],
-            coords={'t': t_coords})
-
-    return params
-
-
-def matmul_xparams(xparams1, xparams2):
-    return xr.apply_ufunc(np.matmul,
-        xparams1,
-        xparams2,
-        input_core_dims=[['x_in', 'x_out']]*2,
-        output_core_dims=[['x_in', 'x_out']],
-        vectorize=True)
-
-
-def invert_xparams(xparams):
-    return xr.apply_ufunc(np.linalg.inv,
-        xparams,
-        input_core_dims=[['x_in', 'x_out']],
-        output_core_dims=[['x_in', 'x_out']],
-        vectorize=True)

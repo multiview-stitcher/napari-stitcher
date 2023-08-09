@@ -8,7 +8,7 @@ from dask import delayed
 from scipy import ndimage
 from dask_image import ndinterp
 
-from napari_stitcher import _spatial_image_utils, _utils
+from napari_stitcher import _spatial_image_utils, _utils, _msi_utils, _transformation
 
 
 def combine_stack_props(stack_props_list):
@@ -23,16 +23,30 @@ def combine_stack_props(stack_props_list):
     return combined_stack_props
 
 
+def fusion_method_weighted_sum(
+        field_ims_t,
+        field_ws_t,
+        params,
+        ):
+    """
+    Simple weighted average fusion.
+    """
+    
+    return da.nansum(field_ims_t * field_ws_t, axis=0)
+
+
 def fuse(
         xims:list,
         transform_key:str=None,
+        fusion_method=fusion_method_weighted_sum,
         output_spacing=None,
         output_stack_mode='union',
         output_origin=None,
         output_shape=None,
         output_chunksize=512,
         interpolate_missing_pixels=None,
-        tmpdir=None,
+        # tmpdir=None,
+        # multiscale_output=True,
 ):
     
     """
@@ -48,6 +62,8 @@ def fuse(
 
     params = [_spatial_image_utils.get_affine_from_xim(xim, transform_key=transform_key)
               for xim in xims]
+    
+    params = [_spatial_image_utils.invert_xparams(param) for param in params]
     
     if output_spacing is None:
         output_spacing = _spatial_image_utils.get_spacing_from_xim(xims[0])#, asarray=False)
@@ -86,6 +102,7 @@ def fuse(
         merge = fuse_field(
             sxims,
             sparams,
+            fusion_method=fusion_method,
             output_origin=output_stack_properties['origin'],
             output_shape=output_stack_properties['shape'],
             output_spacing=output_stack_properties['spacing'],
@@ -103,33 +120,61 @@ def fuse(
         res = xr.combine_by_coords([m.rename(None) for m in merges])
     else:
         res = merge
+    
+    # if not tmpdir is None:
+    #     res.data = da.from_delayed(delayed(
+    #         da.to_zarr)(
+    #             res.data,
+    #             os.path.join(tmpdir.name, res.data.name+'.zarr'),
+    #             return_stored=True,
+    #             overwrite=True,
+    #             compute=True,
+    #         ),
+    #         shape=res.data.shape,
+    #         dtype=res.data.dtype,
+    #     )
+
+    # if not tmpdir is None:
+    #     res.data = da.to_zarr(
+    #             res.data,
+    #             os.path.join(tmpdir.name, res.data.name+'.zarr'),
+    #             return_stored=True,
+    #             overwrite=True,
+    #             compute=False,
+    #         )
 
     res = _spatial_image_utils.get_sim_from_xim(res)
     _spatial_image_utils.set_xim_affine(
         res,
-        _utils.identity_transform(len(sdims), res.coords['t'])
+        _spatial_image_utils.identity_transform(len(sdims), res.coords['t']),
+        transform_key,
         )
+    
+    # if multiscale_output:
+    #     res = _msi_utils.get_msim_from_xim(res)
 
-    if not tmpdir is None:
-        res.data = da.to_zarr(
-            res.data,
-            os.path.join(tmpdir.name, res.data.name+'.zarr'),
-            return_stored=True,
-            overwrite=True,
-            compute=False,
-            )
+    # if not tmpdir is None:
+    #     res.data = da.to_zarr(
+    #         res.data,
+    #         os.path.join(tmpdir.name, res.data.name+'.zarr'),
+    #         return_stored=True,
+    #         overwrite=True,
+    #         compute=False,
+    #         )
 
     return res
 
 
-def fuse_field(xims,
-               params,
-               output_origin=None,
-               output_spacing=None,
-               output_shape=None,
-               output_chunksize=512,
-               interpolate_missing_pixels=True,
-               ):
+def fuse_field(
+        xims,
+        params,
+        fusion_method=fusion_method_weighted_sum,
+        output_origin=None,
+        output_spacing=None,
+        output_shape=None,
+        output_chunksize=512,
+        interpolate_missing_pixels=True,
+        ):
     """
     fuse tiles from single timepoint and channel
     todo: use _transformations and avoid duplication
@@ -145,49 +190,73 @@ def fuse_field(xims,
     # for view in views:
     for ixim, xim in enumerate(xims):
 
-        p = np.array(params[ixim])
-        matrix = p[:ndim, :ndim]
-        offset = p[:ndim, ndim]
+        # def transform_xim(
+        #         xim,
+        #         p=None,
+        #         output_shape=None,
+        #         output_spacing=None,
+        #         output_origin=None,
+        #         output_chunksize=64,
+        #         order=1,
+        #         ):
 
-        # spacing matrices
-        Sx = np.diag(output_spacing)
-        Sy = np.diag(_spatial_image_utils.get_spacing_from_xim(xim, asarray=True))
+        # p = np.array(params[ixim])
+        # matrix = p[:ndim, :ndim]
+        # offset = p[:ndim, ndim]
 
-        matrix_prime = np.dot(np.linalg.inv(Sy), np.dot(matrix, Sx))
-        offset_prime = np.dot(np.linalg.inv(Sy),
-            offset - _spatial_image_utils.get_origin_from_xim(xim, asarray=True) +
-            np.dot(matrix, output_origin))
+        # # spacing matrices
+        # Sx = np.diag(output_spacing)
+        # Sy = np.diag(_spatial_image_utils.get_spacing_from_xim(xim, asarray=True))
+
+        # matrix_prime = np.dot(np.linalg.inv(Sy), np.dot(matrix, Sx))
+        # offset_prime = np.dot(np.linalg.inv(Sy),
+        #     offset - _spatial_image_utils.get_origin_from_xim(xim, asarray=True) +
+        #     np.dot(matrix, output_origin))
         
-        field_ims_t.append(ndinterp.affine_transform(
-            xim.data,
-            matrix=matrix_prime,
-            offset=offset_prime,
-            order=1,
-            output_shape=tuple(output_shape),
-            output_chunks=tuple([output_chunksize for _ in output_shape]),
-            mode='constant',
-            cval=0.,
-            )
-        )
+        # field_ims_t.append(ndinterp.affine_transform(
+        #     xim.data,
+        #     matrix=matrix_prime,
+        #     offset=offset_prime,
+        #     order=1,
+        #     output_shape=tuple(output_shape),
+        #     output_chunks=tuple([output_chunksize for _ in output_shape]),
+        #     mode='constant',
+        #     cval=0.,
+        #     )
+        # )
 
         if ndim == 2:
             blending_widths = [10] * 2
         else:
             blending_widths = [3] + [10] * 2
 
-        field_ws = get_smooth_border_weight_from_shape(xim.shape[-ndim:], widths=blending_widths)
-
-        field_ws_t.append(ndinterp.affine_transform(
-            field_ws,
-            matrix=matrix_prime,
-            offset=offset_prime,
+        xim_t = _transformation.transform_xim(
+            xim,
+            params[ixim],
+            output_chunksize=tuple([output_chunksize for _ in output_shape]),
+            output_spacing=output_spacing,
+            output_shape=output_shape,
+            output_origin=output_origin,
             order=1,
-            output_shape=tuple(output_shape),
-            output_chunks=tuple([output_chunksize for _ in output_shape]),
-            mode='constant',
-            cval=np.nan, # nan indicates no data
-            )
         )
+
+        field_ims_t.append(xim_t.data)
+
+        field_w = xr.zeros_like(xim)
+        field_w.data = get_smooth_border_weight_from_shape(
+            xim.shape[-ndim:], widths=blending_widths)
+
+        field_w_t = _transformation.transform_xim(
+            field_w,
+            params[ixim],
+            output_chunksize=tuple([output_chunksize for _ in output_shape]),
+            output_spacing=output_spacing,
+            output_shape=output_shape,
+            output_origin=output_origin,
+            order=1,
+        )
+        field_ws_t.append(field_w_t.data)
+
 
     field_ims_t = da.stack(field_ims_t)
     field_ws_t = da.stack(field_ws_t)
@@ -197,7 +266,12 @@ def fuse_field(xims,
 
     field_ws_t = field_ws_t / wsum
 
-    fused_field = da.nansum(field_ims_t * field_ws_t, axis=0)
+    fused_field = fusion_method(
+        field_ims_t,
+        field_ws_t,
+        params,
+    )
+    # fused_field = da.nansum(field_ims_t * field_ws_t, axis=0)
 
     if interpolate_missing_pixels:
 
@@ -207,13 +281,6 @@ def fuse_field(xims,
         # convert to input dtype
         fused_field = fused_field.astype(input_dtype)
 
-        # # currently not chunking when interpolating
-        # fused_field = da.from_delayed(delayed(get_interpolated_image)(
-        #                     fused_field, empty_mask),
-        #                     shape=fused_field.shape,
-        #                     dtype=fused_field.dtype,
-        #                     )
-        
         fused_field = da.map_overlap(
             get_interpolated_image,
             fused_field,

@@ -245,16 +245,23 @@ class StitcherQWidget(QWidget):
 
     def run_stitching(self):
 
-        layers = list(_utils.filter_layers(self.input_layers, self.msims,
-                                      ch=self.reg_ch_picker.value))
+        # xims_dict = {l.name: _msi_utils.get_xim_from_msim(msim)
+        #         for l.name, msim in self.msims.items()}
 
-        msims = [msim for lname, msim in self.msims
-                 if self.reg_ch_picker.value in _msi_utils.get_xim_from_msim(msim).coords['c']]
+        # layers = list(_utils.filter_layers(self.input_layers, xims_dict,
+        #                               ch=self.reg_ch_picker.value))
 
-        sims = [_msi_utils.get_xim_from_msim(msim) for msim in msims]
+        # msims = [msim for _, msim in self.msims.items()
+        #          if self.reg_ch_picker.value in _msi_utils.get_xim_from_msim(msim).coords['c']]
 
-        # restrict timepoints
-        _spatial_image_utils.xim_sel_coords()
+        msims_dict = {lname: msim for lname, msim in self.msims.items()
+                 if self.reg_ch_picker.value in _msi_utils.get_xim_from_msim(msim).coords['c']}
+        
+        sorted_lnames = sorted(list(msims_dict.keys()))
+
+        sims = [_msi_utils.get_xim_from_msim(msims_dict[lname]) for lname in sorted_lnames]
+
+        # sims = [_msi_utils.get_xim_from_msim(msim) for msim in msims]
 
         sims = [_spatial_image_utils.xim_sel_coords(sim,
                 {'t': [sim.coords['t'][it]
@@ -262,20 +269,49 @@ class StitcherQWidget(QWidget):
                                          self.times_slider.value[1] + 1)]})
                   for sim in sims]
 
+        with _utils.TemporarilyDisabledWidgets([self.container]),\
+            _utils.VisibleActivityDock(self.viewer),\
+            _utils.TqdmCallback(tqdm_class=_utils.progress,
+                                desc='Registering tiles', bar_format=" "):
+            
+            params = _registration.register(
+                sims,
+                # registration_binning={'z': 2, 'y': 8, 'x': 8},
+                registration_binning=None,
+                transform_key='affine_metadata',
+                # output_transform_key='affine_registered',
+            )
+
+        for lname, msim in self.msims.items():
+            params_index = sorted_lnames.index(lname)
+            _msi_utils.set_affine_transform(
+                msim, params[params_index],
+                transform_key='affine_registered', base_transform_key='affine_metadata')
+
+        # for sim, param in zip(sims, params):
+        #     _spatial_image_utils.set_xim_affine(sim, param, 'affine_registered', base_transform_key='affine_metadata')
+
+
+        #     g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='threads')
+
+        # restrict timepoints
+        # _spatial_image_utils.xim_sel_coords({'t': })
+
         # xims = [x.sel(t=[x.coords['t'][it]
         #                  for it in range(self.times_slider.value[0] + 1,
         #                                  self.times_slider.value[1] + 1)])
         #                                  for x in xims]
 
         # calculate overlap graph with overlap as edge attributes
-        g = _mv_graph.build_view_adjacency_graph_from_xims(sims)
 
-        g_reg = _registration.get_registration_graph_from_overlap_graph(g)
+        # g = _mv_graph.build_view_adjacency_graph_from_xims(sims)
 
-        if not len(g_reg.edges):
-            message = 'No overlap between views for stitching. Consider stabilizing the tiles instead.'
-            notifications.notification_manager.receive_info(message)
-            return
+        # g_reg = _registration.get_registration_graph_from_overlap_graph(g)
+
+        # if not len(g_reg.edges):
+        #     message = 'No overlap between views for stitching. Consider stabilizing the tiles instead.'
+        #     notifications.notification_manager.receive_info(message)
+        #     return
         
         # # restrict tps
         # if 't' in xims[0].dims:
@@ -286,19 +322,22 @@ class StitcherQWidget(QWidget):
         #                 sel_or_isel='isel',
         #                 )
 
-        with _utils.TemporarilyDisabledWidgets([self.container]),\
-            _utils.VisibleActivityDock(self.viewer),\
-            _utils.TqdmCallback(tqdm_class=_utils.progress,
-                                desc='Registering tiles', bar_format=" "):
-            g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='threads')
+        # with _utils.TemporarilyDisabledWidgets([self.container]),\
+        #     _utils.VisibleActivityDock(self.viewer),\
+        #     _utils.TqdmCallback(tqdm_class=_utils.progress,
+        #                         desc='Registering tiles', bar_format=" "):
+        #     g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='threads')
 
-        # get node parameters
-        g_reg_nodes = _registration.get_node_params_from_reg_graph(g_reg_computed)
+        # # get node parameters
+        # g_reg_nodes = _registration.get_node_params_from_reg_graph(g_reg_computed)
 
-        node_transforms = _mv_graph.get_nodes_dataset_from_graph(g_reg_nodes, node_attribute='transforms')
+        # node_transforms = _mv_graph.get_nodes_dataset_from_graph(g_reg_nodes, node_attribute='transforms')
 
-        self.params.update({_utils.get_str_unique_to_view_from_layer_name(l.name): node_transforms[il]
-                            for il, l in enumerate(layers)})
+        # self.params.update({_utils.get_str_unique_to_view_from_layer_name(l.name): node_transforms[il]
+        #                     for il, l in enumerate(layers)})
+        
+        # for imsim, msim in enumerate(msims):
+        #     _msi_utils.set_affine_transform(msims[imsim], params[imsim], 'affine_registered')
 
         self.visualization_type_rbuttons.enabled = True
 
@@ -309,40 +348,84 @@ class StitcherQWidget(QWidget):
         Split layers into channel groups and fuse each group separately.
         """
 
-        layer_chs = [_utils.get_str_unique_to_ch_from_xim_coords(
-            _msi_utils.get_xim_from_msim(msim).coords)
-                    for l_name, msim in self.msims.items()]
+        # layer_chs = [_utils.get_str_unique_to_ch_from_xim_coords(
+        #     _msi_utils.get_xim_from_msim(msim).coords)
+        #             for l_name, msim in self.msims.items()]
         
-        channels = np.unique(layer_chs)
+        # channels = np.unique(layer_chs)
 
         channels = self.reg_ch_picker.choices
 
         for ch in channels:
 
-            layers_to_fuse = list(_utils.filter_layers(self.input_layers, self.msims, ch=ch))
+            msims = [msim for _, msim in self.msims.items()
+                    if ch in _msi_utils.get_xim_from_msim(msim).coords['c']]
 
-            xims_to_fuse = [self.msims[l.name] for l in layers_to_fuse]
+            sims = [_msi_utils.get_xim_from_msim(msim) for msim in msims]
 
-            # restrict timepoints
-            xims_to_fuse = [xim.sel(t=[xim.coords['t'][it]
+            sims = [_spatial_image_utils.xim_sel_coords(sim,
+                    {'t': [sim.coords['t'][it]
                             for it in range(self.times_slider.value[0] + 1,
-                                            self.times_slider.value[1] + 1)])
-                                            for xim in xims_to_fuse]
-            
-            params_to_fuse = [self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
-                              for l in layers_to_fuse]
+                                            self.times_slider.value[1] + 1)]})
+                    for sim in sims]
+
+            fused = _fusion.fuse(
+                sims,
+                transform_key='affine_registered',
+            )
+
+            fused = fused.expand_dims(['c'])
+            # fused = fused.assign_coords(c=ch)
+
+            mfused = _msi_utils.get_msim_from_xim(fused, scale_factors=[])
+
+            tmp_fused_path = os.path.join(self.tmpdir.name, 'fused.zarr')
 
             with _utils.TemporarilyDisabledWidgets([self.container]),\
                 _utils.VisibleActivityDock(self.viewer),\
                 _utils.TqdmCallback(tqdm_class=_utils.progress,
                                     desc='Fusing tiles of channel %s' %ch, bar_format=" "):
                 
-                xfused = _fusion.fuse(xims_to_fuse, params_to_fuse, self.tmpdir)
+                mfused.to_zarr(tmp_fused_path)
+
+                # fused.data = fused.data.to_zarr(
+                #     os.path.join(self.tmpdir, 'fused.zarr'),
+                #     return_stored=True,
+                #     compute=True,
+                #     )
+
+            mfused = _msi_utils.multiscale_spatial_image_from_zarr(tmp_fused_path)
             
-            xfused = xfused.assign_coords(c=ch)
+            # layers_to_fuse = list(_utils.filter_layers(self.input_layers, self.msims, ch=ch))
+
+            # xims_to_fuse = [self.msims[l.name] for l in layers_to_fuse]
+
+            # # restrict timepoints
+            # xims_to_fuse = [xim.sel(t=[xim.coords['t'][it]
+            #                 for it in range(self.times_slider.value[0] + 1,
+            #                                 self.times_slider.value[1] + 1)])
+            #                                 for xim in xims_to_fuse]
             
-            fused_ch_layer_tuple = _viewer_utils.create_image_layer_tuple_from_spatial_xim(
-                xfused,
+            # params_to_fuse = [self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
+            #                   for l in layers_to_fuse]
+
+            # with _utils.TemporarilyDisabledWidgets([self.container]),\
+            #     _utils.VisibleActivityDock(self.viewer),\
+            #     _utils.TqdmCallback(tqdm_class=_utils.progress,
+            #                         desc='Fusing tiles of channel %s' %ch, bar_format=" "):
+                
+            #     xfused = _fusion.fuse(xims_to_fuse, params_to_fuse, self.tmpdir)
+            
+            # xfused = xfused.assign_coords(c=ch)
+            
+            # fused_ch_layer_tuple = _viewer_utils.create_image_layer_tuple_from_spatial_xim(
+            #     xfused,
+            #     colormap=None,
+            #     name_prefix='fused',
+            # )
+
+            fused_ch_layer_tuple = _viewer_utils.create_image_layer_tuple_from_msim(
+                mfused,
                 colormap=None,
                 name_prefix='fused',
             )
@@ -351,7 +434,7 @@ class StitcherQWidget(QWidget):
         
             self.fused_layers.append(fused_layer)
 
-        self.update_viewer_transformations()
+        # self.update_viewer_transformations()
 
 
     def reset(self):
@@ -428,8 +511,8 @@ class StitcherQWidget(QWidget):
         # load in layers as xims
         for l in layers:
 
-            msim = _viewer_utils.image_layer_to_msim()
-
+            msim = _viewer_utils.image_layer_to_msim(l)
+            
             # xim = l.data
             # try:
             #     len(xim.coords['c'])
@@ -445,8 +528,12 @@ class StitcherQWidget(QWidget):
             msim.attrs['layer_name'] = l.name
             self.msims[l.name] = msim
 
-        number_of_channels = len(np.unique([_utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
-                                            for l_name, xim in self.msims.items()]))
+        # xims = {l.name: _msi_utils.get_xim_from_msim(msim) for l.name, msim in self.msims.items()}
+        xims = [_msi_utils.get_xim_from_msim(msim) for l.name, msim in self.msims.items()]
+
+        number_of_channels = len(np.unique([
+            _utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
+                for xim in xims]))
         
         if len(layers) and number_of_channels > 1:
             self.link_channel_layers(layers)
@@ -485,10 +572,10 @@ if __name__ == "__main__":
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
 
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
+    filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
     # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
     # filename = '/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi'
-    filename = '/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230710_03_high-res_ant_20X-max-e1-bin-8bit.czi'
+    # filename = '/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230710_03_high-res_ant_20X-max-e1-bin-8bit.czi'
 
 
     viewer = napari.Viewer()
@@ -509,4 +596,5 @@ if __name__ == "__main__":
     # wdg.times_slider.min = -1
     # wdg.times_slider.max = 1
 
-    # wdg.run_stitching()
+    wdg.run_stitching()
+    wdg.run_fusion()

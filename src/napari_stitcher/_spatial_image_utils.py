@@ -179,12 +179,22 @@ def get_affine_from_xim(xim, transform_key=None):
     return affine
 
 
-def set_xim_affine(xim, xaffine, transform_key=None):
+def get_tranform_keys_from_xim(xim):
+
+    return list(xim.attrs['transforms'].keys())
+
+
+def set_xim_affine(xim, xaffine, transform_key=None, base_transform_key=None):
 
     # xim = copy.deepcopy(xim)
 
     if 'transforms' not in xim.attrs.keys():
         xim.attrs['transforms'] = dict()
+
+    if not base_transform_key is None:
+        xaffine = matmul_xparams(
+            xaffine,
+            get_affine_from_xim(xim, transform_key=base_transform_key))
 
     xim.attrs['transforms'][transform_key] = xaffine
 
@@ -223,6 +233,54 @@ def xim_sel_coords(xim, sel_dict):
                 sxim.attrs['transforms'][data_var] = sxim.attrs['transforms'][data_var].sel({k: v})
 
     return sxim
+
+
+def identity_transform(ndim, t_coords=None):
+
+    if t_coords is None:
+        params = xr.DataArray(
+            np.eye(ndim + 1),
+            dims=['x_in', 'x_out'])
+    else:
+        params = xr.DataArray(
+            len(t_coords) * [np.eye(ndim + 1)],
+            dims=['t', 'x_in', 'x_out'],
+            coords={'t': t_coords})
+
+    return params
+
+
+def affine_to_xr(affine, t_coords=None):
+
+    if t_coords is None:
+        params = xr.DataArray(
+            affine,
+            dims=['x_in', 'x_out'])
+    else:
+        params = xr.DataArray(
+            len(t_coords) * [affine],
+            dims=['t', 'x_in', 'x_out'],
+            coords={'t': t_coords})
+
+    return params
+
+
+def matmul_xparams(xparams1, xparams2):
+    return xr.apply_ufunc(np.matmul,
+        xparams1,
+        xparams2,
+        input_core_dims=[['x_in', 'x_out']]*2,
+        output_core_dims=[['x_in', 'x_out']],
+        vectorize=True)
+
+
+def invert_xparams(xparams):
+    return xr.apply_ufunc(np.linalg.inv,
+        xparams,
+        input_core_dims=[['x_in', 'x_out']],
+        output_core_dims=[['x_in', 'x_out']],
+        vectorize=True)
+
 
 
 # def get_spatial_image_from_array_and_params(im, p=None):

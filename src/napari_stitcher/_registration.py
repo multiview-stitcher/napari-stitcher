@@ -225,7 +225,8 @@ def register_pair_of_xims_over_time(xim1, xim2,
 
 
 def get_registration_graph_from_overlap_graph(
-        g, registration_binning = None,
+        g,
+        registration_binning = None,
         transform_key=None,
         ):
 
@@ -288,7 +289,7 @@ def get_node_params_from_reg_graph(g_reg):
                                         dims=['t', 'x_in', 'x_out'],
                                         coords={'t': g_reg.nodes[n]['xim'].coords['t']})
         else:
-            path_params = _utils.identity_transform(ndim)
+            path_params = _spatial_image_utils.identity_transform(ndim)
         
         for pair in path_pairs:
             path_params = xr.apply_ufunc(np.matmul,
@@ -313,9 +314,13 @@ def get_node_params_from_reg_graph(g_reg):
     return g_reg
 
 
-def register(xims, reg_channel_index=0, transform_key=None, registration_binning=None):
+def register(xims, reg_channel_index=None, transform_key=None, registration_binning=None):
 
-    xims = [xim.sel(c=xim.coords['c'][reg_channel_index]) for xim in xims]
+    if reg_channel_index is None:
+        if xims[0].coords['c'].ndim > 0:
+            raise(Exception('Please choose a registration channel.'))
+    else:
+        xims = [xim.sel(c=xim.coords['c'][reg_channel_index]) for xim in xims]
 
     g = _mv_graph.build_view_adjacency_graph_from_xims(xims, transform_key=transform_key)
 
@@ -329,8 +334,23 @@ def register(xims, reg_channel_index=0, transform_key=None, registration_binning
     g_reg_nodes = get_node_params_from_reg_graph(g_reg_computed)
 
     node_transforms = _mv_graph.get_nodes_dataset_from_graph(g_reg_nodes, node_attribute='transforms')
-    
-    return [node_transforms[dv] for dv in node_transforms.data_vars]
+    params = [node_transforms[dv] for dv in node_transforms.data_vars]
+
+    return params
+
+
+# def set_new_transform_key(
+#         xims,
+#         params,
+#         base_transform_key,
+#         new_transform_key,
+# )
+
+#     for affine_xr, xim in zip(params, xims):
+#         combined_affine_xr = _spatial_image_utils.matmul_xparams(
+#             affine_xr,
+#             _spatial_image_utils.get_affine_from_xim(xim, transform_key='affine_metadata'))
+#         _spatial_image_utils.set_xim_affine(xim, combined_affine_xr, output_transform_key)
 
 
 def stabilize(xims, reg_channel_index=0, sigma=2):

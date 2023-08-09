@@ -116,7 +116,7 @@ def get_optimal_multi_scale_factors_from_xim(sim):
     current_shape = {dim: len(sim.coords[dim]) for dim in spatial_dims}
     factors = []
     while 1:
-        curr_factors = {dim: 2 if current_shape[dim] >= 256 else 1 for dim in current_shape}
+        curr_factors = {dim: 2 if current_shape[dim] >= 512 else 1 for dim in current_shape}
         if max(curr_factors.values()) == 1: break
         current_shape = {dim: int(current_shape[dim] / curr_factors[dim]) for dim in current_shape}
         factors.append(curr_factors)
@@ -184,17 +184,22 @@ def get_msim_from_xim(xim, scale_factors=None):
     return msim
 
 
-def set_affine_transform(msim, affine, transform_key):
+def set_affine_transform(msim, xaffine, transform_key, base_transform_key=None):
 
-    if not isinstance(affine, xr.DataArray):
-        affine = xr.DataArray(
+    if not isinstance(xaffine, xr.DataArray):
+        xaffine = xr.DataArray(
             # np.stack([affine] * len(msim['scale0/image'].coords['t'])),
-            affine,
+            xaffine,
             dims=['t', 'x_in', 'x_out'])
+        
+    if not base_transform_key is None:
+        xaffine = _spatial_image_utils.matmul_xparams(
+            xaffine,
+            get_transform_from_msim(msim, transform_key=base_transform_key))
 
     scale_keys = get_sorted_scale_keys(msim)
     for sk in scale_keys:
-        msim[sk][transform_key] = affine
+        msim[sk][transform_key] = xaffine
 
 
 def ensure_time_dim(msim):

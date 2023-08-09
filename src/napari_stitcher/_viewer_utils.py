@@ -5,7 +5,7 @@ from natsort import natsorted
 
 import multiscale_spatial_image as msi
 
-from napari_stitcher import _mv_graph, _spatial_image_utils, _msi_utils
+from napari_stitcher import _mv_graph, _spatial_image_utils, _msi_utils, _utils
 
 from napari.experimental import link_layers
 
@@ -16,6 +16,13 @@ def image_layer_to_msim(l):
         msim = msi.MultiscaleSpatialImage()
         for ixim, xim in enumerate(l.data):
             msi.MultiscaleSpatialImage(name='scale%s' %ixim, data=xim, parent=msim)
+        
+        ndim = _spatial_image_utils.get_ndim_from_xim(_msi_utils.get_xim_from_msim(msim))
+        affine = np.array(l.affine.affine_matrix)[-(ndim+1):, -(ndim+1):]
+        affine_xr = _spatial_image_utils.affine_to_xr(affine, t_coords=l.data[0].coords['t'])
+        _msi_utils.set_affine_transform(
+            msim, affine_xr, transform_key='affine_metadata')
+        
         return msim
     else:
         raise(Exception('Napari image layer not supported.'))
@@ -33,11 +40,12 @@ def add_image_layer_tuples_to_viewer(viewer, lds, do_link_layers=False):
     return layers
 
 
-def create_image_layer_tuple_from_msim(msim,
-                                              colormap='gray',
-                                              name_prefix=None,
-                                              transform_key=None,
-                                              ):
+def create_image_layer_tuple_from_msim(
+    msim,
+    colormap='gray',
+    name_prefix=None,
+    transform_key=None,
+    ):
 
     """
     """
@@ -69,7 +77,7 @@ def create_image_layer_tuple_from_msim(msim,
 
     if not transform_key is None:
         affine_transform_xr = _msi_utils.get_transform_from_msim(msim, transform_key=transform_key)
-        affine_transform = affine_transform_xr.sel(t=xim.coords['t'][0]).data
+        affine_transform = np.array(affine_transform_xr.sel(t=xim.coords['t'][0]).data)
     else:
         ndim = _spatial_image_utils.get_ndim_from_xim(xim)
         affine_transform = np.eye(ndim + 1)
