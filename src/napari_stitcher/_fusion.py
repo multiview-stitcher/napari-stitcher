@@ -23,22 +23,29 @@ def combine_stack_props(stack_props_list):
     return combined_stack_props
 
 
-def fusion_method_weighted_sum(
-        field_ims_t,
-        field_ws_t,
-        params,
+def fusion_method_weighted_average(
+        transformed_views,
+        blending_weights,
+        fusion_weights=None,
+        params=None,
         ):
     """
     Simple weighted average fusion.
     """
     
-    return da.nansum(field_ims_t * field_ws_t, axis=0)
+    if fusion_weights is None:
+        product = transformed_views * blending_weights
+    else:
+        product = transformed_views * blending_weights * fusion_weights
+    
+    return np.nansum(product, axis=0).astype(transformed_views.dtype)
 
 
 def fuse(
         xims:list,
         transform_key:str=None,
-        fusion_method=fusion_method_weighted_sum,
+        fusion_method=fusion_method_weighted_average,
+        weights_method=None,
         output_spacing=None,
         output_stack_mode='union',
         output_origin=None,
@@ -103,6 +110,7 @@ def fuse(
             sxims,
             sparams,
             fusion_method=fusion_method,
+            weights_method=weights_method,
             output_origin=output_stack_properties['origin'],
             output_shape=output_stack_properties['shape'],
             output_spacing=output_stack_properties['spacing'],
@@ -168,7 +176,8 @@ def fuse(
 def fuse_field(
         xims,
         params,
-        fusion_method=fusion_method_weighted_sum,
+        fusion_method=fusion_method_weighted_average,
+        weights_method=None,
         output_origin=None,
         output_spacing=None,
         output_shape=None,
@@ -266,12 +275,26 @@ def fuse_field(
 
     field_ws_t = field_ws_t / wsum
 
-    fused_field = fusion_method(
-        field_ims_t,
-        field_ws_t,
-        params,
+    # calculate fusion weights
+    if weights_method is not None:
+        fusion_weights = weights_method(
+            field_ims_t,
+        )
+    else:
+        fusion_weights = None
+
+    # perform blockwise fusion
+    fused_field = da.map_overlap(
+        fusion_method,
+        *((field_ims_t, field_ws_t) if fusion_weights is None else
+          (field_ims_t, field_ws_t, fusion_weights)),
+        **({'fusion_weights': None} if fusion_weights is None else
+          {}),
+        params=params,
+        depth={idim: 0 for idim in range(ndim)},
+        drop_axis=0,
+        dtype=field_ims_t.dtype,
     )
-    # fused_field = da.nansum(field_ims_t * field_ws_t, axis=0)
 
     if interpolate_missing_pixels:
 
