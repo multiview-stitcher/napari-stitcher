@@ -18,9 +18,9 @@ from napari.utils import notifications
 from magicgui import magic_factory, magicgui, widgets
 from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget
 
-# from mvregfus import mv_utils
+import spatial_image as si
 
-from napari_stitcher import _utils, _registration, _fusion,\
+from napari_stitcher import _utils, _registration, _fusion, _reader,\
     _mv_graph, _spatial_image_utils, _viewer_utils, _msi_utils
 
 if TYPE_CHECKING:
@@ -143,53 +143,80 @@ class StitcherQWidget(QWidget):
 
     def update_viewer_transformations(self):
         """
-        set transformations for current timepoint
+        set transformations
+        - for current timepoint
+        - for each (compatible) layer loaded in viewer
         """
 
-        if not len(self.params): return
+        # if not len(self.params): return
 
-        reference_xim = _msi_utils.get_xim_from_msim(self.msims[self.input_layers[0].name])
-        spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(reference_xim)
-
-        for l in self.input_layers:
-
-            # layer_xim = self.msims[l.name]
-            layer_xim = _msi_utils.get_xim_from_msim(self.msims[l.name])
-
-            ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(layer_xim))
-
-            # get curr tp
-            # handle possibility that there had been no T dimension
-            # when collecting xims from layers
-            if len(self.viewer.dims.current_step) > len(spatial_dims):
-                curr_tp = self.viewer.dims.current_step[-len(spatial_dims)-1]
-            else:
-                curr_tp = 0
+        compatible_layers = [l for l in self.viewer.layers
+                             if si.is_spatial_image(l.data[0])]
         
-            if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
+        if not len(compatible_layers): return
+        
+        # determine spatial dimensions from layers
+        all_spatial_dims = [_spatial_image_utils.get_spatial_dims_from_xim(l.data[0])
+            for l in compatible_layers]
+        
+        highest_sdim = max([len(sdim) for sdim in all_spatial_dims])
 
-                params = self.params[_utils.get_str_unique_to_view_from_layer_name(l.name)]
+        # reference_sim = compatible_layers[0].data[0]
+        # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(reference_sim)
+        # ndim = _spatial_image_utils
 
-                try:
-                    p = np.array(params.sel(t=layer_xim.coords['t'][curr_tp])).squeeze()
-                except:
+        # get curr tp
+        # handle possibility that there had been no T dimension
+        # when collecting xims from layers
+        if len(self.viewer.dims.current_step) > highest_sdim:
+            curr_tp = self.viewer.dims.current_step[-highest_sdim-1]
+        else:
+            curr_tp = 0
 
-                    # notifications.notification_manager.receive_info(
-                    #     'Timepoint %s: no parameters available, register first.' % curr_tp)
-                    # self.visualization_type_rbuttons.value = CHOICE_METADATA
-                    # return
+        if self.visualization_type_rbuttons.value == CHOICE_METADATA:
+            transform_key=_reader.READER_METADATA_TRANSFORM_KEY
+        else:
+            transform_key = 'affine_registered'
 
-                    # if curr_tp not available, use nearest available parameter
-                    notifications.notification_manager.receive_info(
-                        'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
-                    p = np.array(params.sel(t=layer_xim.coords['t'][curr_tp], method='nearest')).squeeze()
+        for il, l in enumerate(compatible_layers):
+
+            layer_sim = l.data[0]
+            # ndim = all_spatial_dims[il]
+
+            # if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
+
+            try:
+                params = _spatial_image_utils.get_affine_from_xim(
+                    layer_sim, transform_key=transform_key
+                    )
+            except:
+                # notifications.notification_manager.receive_info(
+                #     'Update transform: %s not available in %s' %(transform_key, l.name))
+                continue
+
+            try:
+                p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp])).squeeze()
+            except:
+                notifications.notification_manager.receive_info(
+                    'Timepoint %s: no parameters available, register first.' % curr_tp)
+                continue
+                # raise(Exception('Problem interpreting transformation parameters'))
+                # notifications.notification_manager.receive_info(
+                #     'Timepoint %s: no parameters available, register first.' % curr_tp)
+                # self.visualization_type_rbuttons.value = CHOICE_METADATA
+                # return
+
+                # if curr_tp not available, use nearest available parameter
+                # notifications.notification_manager.receive_info(
+                #     'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
+                # p = np.array(params.sel(t=layer_xim.coords['t'][curr_tp], method='nearest')).squeeze()
 
 
-                p = np.linalg.inv(p)
-            else:
-                p = np.eye(ndim + 1)
+                # p = np.linalg.inv(p)
+            # else:
+            #     p = np.eye(ndim + 1)
 
-            ndim_layer_data = len(layer_xim.shape)
+            ndim_layer_data = len(layer_sim.shape)
 
             # if stitcher xim has more dimensions than layer data (i.e. time)
             vis_p = p[-(ndim_layer_data + 1):, -(ndim_layer_data + 1):]
@@ -200,11 +227,19 @@ class StitcherQWidget(QWidget):
 
             l.affine.affine_matrix = full_vis_p
 
-            l.refresh()
+            # refreshing layers fails sometimes
+            # this solution is suboptimal though
+            try:
+                l.refresh()
+            except:
+                pass
+        
+        # for l in compatible_layers:
+        #     l.refresh()
 
-        # fused layers
-        for l in self.fused_layers:
-            continue
+        # # fused layers
+        # for l in self.fused_layers:
+        #     continue
 
 
     def run_stabilization(self):
@@ -245,23 +280,13 @@ class StitcherQWidget(QWidget):
 
     def run_stitching(self):
 
-        # xims_dict = {l.name: _msi_utils.get_xim_from_msim(msim)
-        #         for l.name, msim in self.msims.items()}
-
-        # layers = list(_utils.filter_layers(self.input_layers, xims_dict,
-        #                               ch=self.reg_ch_picker.value))
-
-        # msims = [msim for _, msim in self.msims.items()
-        #          if self.reg_ch_picker.value in _msi_utils.get_xim_from_msim(msim).coords['c']]
-
-        msims_dict = {lname: msim for lname, msim in self.msims.items()
-                 if self.reg_ch_picker.value in _msi_utils.get_xim_from_msim(msim).coords['c']}
+        msims_dict = {_utils.get_str_unique_to_view_from_layer_name(lname): msim
+                      for lname, msim in self.msims.items()
+                      if self.reg_ch_picker.value in _msi_utils.get_xim_from_msim(msim).coords['c']}
         
         sorted_lnames = sorted(list(msims_dict.keys()))
 
         sims = [_msi_utils.get_xim_from_msim(msims_dict[lname]) for lname in sorted_lnames]
-
-        # sims = [_msi_utils.get_xim_from_msim(msim) for msim in msims]
 
         sims = [_spatial_image_utils.xim_sel_coords(sim,
                 {'t': [sim.coords['t'][it]
@@ -283,62 +308,22 @@ class StitcherQWidget(QWidget):
             )
 
         for lname, msim in self.msims.items():
-            params_index = sorted_lnames.index(lname)
+            params_index = sorted_lnames.index(_utils.get_str_unique_to_view_from_layer_name(lname))
             _msi_utils.set_affine_transform(
                 msim, params[params_index],
                 transform_key='affine_registered', base_transform_key='affine_metadata')
-
-        # for sim, param in zip(sims, params):
-        #     _spatial_image_utils.set_xim_affine(sim, param, 'affine_registered', base_transform_key='affine_metadata')
-
-
-        #     g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='threads')
-
-        # restrict timepoints
-        # _spatial_image_utils.xim_sel_coords({'t': })
-
-        # xims = [x.sel(t=[x.coords['t'][it]
-        #                  for it in range(self.times_slider.value[0] + 1,
-        #                                  self.times_slider.value[1] + 1)])
-        #                                  for x in xims]
-
-        # calculate overlap graph with overlap as edge attributes
-
-        # g = _mv_graph.build_view_adjacency_graph_from_xims(sims)
-
-        # g_reg = _registration.get_registration_graph_from_overlap_graph(g)
+            
+        for l in self.input_layers:
+            params_index = sorted_lnames.index(_utils.get_str_unique_to_view_from_layer_name(l.name))
+            _viewer_utils.set_layer_xaffine(
+                l, params[params_index],
+                transform_key='affine_registered', base_transform_key='affine_metadata')
 
         # if not len(g_reg.edges):
         #     message = 'No overlap between views for stitching. Consider stabilizing the tiles instead.'
         #     notifications.notification_manager.receive_info(message)
         #     return
         
-        # # restrict tps
-        # if 't' in xims[0].dims:
-        #     g_reg = _mv_graph.sel_coords_from_graph(g_reg,
-        #                 {'t': range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)},
-        #                 edge_attributes=['transform'],
-        #                 node_attributes=['xim'],
-        #                 sel_or_isel='isel',
-        #                 )
-
-        # with _utils.TemporarilyDisabledWidgets([self.container]),\
-        #     _utils.VisibleActivityDock(self.viewer),\
-        #     _utils.TqdmCallback(tqdm_class=_utils.progress,
-        #                         desc='Registering tiles', bar_format=" "):
-        #     g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='threads')
-
-        # # get node parameters
-        # g_reg_nodes = _registration.get_node_params_from_reg_graph(g_reg_computed)
-
-        # node_transforms = _mv_graph.get_nodes_dataset_from_graph(g_reg_nodes, node_attribute='transforms')
-
-        # self.params.update({_utils.get_str_unique_to_view_from_layer_name(l.name): node_transforms[il]
-        #                     for il, l in enumerate(layers)})
-        
-        # for imsim, msim in enumerate(msims):
-        #     _msi_utils.set_affine_transform(msims[imsim], params[imsim], 'affine_registered')
-
         self.visualization_type_rbuttons.enabled = True
 
 
@@ -374,8 +359,10 @@ class StitcherQWidget(QWidget):
                 transform_key='affine_registered',
             )
 
-            fused = fused.expand_dims(['c'])
-            # fused = fused.assign_coords(c=ch)
+            # fused = fused.expand_dims(dims=['c'])
+            # import pdb; pdb.set_trace()
+            fused = fused.expand_dims({'c': [sims[0].coords['c'].values]})
+            # fused = fused.assign_coords({'c': ch})
 
             mfused = _msi_utils.get_msim_from_xim(fused, scale_factors=[])
 
@@ -439,14 +426,14 @@ class StitcherQWidget(QWidget):
 
     def reset(self):
             
-            self.msims = {}
-            self.params = dict()
-            self.reg_ch_picker.choices = ()
-            self.visualization_type_rbuttons.value = CHOICE_METADATA
-            self.times_slider.min, self.times_slider.max = (-1, 0)
-            self.times_slider.value = (-1, 0)
-            self.input_layers = []
-            self.fused_layers = []
+        self.msims = {}
+        self.params = dict()
+        self.reg_ch_picker.choices = ()
+        self.visualization_type_rbuttons.value = CHOICE_METADATA
+        self.times_slider.min, self.times_slider.max = (-1, 0)
+        self.times_slider.value = (-1, 0)
+        self.input_layers = []
+        self.fused_layers = []
 
 
     def load_metadata(self):
@@ -546,12 +533,13 @@ class StitcherQWidget(QWidget):
         # link channel layers
         from napari.experimental import link_layers
 
-        msims = [self.msims[l.name] for l in layers]
-        sims = [_msi_utils.get_sim_from_msim(msim) for msim in msims]
+        # msims = [self.msims[l.name] for l in layers]
+        sims = {l.name: _msi_utils.get_xim_from_msim(self.msims[l.name])
+                for l in layers}
 
-        channels = [_utils.get_str_unique_to_ch_from_xim_coords(sim.coords) for sim in sims]
+        channels = [_utils.get_str_unique_to_ch_from_xim_coords(sim.coords) for sim in sims.values()]
         for ch in channels:
-            ch_layers = list(_utils.filter_layers(layers, self.msims, ch=ch))
+            ch_layers = list(_utils.filter_layers(layers, sims, ch=ch))
 
             if len(ch_layers):
                 link_layers(ch_layers, ('contrast_limits', 'visible'))

@@ -173,6 +173,9 @@ def get_ndim_from_xim(xim):
 
 def get_affine_from_xim(xim, transform_key=None):
 
+    if not transform_key in xim.attrs['transforms']:
+        raise(Exception('Transform key %s not found in xim' %transform_key))
+
     # ndim = get_ndim_from_xim(xim)
     affine = xim.attrs['transforms'][transform_key]#.reshape((ndim + 1, ndim + 1))
 

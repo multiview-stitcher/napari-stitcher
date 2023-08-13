@@ -7,7 +7,7 @@ from pathlib import Path
 
 import tifffile
 
-from napari_stitcher import write_multiple, _viewer_utils
+from napari_stitcher import write_multiple, _viewer_utils, _msi_utils, _spatial_image_utils, _sample_data
 
 
 def create_full_layer_data_list(channels=[0],
@@ -36,16 +36,21 @@ def create_full_layer_data_list(channels=[0],
 
     for ch in channels:
         xim_ch = xim.assign_coords(c=ch)
+        
+
+        mxim_ch = _msi_utils.get_msim_from_xim(xim_ch)
 
         full_layer_data_list.append(
-            _viewer_utils.create_image_layer_tuple_from_spatial_xim(
-                xim_ch, colormap=None, name_prefix='fused')
+            _viewer_utils.create_image_layer_tuple_from_msim(
+                mxim_ch, colormap=None, name_prefix='fused')
         )
         
     return full_layer_data_list
 
 
-def test_writer():
+def test_writer_napari(make_napari_viewer):
+
+    viewer = make_napari_viewer()
 
     spacing_xy = 0.5
     im_dtype = np.uint8
@@ -55,18 +60,38 @@ def test_writer():
             for channels in [
                 [0],
                 [0, 1]]:
-                full_layer_data_list = create_full_layer_data_list(
-                    channels=['ch%s' %ch for ch in channels],
-                    times=times,
-                    field_ndim=field_ndim,
-                    dtype=im_dtype,
-                    spacing_xy=spacing_xy)
+
+                # full_layer_data_list = create_full_layer_data_list(
+                #     channels=['ch%s' %ch for ch in channels],
+                #     times=times,
+                #     field_ndim=field_ndim,
+                #     dtype=im_dtype,
+                #     spacing_xy=spacing_xy)
+                
+                sims = _sample_data.generate_tiled_dataset(
+                    ndim=field_ndim, N_t=len(times), N_c=len(channels),
+                    tiles_x=1, tiles_y=1, tiles_z=1, dtype=im_dtype,
+                    spacing_x=spacing_xy, spacing_y=spacing_xy,
+                )
+
+                msims = [_msi_utils.get_msim_from_xim(sim) for sim in sims]
+
+                full_layer_data_list = _viewer_utils.create_image_layer_tuples_from_msims(
+                    msims,
+                    positional_cmaps=False,
+                    transform_key='affine_metadata',
+                )
+
+                viewer.layers.clear()
+                for l in full_layer_data_list:
+                    viewer.add_image(l[0], **l[1])
                 
                 with tempfile.TemporaryDirectory() as tmpdir:
 
                     filepath = str(Path(tmpdir) / "test.tif")
+                    viewer.layers.save(filepath, plugin='napari-stitcher')
 
-                    write_multiple(filepath, full_layer_data_list[:])
+                    # write_multiple(filepath, full_layer_data_list[:])
 
                     read_im = tifffile.imread(filepath)
 
@@ -103,39 +128,3 @@ def test_writer():
                     assert(resolution_unit_checked)
                     assert(resolution_value_checked)
                     assert(bitspersample_checked)
-                    
-                    # import pdb; pdb.set_trace()
-
-
-def test_writer_napari(make_napari_viewer):
-
-    viewer = make_napari_viewer()
-
-    spacing_xy = 0.5
-    im_dtype = np.uint8
-
-    for field_ndim in [2, 3]:
-        for times in [[0], [0, 1]]:
-            for channels in [
-                [0],
-                [0, 1]]:
-                full_layer_data_list = create_full_layer_data_list(
-                    channels=['ch%s' %ch for ch in channels],
-                    times=times,
-                    field_ndim=field_ndim,
-                    dtype=im_dtype,
-                    spacing_xy=spacing_xy)
-                
-                viewer.layers.clear()
-                
-                full_layer_data_list = create_full_layer_data_list()
-
-                for l in full_layer_data_list:
-                    viewer.add_image(l[0], **l[1])
-
-                with tempfile.TemporaryDirectory() as tmpdir:
-
-                    filepath = str(Path(tmpdir) / "test.tif")
-                    viewer.layers.save(filepath, plugin='napari-stitcher')
-
-                    tifffile.imread(filepath) # check that file actually exists

@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import tifffile
 
-from napari_stitcher import StitcherQWidget, _widget, _sample_data, _viewer_utils
+from napari_stitcher import StitcherQWidget, _widget, _sample_data, _viewer_utils, _msi_utils
 
 import pytest
 
@@ -25,7 +25,6 @@ def test_data_loading_while_plugin_open(make_napari_viewer):
     viewer.layers.clear()
     viewer.open(test_path, plugin='napari-stitcher')
 
-    # import pdb; pdb.set_trace()
 
 
 # make_napari_viewer is a pytest fixture that returns a napari viewer object
@@ -65,7 +64,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
     
     # Toggle showing the registrations
     stitcher_widget.visualization_type_rbuttons.value=_widget.CHOICE_REGISTERED
-    
+
     # Make sure view 0 is shifted now
     assert(~np.allclose(
         np.eye(ndim + 1),
@@ -160,7 +159,9 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
     xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
             tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=overlap, zoom=10, dtype=dtype)
 
-    layer_tuples = _viewer_utils.create_image_layer_tuples_from_xims(xims)
+    msims = [_msi_utils.get_msim_from_xim(xim, scale_factors=[]) for xim in xims]
+    layer_tuples = _viewer_utils.create_image_layer_tuples_from_msims(
+        msims, transform_key='affine_metadata')
    
     for lt in layer_tuples:
         viewer.add_image(lt[0], **lt[1])
@@ -183,7 +184,7 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
     with tempfile.TemporaryDirectory() as tmpdir:
         outfile = str(Path(tmpdir) / "test.tif")
         # print(N_c)
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         # from napari_stitcher._writer import write_multiple
         viewer.layers[-N_c:].save(outfile, plugin='napari-stitcher')
         tifffile.imread(outfile)
@@ -219,3 +220,40 @@ def test_time_slider(make_napari_viewer):
     # Run fusion
     # stitcher_widget.button_fuse.clicked()
     wdg.run_fusion()
+
+
+@pytest.mark.parametrize(
+    "ndim, N_c, N_t", [
+        (2, 1, 1),
+        (2, 1, 2),
+        (3, 2, 1),
+        (3, 2, 2),
+    ]
+)
+def test_update_transformations(ndim, N_c, N_t, make_napari_viewer):
+    """
+    Basic test: scroll through time and confirm that no error is thrown.
+    """
+
+    from napari_stitcher import StitcherQWidget
+
+    viewer = make_napari_viewer()
+
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
+            tile_size=5, tiles_x=2, tiles_y=1, tiles_z=1)
+    
+    mxims = [_msi_utils.get_msim_from_xim(xim) for xim in xims]
+
+    layer_tuples = _viewer_utils.create_image_layer_tuples_from_msims(
+        mxims, positional_cmaps=False, transform_key='affine_metadata')
+
+    for lt in layer_tuples:
+        viewer.add_image(lt[0], **lt[1])
+
+    # scroll in time
+    current_step = list(viewer.dims.current_step)
+    current_step[0] = current_step[0] + 1
+    viewer.dims.current_step = tuple(current_step)

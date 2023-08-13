@@ -126,10 +126,6 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
             READER_METADATA_TRANSFORM_KEY
             )
 
-        # view_sim.attrs['transforms'] = xr.Dataset(
-        #     {READER_METADATA_TRANSFORM_KEY: affine_xr}
-        # )
-
         view_sim.name = str(iview)
 
         view_sims.append(view_sim)

@@ -55,7 +55,10 @@ def create_image_layer_tuple_from_msim(
 
     xim_thumb = msim[scale_keys[-1]]['image'].sel(t=xim.coords['t'][0])
 
-    ch_name = str(xim.coords['c'].data)
+    try:
+        ch_name = str(xim.coords['c'].values[0])
+    except:
+        ch_name = str(xim.coords['c'].data)
 
     if colormap is None:
         if 'GFP' in ch_name:
@@ -199,3 +202,13 @@ def get_cmaps_from_xims(xims, n_colors=2, transform_key=None):
              for iview, color_index in colors.items()}
     
     return cmaps
+
+
+def set_layer_xaffine(l, xaffine, transform_key, base_transform_key=None):
+    for sim in l.data:
+        _spatial_image_utils.set_xim_affine(
+            sim,
+            xaffine,
+            transform_key=transform_key, 
+            base_transform_key=base_transform_key)
+    return

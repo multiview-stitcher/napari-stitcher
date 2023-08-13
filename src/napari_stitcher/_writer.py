@@ -35,7 +35,9 @@ def write_single_image(path: str, data: Any, meta: dict) -> List[str]:
 
 
 def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
-    """Writes zarr backed dask arrays containing fused images.
+    """
+    Writes zarr backed dask arrays containing fused images.
+    Ignores transform_keys.
     FullLayerData: 3-tuple with (data, meta, layer_type)
     """
 
@@ -43,10 +45,12 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
 
     if not path.endswith('.tif'):
         raise ValueError('Only .tif file saving is supported.')
+    
+    xims = [d[0][0] for d in data]
 
-    spacings = [_spatial_image_utils.get_spacing_from_xim(d[0], asarray=True) for d in data]
-    origins = [_spatial_image_utils.get_origin_from_xim(d[0], asarray=True) for d in data]
-    shapes = [_spatial_image_utils.get_shape_from_xim(d[0], asarray=True) for d in data]
+    spacings = [_spatial_image_utils.get_spacing_from_xim(xim, asarray=True) for xim in xims]
+    origins = [_spatial_image_utils.get_origin_from_xim(xim, asarray=True) for xim in xims]
+    shapes = [_spatial_image_utils.get_shape_from_xim(xim, asarray=True) for xim in xims]
 
     for ixim in range(len(data)):
         if not np.allclose(spacings[ixim], spacings[0]) or \
@@ -54,7 +58,7 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
            not np.allclose(shapes[ixim], shapes[0]):
             raise ValueError('Image saving: Data of all layers must occupy the same space.')
 
-    xim_to_write = xr.concat([d[0] for d in data], dim='c')
+    xim_to_write = xr.concat([xim for xim in xims], dim='c')
 
     save_xim_as_tif(path, xim_to_write)
 
@@ -92,7 +96,7 @@ def save_xim_as_tif(path, xim):
         shape=xim.shape,
         dtype=xim.dtype,
         imagej=True,
-        # resolution=tuple([1. / s for s in spacing]),
+        resolution=tuple([1. / s for s in spacing[-2:]]),
         metadata={
             'axes': axes,
             # 'unit': 'um',
