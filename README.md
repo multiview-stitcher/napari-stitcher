@@ -8,56 +8,21 @@
 -->
 
 # napari-stitcher
-A napari plugin for stitching 2-3D tiled image datasets using [MVRegFUS](https://github.com/m-albert/MVRegFus).
+A toolbox and napari plugin for registering / fusing / stitching multi-view / multi-positioning image datasets in 2-3D. Improves and replaces [MVRegFUS](https://github.com/m-albert/MVRegFus).
 
-Work in progress.
-
-![](misc-data/20221223_screenshot.png)
-----------------------------------
-
-<!--
-Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/cookiecutter-napari-plugin#getting-started
-
-and review the napari docs for plugin developers:
-https://napari.org/stable/plugins/index.html
--->
+WORK IN PROGRESS.
 
 ----------------------------------
 ## Installation
 
+TODO
+
 You can install `napari-stitcher` via [pip]:
 
-- on MacOS: Install PyQT
-- install anaconda
-- create a new conda environment and install napari
-
-    `conda create -y -n napari-env -c conda-forge python=3.9`
-
-    `conda activate napari-env`
-
-    `conda install -c conda-forge napari`
-
-- currently: download (e.g. clone) napari-stitcher and install using
-
-    `pip install -e napari-stitcher`
+    `pip install https://github.com/m-albert/napari-stitcher`
 
 This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
-
-## Contributing
-
-Contributions are very welcome. Tests can be run with [tox], please ensure
-the coverage at least stays the same before you submit a pull request.
-
-## License
-
-Distributed under the terms of the [BSD-3] license,
-"napari-stitcher" is free and open source software
-
-## Issues
-
-If you encounter any problems, please [file an issue] along with a detailed description.
 
 [napari]: https://github.com/napari/napari
 [Cookiecutter]: https://github.com/audreyr/cookiecutter
@@ -75,20 +40,73 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [pip]: https://pypi.org/project/pip/
 [PyPI]: https://pypi.org/
 
+## Some concepts / background / info:
+
+### Image data model / format
+
+Classes used to represent images:
+
+- spatial-image
+  - https://github.com/spatial-image/spatial-image
+  - subclasses `xarray.DataArray`, i.e. broadly speaking labeled numpy arrays
+  - dask compatible for lazy loading and parallel processing
+
+- multiscale-spatial-image
+  - https://github.com/spatial-image/multiscale-spatial-image
+  - multiscale representation of spatial-image above
+  - compatible with NGFF (github.com/ome/ngff)
+  - based on `xarray.datatree`
+  - also used by github.com/scverse/spatialdata
+
+Problem: the two classes above, as well as NGFF, do not (yet) support:
+  1) affine transformations
+  2) different transformations for different timepoints
+
+See https://github.com/ome/ngff/issues/94#issuecomment-1656309977.
+
+Therefore, currently these classes are used with slight modifications. Namely:
+- affine transformations for each timepoint are represented as `xarray.DataArray` with dimensions (t, x_in, x_out), typically of shape (N_tps, ndim+1, ndim+1)
+- multiscale-spatial-image contains one `xarray.Dataset` per scale. These are collections of `xarray.DataArray` which are called "data variables" and share coordinates. The affine transformation parameters are added to each scale as a new data variable
+- this is (hackily) compatible with `multiscale_spatial_image.to_zarr()` and `datatree.open_zarr()`
+
+### Registration
+
+- skimage.registration.phase_correlation
+- elastix (`itk-elastix`) will be used for higher transformations
+- planned to add beads alignment
+
+### Transformation
+
+- relies on dask_image.ndinterp.affine_transform
+
+### Fusion
+
+- chunkwise
+- idea is to have a modular API (partly implemented) to plug in different fusion functions including:
+  - blending
+  - content-based
+  - multi-view deconvolution
+
+
 ## Ideas / things to check out
 
-- https://github.com/spatial-image
-- https://github.com/xarray-contrib/datatree
 - https://github.com/carbonplan/ndpyramid
 - https://www.napari-hub.org/plugins/affinder
 
-## Notes
+## Contributing
 
-- Option to load all layers / selected layers
-- Show loaded layers
-- keep layers and xims list according to this
-- add groupwise optimization
-    - e.g. using corners of overlap regions as virtual points. optimize using decomposition parametrizations
-    - use the coloring logic to determine / restrict relevant registration pairs
-- look at example data on the bioimage archive, e.g. "https://uk1s3.embassy.ebi.ac.uk/idr/zarr/v0.3/9836842.zarr/"
-- consider converting / backing up input xims into/by (temporary?) rechunked stores for better performance with large inputs
+Contributions are very welcome. Tests can be run with [tox], please ensure
+the coverage at least stays the same before you submit a pull request.
+
+## License
+
+Distributed under the terms of the [BSD-3] license,
+"napari-stitcher" is free and open source software
+
+## Issues
+
+If you encounter any problems, please [file an issue] along with a detailed description.
+
+Old screenshot of napari plugin:
+
+![](misc-data/20221223_screenshot.png)
