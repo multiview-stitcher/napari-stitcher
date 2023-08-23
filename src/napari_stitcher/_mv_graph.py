@@ -149,7 +149,9 @@ def get_node_with_maximal_overlap_from_graph(g):
     total_node_overlaps = {node: np.sum([g.edges[e]['overlap']
             for e in g.edges if node in e])
         for node in g.nodes}
+    
     ref_node = max(total_node_overlaps, key=total_node_overlaps.get)
+
     return ref_node
 
 
@@ -306,13 +308,3 @@ def get_intersection_polygon_from_pair_of_xims_2D(xim1, xim2, transform_key=None
         cps.append(cp)
 
     return cps[0].intersection(cps[1])
-
-
-if __name__ == "__main__":
-
-    from napari_stitcher import _reader
-
-    xims=_reader.read_mosaic_image_into_list_of_spatial_xarrays(
-        '../napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi', scene_index=0)
-    
-    g = build_view_adjacency_graph_from_xims(xims)
