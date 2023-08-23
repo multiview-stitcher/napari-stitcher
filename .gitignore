@@ -83,3 +83,4 @@ venv/
 # written by setuptools_scm
 **/_version.py
 
+image-datasets/multi-view/*
