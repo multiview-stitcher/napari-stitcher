@@ -18,9 +18,12 @@ def transform_xim(
         output_shape=None,
         output_spacing=None,
         output_origin=None,
-        output_chunksize=64,
+        output_chunksize=256,
         order=1,
         ):
+    """
+    (Lazily) transform a spatial image
+    """
     
     ndim = _spatial_image_utils.get_ndim_from_xim(xim)
 
@@ -38,7 +41,6 @@ def transform_xim(
 
     ndim = _spatial_image_utils.get_ndim_from_xim(xim)
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
-    # p = np.array(params[ixim])
     matrix = p[:ndim, :ndim]
     offset = p[:ndim, ndim]
 

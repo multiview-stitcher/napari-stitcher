@@ -73,13 +73,6 @@ def filter_layers(layers, xims, view=None, ch=None):
         yield l
 
 
-# def filter_layers_based_on_xims(xims, view=None, ch=None):
-#     for ind in range(len(xims)):
-#         if view is not None and get_str_unique_to_view_from_layer_name(l.name) != view: continue
-#         if ch is not None and get_str_unique_to_ch_from_xim_coords(xims[l.name].coords) != ch: continue
-#         yield ind
-
-
 def duplicate_channel_xims(xims):
 
     xims_ch_duplicated = [

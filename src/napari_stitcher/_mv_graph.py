@@ -25,12 +25,6 @@ def build_view_adjacency_graph_from_xims(xims, expand=False, transform_key=None)
             iview,
             # xim.name,
             xim=xim)
-    
-    # xims = [_msi_utils.get_xim_from_msim(msim.sel(t=msim['scale0/image'].coords['t'][0])) for msim in msims]
-
-    # xims = [_msi_utils.get_xim_from_msim(
-    #     _msi_utils.multiscale_sel_coords(msim, {'t': msim['scale0/image'].coords['t'][0]}))
-    #     for msim in msims]
         
     for iview1, xim1 in enumerate(xims):
         for iview2, xim2 in enumerate(xims):
@@ -45,47 +39,11 @@ def build_view_adjacency_graph_from_xims(xims, expand=False, transform_key=None)
     return g
 
 
-# def build_view_adjacency_graph_from_msims(msims, expand=False, transform_key=None):
-#     """
-#     Build graph representing view overlap relationships from list of xarrays.
-#     Will be used for
-#       - groupwise registration
-#       - determining visualization colors
-#     """
-
-#     g = nx.Graph()
-#     for iview, msim in enumerate(msims):
-#         g.add_node(
-#             iview,
-#             # xim.name,
-#             msim=msim)
-    
-#     # xims = [_msi_utils.get_xim_from_msim(msim.sel(t=msim['scale0/image'].coords['t'][0])) for msim in msims]
-
-#     xims = [_msi_utils.get_xim_from_msim(
-#         _msi_utils.multiscale_sel_coords(msim, {'t': msim['scale0/image'].coords['t'][0]}))
-#         for msim in msims]
-        
-#     for iview1, xim1 in enumerate(xims):
-#         for iview2, xim2 in enumerate(xims):
-#             if iview1 >= iview2: continue
-            
-#             overlap_area, _ = get_overlap_between_pair_of_xims(xim1, xim2, expand=expand, transform_key=transform_key)
-
-#             # overlap 0 means one pixel overlap
-#             if overlap_area > -1:
-#                 g.add_edge(iview1, iview2, overlap=overlap_area)
-
-#     return g
-
-
 def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=None):
 
     """
-    
     - if there is no overlap, return overlap area of -1
     - if there's a one pixel wide overlap, overlap_area is 0
-
     """
 
     # select first time point
@@ -147,55 +105,7 @@ def get_overlap_between_pair_of_xims(xim1, xim2, expand=False, transform_key=Non
     elif isinstance(intersection_poly_structure, ConvexPolyhedron):
         overlap = intersection_poly_structure.volume()
 
-    # get max and min indices of overlap region for each input image
-    # this is in the "physical space" of the image, i.e. xim coordinates
-
-    # get points from intersection_poly_structure
-
-    # if not intersection_poly_structure is None:
-    #     pts = np.array([[p.z, p.y, p.x] for p in intersection_poly_structure.points])
-    #     # get_tr
-
-    # back project using transform key
-    # for 
-
     return overlap, intersection_poly_structure
-
-    # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
-
-    # x1_i, x1_f = np.array([[xim1.coords[dim][index].data
-    #                         for dim in spatial_dims]
-    #                         for index in [0, -1]])
-    
-    # x2_i, x2_f = np.array([[xim2.coords[dim][index].data
-    #                         for dim in spatial_dims]
-    #                         for index in [0, -1]])
-
-    # # expand limits so that in case of no overlap the neighbours are shown
-    # a = 10
-    # if expand:
-    #     x1_i = x1_i - a * np.array([xim1.coords[dim][1] - xim1.coords[dim][0] for dim in spatial_dims])
-    #     x2_i = x2_i - a * np.array([xim2.coords[dim][1] - xim2.coords[dim][0] for dim in spatial_dims])
-
-    #     x1_f = x1_f + a * np.array([xim1.coords[dim][1] - xim1.coords[dim][0] for dim in spatial_dims])
-    #     x2_f = x2_f + a * np.array([xim2.coords[dim][1] - xim2.coords[dim][0] for dim in spatial_dims])
-
-    # dim_overlap_opt1 = (x1_f >= x2_i) * (x1_f <= x2_f)
-    # dim_overlap_opt2 = (x2_f >= x1_i) * (x2_f <= x1_f)
-
-    # dim_overlap = dim_overlap_opt1 + dim_overlap_opt2
-
-    # x_i = np.max([x1_i, x2_i], 0)
-    # x_f = np.min([x1_f, x2_f], 0)
-
-    # if np.all(dim_overlap):
-    #     overlap = x_f - x_i
-    #     overlap_area = np.product(overlap)
-    # else:
-    #     overlap_area = -1
-
-    # return overlap_area, [{dim: x[idim] for idim, dim in enumerate(spatial_dims)}
-    #                       for x in [x_i, x_f]]
 
 
 def get_registration_pairs_from_view_dict(view_dict, min_percentile=49):
@@ -243,7 +153,7 @@ def get_node_with_maximal_overlap_from_graph(g):
     return ref_node
 
 
-def compute_graph_edges(input_g, weight_name='transform', scheduler='threads'):
+def compute_graph_edges(input_g, weight_name='transform', scheduler=None):
 
     """
     Perform simultaneous compute on all edge attributes with given name
@@ -377,8 +287,6 @@ def get_intersection_polyhedron_from_pair_of_xims_3D(xim1, xim2, transform_key):
        min([any((f == facess[1]).all(1)) for f in facess[0]]):
         return cphs[0]
     else:
-
-    # np.any((facess[1][1] == facess[0]).all(1))
         return cphs[0].intersection(cphs[1])
 
 

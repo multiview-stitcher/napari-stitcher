@@ -28,8 +28,6 @@ def get_store_decorator(store_path, store_overwrite=False):
         @wraps(func)
         def wrapper_decorator(*args, **kwargs):
 
-            # store_path = Path(store_path)
-
             if not store_path.exists() or store_overwrite:
                 msi = func(*args, **kwargs)
                 msi.to_zarr(Path(store_path))
@@ -48,8 +46,6 @@ def get_transform_from_msim(msim, transform_key=None):
 
     return msim['scale0'][transform_key]
 
-    # return msim.attrs['transforms'][transform_key]
-
 
 def multiscale_sel_coords(mxim, sel_dict):
 
@@ -59,12 +55,6 @@ def multiscale_sel_coords(mxim, sel_dict):
             out_mxim[child] = out_mxim[child].sel(sel_dict)
         except:
             print('failed to sel for %s' %child)
-
-    # # sel transforms which are xr.Datasets in the mxim attributes
-    # for data_var in mxim.attrs['transforms']:
-    #     for k, v in sel_dict.items():
-    #         if k in out_mxim.attrs['transforms'][data_var].dims:
-    #             out_mxim.attrs['transforms'][data_var] = out_mxim.attrs['transforms'][data_var].sel({k: v})
 
     return out_mxim
 
@@ -169,7 +159,6 @@ def get_msim_from_xim(xim, scale_factors=None):
 
     msim = msi.to_multiscale(
         sim,
-        # scale_factors=_msi_utils.get_optimal_multi_scale_factors_from_xim(view_sim),
         chunks=256,
         scale_factors=scale_factors,
         )
@@ -179,8 +168,6 @@ def get_msim_from_xim(xim, scale_factors=None):
         for transform_key, transform in xim.attrs['transforms'].items():
             msim[sk][transform_key] = transform
     
-    # msim.attrs['transforms'] = xim.attrs['transforms']
-
     return msim
 
 
@@ -188,7 +175,6 @@ def set_affine_transform(msim, xaffine, transform_key, base_transform_key=None):
 
     if not isinstance(xaffine, xr.DataArray):
         xaffine = xr.DataArray(
-            # np.stack([affine] * len(msim['scale0/image'].coords['t'])),
             xaffine,
             dims=['t', 'x_in', 'x_out'])
         

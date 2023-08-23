@@ -63,7 +63,6 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
     save_xim_as_tif(path, xim_to_write)
 
     # return path to any file(s) that were successfully written
-    
     return [path]
 
 
@@ -81,7 +80,6 @@ def save_xim_as_tif(path, xim):
 
     # imagej needs Z to come before C
     if 'z' in xim.dims and 'c' in xim.dims:
-    # if 'z' in xim.dims:
         axes = list(xim.dims)
         zpos = axes.index('z')
         cpos = axes.index('c')
@@ -121,7 +119,6 @@ if __name__ == "__main__":
 
     from napari_stitcher import _reader
 
-    # xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays("/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi")
     layer_tuples = _reader.read_mosaic_czi("/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi")
 
     write_multiple('/Users/malbert/Desktop/test.tif', [layer_tuples[0]])

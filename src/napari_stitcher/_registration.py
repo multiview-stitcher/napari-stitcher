@@ -52,23 +52,17 @@ def get_optimal_registration_binning(
     if use_only_overlap_region:
         raise(NotImplementedError("use_only_overlap_region"))
 
-        _, overlap_structure = _mv_graph.get_overlap_between_pair_of_xims(xim1, xim2)
-        # overlap = overlap_coords[1] - overlap_coords[0]
-        overlap = {dim: overlap_coords[1][dim] - overlap_coords[0][dim] for dim in spatial_dims}
+        # _, overlap_structure = _mv_graph.get_overlap_between_pair_of_xims(xim1, xim2)
+        # # overlap = overlap_coords[1] - overlap_coords[0]
+        # overlap = {dim: overlap_coords[1][dim] - overlap_coords[0][dim] for dim in spatial_dims}
 
-    # overlap = np.max([xim.shape for xim in [xim1, xim2]], axis=0)
     overlap = {dim: max(xim1.shape[idim], xim2.shape[idim])
                for idim, dim in enumerate(spatial_dims)}
-
-    # bin coordinate with largest spacing until we're below the threshold
-    # while max([np.product([o / s / b for o, s, b in zip(overlap, spacings[ixim], registration_binning)])
-    #            for ixim in range(2)]) >= max_total_pixels_per_stack:
         
     while max([np.product([overlap[dim] / spacings[ixim][dim] / registration_binning[dim]
                            for dim in spatial_dims])
                for ixim in range(2)]) >= max_total_pixels_per_stack:
 
-        # dim_to_bin = np.argmin(np.min(np.array(spacings), axis=0))
         dim_to_bin = np.argmin([min([spacings[ixim][dim] for ixim in range(2)]) for dim in spatial_dims])
 
         if ndim == 3 and dim_to_bin == 0:
@@ -95,8 +89,6 @@ def register_pair_of_spatial_images(
     Return: Transform in homogeneous coordinates
     """
 
-    # xim1, xim2 = [xim.sel(t=xim.coords['t'][0], C=xim.coords['c'][0]) for xim in [xim1, xim2]]
-
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1) 
     spacing = _spatial_image_utils.get_spacing_from_xim(xim1, asarray=True)
     ndim = len(spatial_dims)
@@ -107,7 +99,6 @@ def register_pair_of_spatial_images(
 
         overlap_xims = [xim.sel({
             dim: slice(coords[0][dim], coords[1][dim])
-            # dim: (xim.coords[dim] > coords[ixim][idim]) *  (xim.coords[dim] > coords[ixim][idim])
                 for dim in spatial_dims})
                     for xim in [xim1, xim2]]
         reg_xims = overlap_xims
@@ -175,21 +166,15 @@ def register_pair_of_spatial_images(
 
     shift_pc = da.from_delayed(
         delayed(np.array)(
-        # lambda *args, **kwargs: skimage.registration.phase_cross_correlation(*args, **kwargs)[0])(
         delayed(skimage.registration.phase_cross_correlation)(
             delayed(lambda x: np.array(x))(reg_xims_b_t[0].data),
             delayed(lambda x: np.array(x))(reg_xims_b_t[1].data),
-            # reg_xims_b_t[0].data,
-            # reg_xims_b_t[1].data,
             upsample_factor=(10 if ndim==2 else 2),
             disambiguate=True,
             normalization='phase',
             )[0]), shape=(ndim, ), dtype=float)
 
-    # skimage.registration.phase_cross_correlation(np.array(reg_xims_b_t[0].data), np.array(reg_xims_b_t[1].data), disambiguate=True, normalization=None)
-    # import pdb; pdb.set_trace()
-
-    shift = - shift_pc * spacing# * np.array([registration_binning[dim] for dim in spatial_dims])
+    shift = - shift_pc * spacing
 
     displ_endpts = [np.zeros(ndim), shift]
     pt_world = [np.dot(affines[0], np.concatenate([pt, np.ones(1)]))[:ndim] for pt in displ_endpts]
@@ -242,8 +227,6 @@ def get_registration_graph_from_overlap_graph(
     paths = nx.shortest_path(g_reg, source=ref_node, weight='overlap_inv')
 
     # get all pairs of views that are connected by a shortest path
-    # reg_pairs = []
-
     for n, sp in paths.items():
         g_reg.nodes[n]['reg_path'] = sp
 
@@ -261,7 +244,6 @@ def get_registration_graph_from_overlap_graph(
                     transform_key=transform_key,
                     )
         
-    # g_reg.graph['ref_node'] = ref_node
     g_reg.graph['pair_finding_method'] = 'shortest_paths_considering_overlap'
 
     return g_reg
@@ -276,7 +258,6 @@ def get_node_params_from_reg_graph(g_reg):
     ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(
         g_reg.nodes[list(g_reg.nodes)[0]]['xim']))
 
-    # final_params = []
     for n in g_reg.nodes:
 
         reg_path = g_reg.nodes[n]['reg_path']
@@ -298,16 +279,6 @@ def get_node_params_from_reg_graph(g_reg):
                                          input_core_dims=[['x_in', 'x_out']]*2,
                                          output_core_dims=[['x_in', 'x_out']],
                                          vectorize=True)
-            # path_params = da.from_delayed(
-            #     delayed(xr.apply_ufunc)(
-            #         np.matmul,
-            #         g_reg.edges[(pair[0], pair[1])]['transform'],
-            #         path_params,
-            #         input_core_dims=[['x_in', 'x_out']]*2,
-            #         output_core_dims=[['x_in', 'x_out']],
-            #         vectorize=True)
-                
-            # )
         
         g_reg.nodes[n]['transforms'] = path_params
 
@@ -329,7 +300,7 @@ def register(xims, reg_channel_index=None, transform_key=None, registration_binn
     if not len(g_reg.edges):
         raise(Exception('No overlap between views for stitching. Consider stabilizing the tiles instead.'))
 
-    g_reg_computed = _mv_graph.compute_graph_edges(g_reg, scheduler='threads')
+    g_reg_computed = _mv_graph.compute_graph_edges(g_reg)#, scheduler='threads')
 
     g_reg_nodes = get_node_params_from_reg_graph(g_reg_computed)
 
@@ -337,20 +308,6 @@ def register(xims, reg_channel_index=None, transform_key=None, registration_binn
     params = [node_transforms[dv] for dv in node_transforms.data_vars]
 
     return params
-
-
-# def set_new_transform_key(
-#         xims,
-#         params,
-#         base_transform_key,
-#         new_transform_key,
-# )
-
-#     for affine_xr, xim in zip(params, xims):
-#         combined_affine_xr = _spatial_image_utils.matmul_xparams(
-#             affine_xr,
-#             _spatial_image_utils.get_affine_from_xim(xim, transform_key='affine_metadata'))
-#         _spatial_image_utils.set_xim_affine(xim, combined_affine_xr, output_transform_key)
 
 
 def stabilize(xims, reg_channel_index=0, sigma=2):
@@ -493,8 +450,6 @@ def get_stabilization_parameters_from_xim(xim, sigma=2):
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
 
-    # ndim = len(spatial_dims)
-
     params = get_stabilization_parameters(xim.transpose(*tuple(['t'] + spatial_dims)), sigma=sigma)
 
     params = [_utils.shift_to_matrix(
@@ -565,7 +520,5 @@ if __name__ == "__main__":
     import xarray as xr
     import dask.array as da
     filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
 
     xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(filename, scene_index=0)

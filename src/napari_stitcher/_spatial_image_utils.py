@@ -18,7 +18,6 @@ def assign_si_coords_from_params(xim, p=None):
     spatial_dims = [dim for dim in ['z', 'y', 'x'] if dim in xim.dims]
     ndim = len(spatial_dims)
 
-
     # if ndim==2 temporarily expand to three dims to use
     # transformations.py for decomposition
     if ndim == 2:
@@ -67,9 +66,6 @@ def get_data_to_world_matrix_from_spatial_image(xim):
 
     spatial_dims = [dim for dim in ['z', 'y', 'x'] if dim in xim.dims]
 
-    # ndim = len([dim for dim in xim.dims if dim in spatial_dims])
-    # p = np.eye(ndim + 1)
-
     ndim = len(spatial_dims)
     p = np.eye(ndim + 1)
 
@@ -88,7 +84,7 @@ def get_data_to_world_matrix_from_spatial_image(xim):
     T = np.eye(ndim + 1)
     T[:ndim, ndim] = [offset[dim] for dim in spatial_dims]
 
-    # direction not implemented yet
+    # direction not implemented (yet?)
     # p = np.matmul(T, np.matmul(S, xim.attrs['direction']))
     p = np.matmul(T, S)
 
@@ -176,7 +172,6 @@ def get_affine_from_xim(xim, transform_key=None):
     if not transform_key in xim.attrs['transforms']:
         raise(Exception('Transform key %s not found in xim' %transform_key))
 
-    # ndim = get_ndim_from_xim(xim)
     affine = xim.attrs['transforms'][transform_key]#.reshape((ndim + 1, ndim + 1))
 
     return affine
@@ -188,8 +183,6 @@ def get_tranform_keys_from_xim(xim):
 
 
 def set_xim_affine(xim, xaffine, transform_key=None, base_transform_key=None):
-
-    # xim = copy.deepcopy(xim)
 
     if 'transforms' not in xim.attrs.keys():
         xim.attrs['transforms'] = dict()
@@ -213,7 +206,6 @@ def get_center_of_xim(xim, transform_key=None):
     
     if transform_key is not None:
         affine = get_affine_from_xim(xim, transform_key=transform_key)
-        # affine = np.array(affine.sel(t=affine.coords['t'][0]))
         affine = np.array(affine)
         center = np.concatenate([center, np.ones(1)])
         center = np.matmul(affine, center)[:ndim]
@@ -283,42 +275,3 @@ def invert_xparams(xparams):
         input_core_dims=[['x_in', 'x_out']],
         output_core_dims=[['x_in', 'x_out']],
         vectorize=True)
-
-
-
-# def get_spatial_image_from_array_and_params(im, p=None):
-#     """
-#     Assume that matrix p (shape ndim+1) is given with dim order
-#     equal to those in im (should be Z, Y, X)
-#     """
-
-#     ndim = im.ndim
-
-#     input_dims = ['z', 'y', 'x'][-ndim:]
-
-#     # if p is None:
-#     #     p = np.eye(ndim + 1)
-
-#     # if ndim==2 temporarily expand to three dims to use
-#     # transformations.py for decomposition
-#     if ndim == 2:
-#         M = np.eye(4)
-#         M[1:, 1:] = p
-#         p = M.copy()
-
-#     scale, shear, angles, translate, perspective = tfs.decompose_matrix(p)
-#     direction_matrix = tfs.euler_matrix(angles[0], angles[1], angles[2])
-
-#     if ndim == 2:
-#         scale = scale[1:]
-#         translate = translate[1:]
-#         direction_matrix = direction_matrix[1:, 1:]
-
-#     shape = im.shape
-#     xim = xr.DataArray(im,
-#         {dim: scale[idim] * np.linspace(0, shape[idim]-1, shape[idim]) - translate[idim]
-#             for idim, dim in enumerate(input_dims)},
-#         attrs={'direction': direction_matrix}
-#     )
-
-#     return xim

@@ -77,7 +77,6 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
     xim = xim.rename({dim: dim.lower() for dim in xim.dims})
 
     # remove singleton Z
-    # for axis in ['z', 't']:
     for axis in ['z']:
         if axis in xim.dims and len(xim.coords[axis]) < 2:
             xim = xim.sel({axis: 0}, drop=True)
@@ -86,13 +85,9 @@ def read_mosaic_image_into_list_of_spatial_xarrays(path, scene_index=None):
     xim = _spatial_image_utils.ensure_time_dim(xim)
 
     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim)
-    # ndim = _spatial_image_utils.get_ndim_from_xim(xim)
-    # spacing = _spatial_image_utils.get_spacing_from_xim(xim)
-    # origin = _spatial_image_utils.get_origin_from_xim(xim)
 
     views = range(len(xim.coords['m']))
     
-    # pixel_sizes = aicsim.physical_pixel_sizes._asdict()
     pixel_sizes = dict()
     pixel_sizes['x'] = aicsim.physical_pixel_sizes.X
     pixel_sizes['y'] = aicsim.physical_pixel_sizes.Y
@@ -229,18 +224,8 @@ def read_mosaic_czi(path, scene_index=None):
 if __name__ == "__main__":
 
     import napari
-    # from napari_stitcher import StitcherQWidget
 
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
     filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi" # somehow doesn't work here. the reader gives xarrays that have a shape different from their computed shape
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230223_02_before_ablation-02_20X_max.czi"
-
-    # xims = read_mosaic_image_into_list_of_spatial_xarrays(filename, scene_index=0)
-    # msims =[_msi_utils.get_msim_from_xim(xim) for xim in xims]
-
+ 
     viewer = napari.Viewer()
     viewer.open(filename, scene_index=0)

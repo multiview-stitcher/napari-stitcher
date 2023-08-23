@@ -554,30 +554,17 @@ class StitcherQWidget(QWidget):
 
 
 if __name__ == "__main__":
+
     import napari
 
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/04_stretch-01_AcquisitionBlock2_pt2.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/yu_220829_WT_quail_st6_x10_zoom0.7_1x3_488ZO1-568Sox2-647Tbra.czi"
-
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
     filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
-    # filename = "/Users/malbert/software/napari-stitcher/image-datasets/MAX_LSM900.czi"
-    # filename = '/Users/malbert/software/napari-stitcher/image-datasets/arthur_20210216_highres_TR2.czi'
-    # filename = '/Users/malbert/software/napari-stitcher/image-datasets/arthur_20230710_03_high-res_ant_20X-max-e1-bin-8bit.czi'
-
 
     viewer = napari.Viewer()
     
-    # viewer.open("/Users/malbert/software/napari-stitcher/image-datasets/arthur_20220609_WT_emb2_5X_part1_max.czi")
-
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
 
     viewer.open(filename)
-
-    # wdg.times_slider.value = (-1, 0)
-    # wdg.params = xr.open_dataset('test.netcdf')
-    # wdg.visualization_type_rbuttons.enabled = True
 
     wdg.button_load_layers_all.clicked()
 

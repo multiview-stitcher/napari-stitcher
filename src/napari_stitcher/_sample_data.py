@@ -170,15 +170,3 @@ def timelapse_with_stage_shifts_with_overlap_3d():
 #         ndim=2, N_t=20, N_c=1,
 #         tile_size=1000, tiles_x=1, tiles_y=1, tiles_z=1,
 #         overlap=15, zoom=5, shift_scale=5, drift_scale=2, dtype=np.uint8)
-#     layer_tuples = create_image_layer_tuples_from_xims(xims, n_colors=2)
-
-#     # layer_tuples = make_sample_data()
-
-#     for lt in layer_tuples:
-#         lt[1]['contrast_limits'] = [0, 100]
-#         viewer.add_image(lt[0], **lt[1])
-
-#     from napari_stitcher import StitcherQWidget
-
-#     wdg = StitcherQWidget(viewer)
-#     viewer.window.add_dock_widget(wdg)

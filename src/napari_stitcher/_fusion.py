@@ -189,50 +189,12 @@ def fuse_field(
     todo: use _transformations and avoid duplication
     """
 
-    # views = sorted(field_ims.keys())
     input_dtype = xims[0].dtype
     ndim = _spatial_image_utils.get_ndim_from_xim(xims[0])
-    # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
 
     field_ims_t = []
     field_ws_t = []
-    # for view in views:
     for ixim, xim in enumerate(xims):
-
-        # def transform_xim(
-        #         xim,
-        #         p=None,
-        #         output_shape=None,
-        #         output_spacing=None,
-        #         output_origin=None,
-        #         output_chunksize=64,
-        #         order=1,
-        #         ):
-
-        # p = np.array(params[ixim])
-        # matrix = p[:ndim, :ndim]
-        # offset = p[:ndim, ndim]
-
-        # # spacing matrices
-        # Sx = np.diag(output_spacing)
-        # Sy = np.diag(_spatial_image_utils.get_spacing_from_xim(xim, asarray=True))
-
-        # matrix_prime = np.dot(np.linalg.inv(Sy), np.dot(matrix, Sx))
-        # offset_prime = np.dot(np.linalg.inv(Sy),
-        #     offset - _spatial_image_utils.get_origin_from_xim(xim, asarray=True) +
-        #     np.dot(matrix, output_origin))
-        
-        # field_ims_t.append(ndinterp.affine_transform(
-        #     xim.data,
-        #     matrix=matrix_prime,
-        #     offset=offset_prime,
-        #     order=1,
-        #     output_shape=tuple(output_shape),
-        #     output_chunks=tuple([output_chunksize for _ in output_shape]),
-        #     mode='constant',
-        #     cval=0.,
-        #     )
-        # )
 
         if ndim == 2:
             blending_widths = [10] * 2
@@ -402,16 +364,6 @@ def calc_stack_properties_from_view_properties_and_params(
         transformed_vertices = get_transformed_stack_vertices(stack_vertices, views_props, params)
         volume = np.max(np.min(transformed_vertices, 1), 0), np.min(np.max(transformed_vertices, 1), 0)
 
-    # if mode == 'sample':
-    #     modified_vertices = vertices[np.where(generic_vertices[:, 0]==0)] # front face of each view
-    #     # modified_vertices = np.mean(modified_vertices, -1) # take mean in x
-    #     volume = (np.min(modified_vertices,0),
-    #               np.max(modified_vertices,0)) # lower, upper
-    # if mode == 'union':
-    #     volume = np.min(vertices,0), np.max(vertices,0)
-    # elif mode == 'intersection':
-    #     volume = np.max(np.min(vertices,1),0), np.min(np.max(vertices,1),0)
-
     stack_properties = calc_stack_properties_from_volume(volume, spacing)
 
     return stack_properties
@@ -420,7 +372,6 @@ def calc_stack_properties_from_view_properties_and_params(
 def get_transformed_stack_vertices(stack_keypoints, stack_properties_list, params):
 
     ndim = len(stack_properties_list[0]['spacing'])
-    # generic_vertices = np.array([i for i in np.ndindex(tuple([2]*ndim))])
     vertices = np.zeros((len(stack_properties_list) * len(stack_keypoints), ndim))
     for iim, sp in enumerate(stack_properties_list):
         tmp_vertices = stack_keypoints * np.array(sp['shape']) * np.array(sp['spacing']) + np.array(sp['origin'])
@@ -557,53 +508,6 @@ def get_interpolated_image(
     interp_image[missing_y, missing_x] = interp_values
 
     return interp_image
-
-
-# def fuse(
-#     xims,
-#     params,
-#     output_spacing, # dict
-#     tmpdir=None,
-#     interpolate_missing_pixels=None,
-#     output_chunksize=256,
-#     ):
-
-#     spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xims[0])
-#     ndim = len(spatial_dims)
-
-#     if interpolate_missing_pixels is None:
-#         interpolate_missing_pixels = True if ndim == 2 else False
-
-#     output_stack_properties = calc_stack_properties_from_xims_and_params(
-#         xims,
-#         params,
-#         spacing=np.array([output_spacing[dim] for dim in spatial_dims]),
-#         mode='union',
-#         )
-    
-#     xfused = fuse_xims(
-#         xims,
-#         params,
-#         output_origin=output_stack_properties['origin'],
-#         output_spacing=output_stack_properties['spacing'],
-#         output_shape=output_stack_properties['shape'],
-#         output_chunksize=output_chunksize,
-#         interpolate_missing_pixels=interpolate_missing_pixels,
-#     )
-
-#     if not tmpdir is None:
-#         xfused.data = da.to_zarr(
-#             xfused.data,
-#             os.path.join(tmpdir.name, xfused.data.name+'.zarr'),
-#             return_stored=True,
-#             overwrite=True,
-#             compute=True,
-#             )
-    
-#     if 'C' in xims[0].coords:
-#         xfused = xfused.assign_coords(C=xims[0].coords['C'])
-    
-#     return xfused
 
 
 if __name__ == "__main__":
