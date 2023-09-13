@@ -45,6 +45,8 @@ def create_image_layer_tuple_from_msim(
     colormap='gray',
     name_prefix=None,
     transform_key=None,
+    ch_name=None,
+    contrast_limits=None,
     ):
 
     """
@@ -53,12 +55,17 @@ def create_image_layer_tuple_from_msim(
     xim = msim['scale0/image']
     scale_keys = _msi_utils.get_sorted_scale_keys(msim)
 
-    xim_thumb = msim[scale_keys[-1]]['image'].sel(t=xim.coords['t'][0])
+    if contrast_limits is None:
+        xim_thumb = msim[scale_keys[-1]]['image'].sel(t=xim.coords['t'][0])
+        contrast_limits = [v for v in [
+                    np.min(np.array(xim_thumb.data)),
+                    np.max(np.array(xim_thumb.data))]]
 
-    try:
-        ch_name = str(xim.coords['c'].values[0])
-    except:
-        ch_name = str(xim.coords['c'].data)
+    if ch_name is None:
+        try:
+            ch_name = str(xim.coords['c'].values[0])
+        except:
+            ch_name = str(xim.coords['c'].data)
 
     if colormap is None:
         if 'GFP' in ch_name:
@@ -95,9 +102,7 @@ def create_image_layer_tuple_from_msim(
 
     kwargs = \
         {
-        'contrast_limits': [v for v in [
-            np.min(np.array(xim_thumb.data)),
-            np.max(np.array(xim_thumb.data))]],
+        'contrast_limits': contrast_limits,
         # 'contrast_limits': [np.iinfo(xim.dtype).min,
         #                     np.iinfo(xim.dtype).max],
         # 'contrast_limits': [np.iinfo(xim.dtype).min,

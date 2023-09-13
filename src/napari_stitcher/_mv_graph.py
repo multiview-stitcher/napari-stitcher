@@ -308,3 +308,23 @@ def get_intersection_polygon_from_pair_of_xims_2D(xim1, xim2, transform_key=None
         cps.append(cp)
 
     return cps[0].intersection(cps[1])
+
+
+def points_inside_xim(pts, xim, transform_key=None):
+    """
+    Check whether points lie inside of the image domain of xim.
+
+    Performance could be improved by adding sth similar to `xims_far_apart`.
+    """
+
+    ndim = _spatial_image_utils.get_ndim_from_xim(xim)
+    assert(len(pts[0])==ndim)
+
+    if ndim == 2:
+        corners = np.unique(get_faces_from_xim(xim, transform_key=transform_key).reshape((-1, 2)), axis=0)
+        xim_domain = ConvexPolygon([Point([0]+list(c)) for c in corners])
+    elif ndim == 3:
+        faces = get_faces_from_xim(xim, transform_key=transform_key)
+        xim_domain = ConvexPolyhedron([ConvexPolygon([Point(c) for c in face]) for face in faces])
+
+    return np.array([xim_domain.intersection(Point(pt)) is not None for pt in pts])

@@ -93,10 +93,12 @@ def multiscale_spatial_image_from_zarr(path):
 
     multiscale = datatree.open_datatree(path, engine="zarr", chunks=chunks)
 
+    # compute transforms
+
     return multiscale
 
 
-def get_optimal_multi_scale_factors_from_xim(sim):
+def get_optimal_multi_scale_factors_from_xim(sim, min_size=512):
     """
     This is currently simply downscaling z and xy until a minimum size is reached.
     Probably it'd make more sense to downscale considering the dims spacing.
@@ -106,7 +108,7 @@ def get_optimal_multi_scale_factors_from_xim(sim):
     current_shape = {dim: len(sim.coords[dim]) for dim in spatial_dims}
     factors = []
     while 1:
-        curr_factors = {dim: 2 if current_shape[dim] >= 512 else 1 for dim in current_shape}
+        curr_factors = {dim: 2 if current_shape[dim] >= min_size else 1 for dim in current_shape}
         if max(curr_factors.values()) == 1: break
         current_shape = {dim: int(current_shape[dim] / curr_factors[dim]) for dim in current_shape}
         factors.append(curr_factors)
@@ -143,12 +145,15 @@ def get_msim_from_xim(xim, scale_factors=None):
 
     if 'c' in xim.dims and 't' in xim.dims:
         xim = xim.transpose(*tuple(['t', 'c'] + [dim for dim in xim.dims if dim not in ['c', 't']]))
+        c_coords = xim.coords['c'].values
+    else:
+        c_coords=None
 
     # view_xim.name = str(view)
     sim = si.to_spatial_image(
         xim.data,
         dims=xim.dims,
-        c_coords=xim.coords['c'].values,
+        c_coords=c_coords,
         scale=spacing,
         translation=origin,
         t_coords=xim.coords['t'].values,
@@ -198,3 +203,15 @@ def ensure_time_dim(msim):
         msim[sk] = _spatial_image_utils.ensure_time_dim(msim[sk])
 
     return msim
+
+
+def get_first_scale_above_target_spacing(mxim, target_spacing, dim='y'):
+
+    sorted_scale_keys = get_sorted_scale_keys(mxim)
+
+    for scale in sorted_scale_keys:
+        scale_spacing = _spatial_image_utils.get_spacing_from_xim(mxim[scale]['image'])[dim]
+        if scale_spacing > target_spacing:
+            break
+
+    return scale      

@@ -201,11 +201,20 @@ def get_center_of_xim(xim, transform_key=None):
     
     ndim = get_ndim_from_xim(xim)
 
+    spacing = get_spacing_from_xim(xim, asarray=True)
+    origin = get_origin_from_xim(xim, asarray=True)
+
     center = np.array([xim.coords[dim][len(xim.coords[dim])//2]
                     for dim in get_spatial_dims_from_xim(xim)])
     
+    center = center * spacing + origin
+
     if transform_key is not None:
         affine = get_affine_from_xim(xim, transform_key=transform_key)
+        # select params of first time point if applicable
+        sel_dict = {dim: affine.coords[dim][0].values
+            for dim in affine.dims if dim not in ['x_in', 'x_out']}
+        affine = affine.sel(sel_dict)
         affine = np.array(affine)
         center = np.concatenate([center, np.ones(1)])
         center = np.matmul(affine, center)[:ndim]
@@ -266,6 +275,7 @@ def matmul_xparams(xparams1, xparams2):
         xparams2,
         input_core_dims=[['x_in', 'x_out']]*2,
         output_core_dims=[['x_in', 'x_out']],
+        dask='parallelized',
         vectorize=True)
 
 
@@ -274,4 +284,7 @@ def invert_xparams(xparams):
         xparams,
         input_core_dims=[['x_in', 'x_out']],
         output_core_dims=[['x_in', 'x_out']],
-        vectorize=True)
+        vectorize=False,
+        # dask='allowed',
+        dask='parallelized',
+        )

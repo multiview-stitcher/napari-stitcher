@@ -115,7 +115,7 @@ def fuse(
             output_shape=output_stack_properties['shape'],
             output_spacing=output_stack_properties['spacing'],
             output_chunksize=output_chunksize,
-            interpolate_missing_pixels=interpolate_missing_pixels, 
+            interpolate_missing_pixels=interpolate_missing_pixels,
         )
         
         merge = merge.expand_dims(nsdims)
@@ -344,8 +344,6 @@ def calc_stack_properties_from_view_properties_and_params(
 
     spacing = np.array(spacing).astype(float)
     ndim = len(spacing)
-
-    # import pdb; pdb.set_trace()
 
     stack_vertices = np.array([i for i in np.ndindex(tuple([2] * ndim))]).astype(float)
 
