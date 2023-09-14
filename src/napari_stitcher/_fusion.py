@@ -86,10 +86,10 @@ def fuse(
         output_stack_properties = dict()
 
     if output_origin is not None:
-        output_stack_properties['origin'] = output_origin
+        output_stack_properties['origin'] = [output_origin[dim] for dim in sdims]
 
     if output_shape is not None:
-        output_stack_properties['shape'] = output_shape
+        output_stack_properties['shape'] = [output_shape[dim] for dim in sdims]
 
     xds = xr.Dataset(
         {(view, 'xim'): xims[view] for view in range(len(xims))} |
