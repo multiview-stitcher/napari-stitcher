@@ -514,6 +514,40 @@ def get_drift_correction_parameters(tl, sigma=2):
     return ps_cum
 
 
+def crop_xim_to_reference(
+    xim_input_to_crop,
+    reference_xim,
+    transform_key_input,
+    transform_key_reference,
+    input_time_index=0,
+):
+    """
+    Crop input image to the minimal region fully covering the reference xim.
+    """
+
+    ref_corners_world = np.unique(_mv_graph.get_faces_from_xim(reference_xim, transform_key=transform_key_reference).reshape((-1, 2)), axis=0)
+    input_affine = _spatial_image_utils.get_affine_from_xim(xim_input_to_crop, transform_key=transform_key_input)
+
+    if 't' in input_affine.dims:
+        input_affine = input_affine.sel({'t': input_affine.coords['t'][input_time_index]})
+
+    input_affine_inv = np.linalg.inv(np.array(input_affine))
+    ref_corners_input_dataspace = _transformation.transform_pts(ref_corners_world, np.array(input_affine_inv))
+    ref_corners_input_dataspace
+
+    lower, upper = [func(ref_corners_input_dataspace, axis=0) for func in [np.min, np.max]]
+
+    sdims = _spatial_image_utils.get_spatial_dims_from_xim(xim_input_to_crop)
+
+    xim_cropped = _spatial_image_utils.xim_sel_coords(
+        xim_input_to_crop,
+        {dim: (xim_input_to_crop.coords[dim] > lower[idim]) * (xim_input_to_crop.coords[dim] < upper[idim])
+         for idim, dim in enumerate(sdims)
+        })
+    
+    return xim_cropped
+
+
 if __name__ == "__main__":
 
     from napari_stitcher import _reader, _spatial_image_utils

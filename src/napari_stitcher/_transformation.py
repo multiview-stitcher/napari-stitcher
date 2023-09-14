@@ -77,3 +77,16 @@ def transform_xim(
         )
     
     return sim
+
+
+def transform_pts(pts, affine):
+    """
+    pts: (M, N)
+    affine: (N+1, N+1)
+    """
+    pts = np.array(pts)
+    pts = np.concatenate([pts, np.ones((pts.shape[0], 1))], axis=1)
+    pts_t = np.array([np.dot(np.array(affine), pt) for pt in pts])
+    pts_t = pts_t[:, :-1]
+    
+    return pts_t
