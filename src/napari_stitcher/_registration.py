@@ -514,18 +514,24 @@ def get_drift_correction_parameters(tl, sigma=2):
     return ps_cum
 
 
-def crop_xim_to_reference(
+def crop_xim_to_references(
     xim_input_to_crop,
-    reference_xim,
+    reference_xims,
     transform_key_input,
-    transform_key_reference,
+    transform_keys_reference,
     input_time_index=0,
 ):
     """
-    Crop input image to the minimal region fully covering the reference xim.
+    Crop input image to the minimal region fully covering the reference xim(s).
     """
 
-    ref_corners_world = np.unique(_mv_graph.get_faces_from_xim(reference_xim, transform_key=transform_key_reference).reshape((-1, 2)), axis=0)
+    ref_corners_world = []
+    for irefxim, reference_xim in enumerate(reference_xims):
+        ref_corners_world += list(
+            np.unique(_mv_graph.get_faces_from_xim(
+                reference_xim,
+                transform_key=transform_keys_reference[irefxim]).reshape((-1, 2)), axis=0))
+        
     input_affine = _spatial_image_utils.get_affine_from_xim(xim_input_to_crop, transform_key=transform_key_input)
 
     if 't' in input_affine.dims:
