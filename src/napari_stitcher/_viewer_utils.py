@@ -47,6 +47,7 @@ def create_image_layer_tuple_from_msim(
     transform_key=None,
     ch_name=None,
     contrast_limits=None,
+    blending='additive',
     ):
 
     """
@@ -115,7 +116,7 @@ def create_image_layer_tuple_from_msim(
         'translate': np.array([origin[dim] for dim in spatial_dims]),
         'scale': np.array([spacing[dim] for dim in spatial_dims]),
         'cache': True,
-        'blending': 'additive',
+        'blending': blending,
         'multiscale': True,
         }
 
