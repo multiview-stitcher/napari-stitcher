@@ -182,7 +182,7 @@ def set_affine_transform(msim, xaffine=None, transform_key=None, base_transform_
 
     ndim = _spatial_image_utils.get_ndim_from_xim(get_xim_from_msim(msim))
     if xaffine is None:
-        xaffine = [np.eye(ndim + 1)]
+        xaffine = np.eye(ndim + 1)
 
     if not isinstance(xaffine, xr.DataArray):
         xaffine = xr.DataArray(
