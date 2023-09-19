@@ -276,7 +276,9 @@ def matmul_xparams(xparams1, xparams2):
         input_core_dims=[['x_in', 'x_out']]*2,
         output_core_dims=[['x_in', 'x_out']],
         dask='parallelized',
-        vectorize=True)
+        vectorize=True,
+        join='inner'
+        )
 
 
 def invert_xparams(xparams):

@@ -89,7 +89,7 @@ def register_pair_of_spatial_images(
     Return: Transform in homogeneous coordinates
     """
 
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1) 
+    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(xim1)
     spacing = _spatial_image_utils.get_spacing_from_xim(xim1, asarray=True)
     ndim = len(spatial_dims)
 

@@ -60,13 +60,6 @@ def test_writer_napari(make_napari_viewer):
             for channels in [
                 [0],
                 [0, 1]]:
-
-                # full_layer_data_list = create_full_layer_data_list(
-                #     channels=['ch%s' %ch for ch in channels],
-                #     times=times,
-                #     field_ndim=field_ndim,
-                #     dtype=im_dtype,
-                #     spacing_xy=spacing_xy)
                 
                 sims = _sample_data.generate_tiled_dataset(
                     ndim=field_ndim, N_t=len(times), N_c=len(channels),

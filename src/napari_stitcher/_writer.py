@@ -108,7 +108,7 @@ def save_xim_as_tif(path, xim):
     # writing with tifffile is not thread safe,
     # so we need to disable dask's multithreading
     with dask_config.set(scheduler='single-threaded'):
-        da.store(xim.data, z)#, compute=False)
+        da.store(xim.data, z)
 
     store.close()
 
