@@ -1,11 +1,10 @@
 import numpy as np
 import networkx as nx
 
-from natsort import natsorted
 
 import multiscale_spatial_image as msi
 
-from napari_stitcher import _mv_graph, _spatial_image_utils, _msi_utils, _utils
+from ngff_stitcher import mv_graph, spatial_image_utils, msi_utils
 
 from napari.experimental import link_layers
 
@@ -17,10 +16,10 @@ def image_layer_to_msim(l):
         for ixim, xim in enumerate(l.data):
             msi.MultiscaleSpatialImage(name='scale%s' %ixim, data=xim, parent=msim)
         
-        ndim = _spatial_image_utils.get_ndim_from_xim(_msi_utils.get_xim_from_msim(msim))
+        ndim = spatial_image_utils.get_ndim_from_xim(msi_utils.get_xim_from_msim(msim))
         affine = np.array(l.affine.affine_matrix)[-(ndim+1):, -(ndim+1):]
-        affine_xr = _spatial_image_utils.affine_to_xr(affine, t_coords=l.data[0].coords['t'])
-        _msi_utils.set_affine_transform(
+        affine_xr = spatial_image_utils.affine_to_xr(affine, t_coords=l.data[0].coords['t'])
+        msi_utils.set_affine_transform(
             msim, affine_xr, transform_key='affine_metadata')
         
         return msim
@@ -54,7 +53,7 @@ def create_image_layer_tuple_from_msim(
     """
 
     xim = msim['scale0/image']
-    scale_keys = _msi_utils.get_sorted_scale_keys(msim)
+    scale_keys = msi_utils.get_sorted_scale_keys(msim)
 
     if contrast_limits is None:
         xim_thumb = msim[scale_keys[-1]]['image'].sel(t=xim.coords['t'][0])
@@ -82,24 +81,24 @@ def create_image_layer_tuple_from_msim(
         name = ' :: '.join([name_prefix, ch_name])
 
     if not transform_key is None:
-        affine_transform_xr = _msi_utils.get_transform_from_msim(msim, transform_key=transform_key)
+        affine_transform_xr = msi_utils.get_transform_from_msim(msim, transform_key=transform_key)
         affine_transform = np.array(affine_transform_xr.sel(t=xim.coords['t'][0]).data)
     else:
-        ndim = _spatial_image_utils.get_ndim_from_xim(xim)
+        ndim = spatial_image_utils.get_ndim_from_xim(xim)
         affine_transform = np.eye(ndim + 1)
 
     multiscale_data = []
     for scale_key in scale_keys:
         multiscale_xim = msim[scale_key]['image']
-        multiscale_xim.attrs['transforms'] = _msi_utils.get_transforms_from_dataset_as_dict(msim[scale_key])
+        multiscale_xim.attrs['transforms'] = msi_utils.get_transforms_from_dataset_as_dict(msim[scale_key])
         multiscale_data.append(multiscale_xim)
 
-    spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(
+    spatial_dims = spatial_image_utils.get_spatial_dims_from_xim(
         xim)
     ndim = len(spatial_dims)
 
-    spacing = _spatial_image_utils.get_spacing_from_xim(xim)
-    origin = _spatial_image_utils.get_origin_from_xim(xim)
+    spacing = spatial_image_utils.get_spacing_from_xim(xim)
+    origin = spatial_image_utils.get_origin_from_xim(xim)
 
     kwargs = \
         {
@@ -131,18 +130,18 @@ def create_image_layer_tuples_from_msims(
         transform_key=None,
 ):
 
-    xims = [_msi_utils.get_xim_from_msim(msim) for msim in msims]
+    xims = [msi_utils.get_xim_from_msim(msim) for msim in msims]
 
     if positional_cmaps:
         cmaps = get_cmaps_from_xims(
-            [_spatial_image_utils.xim_sel_coords(xim, {'t':xim.coords['t'][0]}) for xim in xims],
+            [spatial_image_utils.xim_sel_coords(xim, {'t':xim.coords['t'][0]}) for xim in xims],
             n_colors=n_colors, transform_key=transform_key)
     else:
         cmaps = [None for _ in msims]
 
     out_layers = [
         create_image_layer_tuple_from_msim(
-                    _msi_utils.multiscale_sel_coords(msim, {'c': ch_coord}),
+                    msi_utils.multiscale_sel_coords(msim, {'c': ch_coord}),
                     cmaps[iview],
                     name_prefix=name_prefix + '_%03d' %iview,
                     transform_key=transform_key,
@@ -162,7 +161,7 @@ def get_cmaps_from_xims(xims, n_colors=2, transform_key=None):
 
     """
 
-    mv_graph = _mv_graph.build_view_adjacency_graph_from_xims(
+    view_adj_graph = mv_graph.build_view_adjacency_graph_from_xims(
         xims, expand=True, transform_key=transform_key)
 
     # thresholds = threshold_multiotsu(overlaps)
@@ -173,23 +172,23 @@ def get_cmaps_from_xims(xims, n_colors=2, transform_key=None):
     # modify overlap values
     # strategy: add a small amount to edge overlap depending on how many edges the nodes it connects have (betweenness?)
 
-    edge_vals = nx.edge_betweenness_centrality(mv_graph)
+    edge_vals = nx.edge_betweenness_centrality(view_adj_graph)
 
-    edges = [e for e in mv_graph.edges(data=True)]
+    edges = [e for e in view_adj_graph.edges(data=True)]
     for e in edges:
         edge_vals[tuple(e[:2])] = edge_vals[tuple(e[:2])] + e[2]['overlap']
 
     sorted_unique_vals = sorted(np.unique([v for v in edge_vals.values()]))
 
-    nx.set_edge_attributes(mv_graph, edge_vals, name='edge_val')
+    nx.set_edge_attributes(view_adj_graph, edge_vals, name='edge_val')
 
     thresh_ind = 0
     while 1:
-        colors = nx.coloring.greedy_color(mv_graph)
-        if len(set(colors.values())) <= n_colors:# and nx.coloring.equitable_coloring.is_equitable(mv_graph, colors):
+        colors = nx.coloring.greedy_color(view_adj_graph)
+        if len(set(colors.values())) <= n_colors:# and nx.coloring.equitable_coloring.is_equitable(view_adj_graph, colors):
             break
-        mv_graph.remove_edges_from(
-            [(a,b) for a, b, attrs in mv_graph.edges(data=True)
+        view_adj_graph.remove_edges_from(
+            [(a,b) for a, b, attrs in view_adj_graph.edges(data=True)
             if attrs["edge_val"] <= sorted_unique_vals[thresh_ind]])
         thresh_ind += 1
 
@@ -202,7 +201,7 @@ def get_cmaps_from_xims(xims, n_colors=2, transform_key=None):
 
 def set_layer_xaffine(l, xaffine, transform_key, base_transform_key=None):
     for sim in l.data:
-        _spatial_image_utils.set_xim_affine(
+        spatial_image_utils.set_xim_affine(
             sim,
             xaffine,
             transform_key=transform_key, 

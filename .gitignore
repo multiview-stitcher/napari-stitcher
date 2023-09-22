@@ -84,3 +84,5 @@ venv/
 **/_version.py
 
 image-datasets/multi-view/*
+
+src/napari_stitcher/_playground

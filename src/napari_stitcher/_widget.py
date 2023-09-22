@@ -7,21 +7,26 @@ see: https://napari.org/stable/plugins/guides.html?#widgets
 Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
-import pathlib, os, tempfile, sys
+import os, tempfile, sys
 
 import numpy as np
 import dask
-import dask.array as da
 
 from napari.utils import notifications
 
-from magicgui import magic_factory, magicgui, widgets
-from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget
+from magicgui import widgets
+from qtpy.QtWidgets import QVBoxLayout, QWidget
 
 import spatial_image as si
 
-from napari_stitcher import _utils, _registration, _fusion, _reader,\
-    _mv_graph, _spatial_image_utils, _viewer_utils, _msi_utils
+from ngff_stitcher import\
+    (registration,
+     fusion,
+    spatial_image_utils,
+    msi_utils,
+    )
+
+from napari_stitcher import _reader, viewer_utils, _utils
 
 if TYPE_CHECKING:
     import napari
@@ -156,14 +161,14 @@ class StitcherQWidget(QWidget):
         if not len(compatible_layers): return
         
         # determine spatial dimensions from layers
-        all_spatial_dims = [_spatial_image_utils.get_spatial_dims_from_xim(l.data[0])
+        all_spatial_dims = [spatial_image_utils.get_spatial_dims_from_xim(l.data[0])
             for l in compatible_layers]
         
         highest_sdim = max([len(sdim) for sdim in all_spatial_dims])
 
         # reference_sim = compatible_layers[0].data[0]
-        # spatial_dims = _spatial_image_utils.get_spatial_dims_from_xim(reference_sim)
-        # ndim = _spatial_image_utils
+        # spatial_dims = spatial_image_utils.get_spatial_dims_from_xim(reference_sim)
+        # ndim = spatial_image_utils
 
         # get curr tp
         # handle possibility that there had been no T dimension
@@ -174,11 +179,11 @@ class StitcherQWidget(QWidget):
             curr_tp = 0
 
         if self.visualization_type_rbuttons.value == CHOICE_METADATA:
-            transform_key=_reader.READER_METADATA_TRANSFORM_KEY
+            transform_key=_reader.METADATA_TRANSFORM_KEY
         else:
             transform_key = 'affine_registered'
 
-        for il, l in enumerate(compatible_layers):
+        for _, l in enumerate(compatible_layers):
 
             layer_sim = l.data[0]
             # ndim = all_spatial_dims[il]
@@ -186,7 +191,7 @@ class StitcherQWidget(QWidget):
             # if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
 
             try:
-                params = _spatial_image_utils.get_affine_from_xim(
+                params = spatial_image_utils.get_affine_from_xim(
                     layer_sim, transform_key=transform_key
                     )
             except:
@@ -246,10 +251,10 @@ class StitcherQWidget(QWidget):
 
         layers = list(_utils.filter_layers(
             self.input_layers,
-            {lname: _msi_utils.get_xim_from_msim(msim) for lname, msim in self.msims.items()},
+            {lname: msi_utils.get_xim_from_msim(msim) for lname, msim in self.msims.items()},
             ch=self.reg_ch_picker.value))
 
-        xims = [_msi_utils.get_xim_from_msim(self.msims[l.name]) for l in layers]
+        xims = [msi_utils.get_xim_from_msim(self.msims[l.name]) for l in layers]
 
         times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
 
@@ -260,9 +265,9 @@ class StitcherQWidget(QWidget):
         
         xims_tsel = [x.sel(t=[x.coords['t'][it] for it in times]) for x in xims]
 
-        # ndim = len(_spatial_image_utils.get_spatial_dims_from_xim(xims_tsel[0]))
+        # ndim = len(spatial_image_utils.get_spatial_dims_from_xim(xims_tsel[0]))
 
-        params = [_registration.get_stabilization_parameters_from_xim(xim) for xim in xims_tsel]
+        params = [registration.get_stabilization_parameters_from_xim(xim) for xim in xims_tsel]
 
         with _utils.TemporarilyDisabledWidgets([self.container]),\
             _utils.VisibleActivityDock(self.viewer),\
@@ -282,13 +287,13 @@ class StitcherQWidget(QWidget):
 
         msims_dict = {_utils.get_str_unique_to_view_from_layer_name(lname): msim
                       for lname, msim in self.msims.items()
-                      if self.reg_ch_picker.value in _msi_utils.get_xim_from_msim(msim).coords['c']}
+                      if self.reg_ch_picker.value in msi_utils.get_xim_from_msim(msim).coords['c']}
         
         sorted_lnames = sorted(list(msims_dict.keys()))
 
-        sims = [_msi_utils.get_xim_from_msim(msims_dict[lname]) for lname in sorted_lnames]
+        sims = [msi_utils.get_xim_from_msim(msims_dict[lname]) for lname in sorted_lnames]
 
-        sims = [_spatial_image_utils.xim_sel_coords(sim,
+        sims = [spatial_image_utils.xim_sel_coords(sim,
                 {'t': [sim.coords['t'][it]
                          for it in range(self.times_slider.value[0] + 1,
                                          self.times_slider.value[1] + 1)]})
@@ -299,7 +304,7 @@ class StitcherQWidget(QWidget):
             _utils.TqdmCallback(tqdm_class=_utils.progress,
                                 desc='Registering tiles', bar_format=" "):
             
-            params = _registration.register(
+            params = registration.register(
                 sims,
                 # registration_binning={'z': 2, 'y': 8, 'x': 8},
                 registration_binning=None,
@@ -309,13 +314,13 @@ class StitcherQWidget(QWidget):
 
         for lname, msim in self.msims.items():
             params_index = sorted_lnames.index(_utils.get_str_unique_to_view_from_layer_name(lname))
-            _msi_utils.set_affine_transform(
+            msi_utils.set_affine_transform(
                 msim, params[params_index],
                 transform_key='affine_registered', base_transform_key='affine_metadata')
             
         for l in self.input_layers:
             params_index = sorted_lnames.index(_utils.get_str_unique_to_view_from_layer_name(l.name))
-            _viewer_utils.set_layer_xaffine(
+            viewer_utils.set_layer_xaffine(
                 l, params[params_index],
                 transform_key='affine_registered', base_transform_key='affine_metadata')
 
@@ -334,7 +339,7 @@ class StitcherQWidget(QWidget):
         """
 
         # layer_chs = [_utils.get_str_unique_to_ch_from_xim_coords(
-        #     _msi_utils.get_xim_from_msim(msim).coords)
+        #     msi_utils.get_xim_from_msim(msim).coords)
         #             for l_name, msim in self.msims.items()]
         
         # channels = np.unique(layer_chs)
@@ -344,17 +349,17 @@ class StitcherQWidget(QWidget):
         for ch in channels:
 
             msims = [msim for _, msim in self.msims.items()
-                    if ch in _msi_utils.get_xim_from_msim(msim).coords['c']]
+                    if ch in msi_utils.get_xim_from_msim(msim).coords['c']]
 
-            sims = [_msi_utils.get_xim_from_msim(msim) for msim in msims]
+            sims = [msi_utils.get_xim_from_msim(msim) for msim in msims]
 
-            sims = [_spatial_image_utils.xim_sel_coords(sim,
+            sims = [spatial_image_utils.xim_sel_coords(sim,
                     {'t': [sim.coords['t'][it]
                             for it in range(self.times_slider.value[0] + 1,
                                             self.times_slider.value[1] + 1)]})
                     for sim in sims]
 
-            fused = _fusion.fuse(
+            fused = fusion.fuse(
                 sims,
                 transform_key='affine_registered',
             )
@@ -364,7 +369,7 @@ class StitcherQWidget(QWidget):
             fused = fused.expand_dims({'c': [sims[0].coords['c'].values]})
             # fused = fused.assign_coords({'c': ch})
 
-            mfused = _msi_utils.get_msim_from_xim(fused, scale_factors=[])
+            mfused = msi_utils.get_msim_from_xim(fused, scale_factors=[])
 
             tmp_fused_path = os.path.join(self.tmpdir.name, 'fused.zarr')
 
@@ -381,7 +386,7 @@ class StitcherQWidget(QWidget):
                 #     compute=True,
                 #     )
 
-            mfused = _msi_utils.multiscale_spatial_image_from_zarr(tmp_fused_path)
+            mfused = msi_utils.multiscale_spatial_image_from_zarr(tmp_fused_path)
             
             # layers_to_fuse = list(_utils.filter_layers(self.input_layers, self.msims, ch=ch))
 
@@ -401,17 +406,17 @@ class StitcherQWidget(QWidget):
             #     _utils.TqdmCallback(tqdm_class=_utils.progress,
             #                         desc='Fusing tiles of channel %s' %ch, bar_format=" "):
                 
-            #     xfused = _fusion.fuse(xims_to_fuse, params_to_fuse, self.tmpdir)
+            #     xfused = fusion.fuse(xims_to_fuse, params_to_fuse, self.tmpdir)
             
             # xfused = xfused.assign_coords(c=ch)
             
-            # fused_ch_layer_tuple = _viewer_utils.create_image_layer_tuple_from_spatial_xim(
+            # fused_ch_layer_tuple = viewer_utils.create_image_layer_tuple_from_spatial_xim(
             #     xfused,
             #     colormap=None,
             #     name_prefix='fused',
             # )
 
-            fused_ch_layer_tuple = _viewer_utils.create_image_layer_tuple_from_msim(
+            fused_ch_layer_tuple = viewer_utils.create_image_layer_tuple_from_msim(
                 mfused,
                 colormap=None,
                 name_prefix='fused',
@@ -439,7 +444,7 @@ class StitcherQWidget(QWidget):
     def load_metadata(self):
         
         # reference_xim = self.msims[self.input_layers[0].name]
-        reference_xim = _msi_utils.get_xim_from_msim(self.msims[self.input_layers[0].name])
+        reference_xim = msi_utils.get_xim_from_msim(self.msims[self.input_layers[0].name])
         
         # assume dims are the same for all layers
         if 't' in reference_xim.dims:
@@ -453,7 +458,7 @@ class StitcherQWidget(QWidget):
         if 'c' in reference_xim.coords.keys():
             self.reg_ch_picker.enabled = True
             self.reg_ch_picker.choices = np.unique([
-                _utils.get_str_unique_to_ch_from_xim_coords(_msi_utils.get_xim_from_msim(msim).coords)
+                _utils.get_str_unique_to_ch_from_xim_coords(msi_utils.get_xim_from_msim(msim).coords)
                 for l_name, msim in self.msims.items()])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
@@ -498,7 +503,7 @@ class StitcherQWidget(QWidget):
         # load in layers as xims
         for l in layers:
 
-            msim = _viewer_utils.image_layer_to_msim(l)
+            msim = viewer_utils.image_layer_to_msim(l)
             
             # xim = l.data
             # try:
@@ -511,12 +516,12 @@ class StitcherQWidget(QWidget):
                 self.reset()
                 return
             
-            msim = _msi_utils.ensure_time_dim(msim)
+            msim = msi_utils.ensure_time_dim(msim)
             msim.attrs['layer_name'] = l.name
             self.msims[l.name] = msim
 
-        # xims = {l.name: _msi_utils.get_xim_from_msim(msim) for l.name, msim in self.msims.items()}
-        xims = [_msi_utils.get_xim_from_msim(msim) for l.name, msim in self.msims.items()]
+        # xims = {l.name: msi_utils.get_xim_from_msim(msim) for l.name, msim in self.msims.items()}
+        xims = [msi_utils.get_xim_from_msim(msim) for l.name, msim in self.msims.items()]
 
         number_of_channels = len(np.unique([
             _utils.get_str_unique_to_ch_from_xim_coords(xim.coords)
@@ -534,7 +539,7 @@ class StitcherQWidget(QWidget):
         from napari.experimental import link_layers
 
         # msims = [self.msims[l.name] for l in layers]
-        sims = {l.name: _msi_utils.get_xim_from_msim(self.msims[l.name])
+        sims = {l.name: msi_utils.get_xim_from_msim(self.msims[l.name])
                 for l in layers}
 
         channels = [_utils.get_str_unique_to_ch_from_xim_coords(sim.coords) for sim in sims.values()]
@@ -556,8 +561,9 @@ class StitcherQWidget(QWidget):
 if __name__ == "__main__":
 
     import napari
+    from ngff_stitcher.sample_data import get_mosaic_sample_data_path
 
-    filename = "/Users/malbert/software/napari-stitcher/image-datasets/mosaic_test.czi"
+    filename = get_mosaic_sample_data_path()
 
     viewer = napari.Viewer()
     

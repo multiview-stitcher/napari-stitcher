@@ -7,45 +7,10 @@ from pathlib import Path
 
 import tifffile
 
-from napari_stitcher import write_multiple, _viewer_utils, _msi_utils, _spatial_image_utils, _sample_data
+from napari_stitcher import _sample_data, viewer_utils
 
-
-def create_full_layer_data_list(channels=[0],
-                                times=[0],
-                                field_ndim=2,
-                                spatial_size=15,
-                                dtype=np.uint8,
-                                spacing_xy=0.5):
-    """
-    Create test data for writer tests.
-    Returns a List[FullLayerData].
-    """
-
-    spatial_dims = ['z', 'y', 'x'][-field_ndim:]
-
-    im = da.random.randint(0, 100, [len(times)] + [spatial_size] * field_ndim,
-                                dtype=dtype,
-                                chunks=(1,) + (spatial_size // 4,) * field_ndim)
-    
-    xim = xr.DataArray(im, dims=['t'] + spatial_dims)
-
-    xim = xim.assign_coords({sd: np.arange(len(xim.coords[sd])) * spacing_xy
-                                           for sd in spatial_dims})
-
-    full_layer_data_list = []
-
-    for ch in channels:
-        xim_ch = xim.assign_coords(c=ch)
-        
-
-        mxim_ch = _msi_utils.get_msim_from_xim(xim_ch)
-
-        full_layer_data_list.append(
-            _viewer_utils.create_image_layer_tuple_from_msim(
-                mxim_ch, colormap=None, name_prefix='fused')
-        )
-        
-    return full_layer_data_list
+from ngff_stitcher import msi_utils
+from ngff_stitcher.io import METADATA_TRANSFORM_KEY
 
 
 def test_writer_napari(make_napari_viewer):
@@ -67,12 +32,12 @@ def test_writer_napari(make_napari_viewer):
                     spacing_x=spacing_xy, spacing_y=spacing_xy,
                 )
 
-                msims = [_msi_utils.get_msim_from_xim(sim) for sim in sims]
+                msims = [msi_utils.get_msim_from_xim(sim) for sim in sims]
 
-                full_layer_data_list = _viewer_utils.create_image_layer_tuples_from_msims(
+                full_layer_data_list = viewer_utils.create_image_layer_tuples_from_msims(
                     msims,
                     positional_cmaps=False,
-                    transform_key='affine_metadata',
+                    transform_key=METADATA_TRANSFORM_KEY,
                 )
 
                 viewer.layers.clear()
@@ -83,8 +48,6 @@ def test_writer_napari(make_napari_viewer):
 
                     filepath = str(Path(tmpdir) / "test.tif")
                     viewer.layers.save(filepath, plugin='napari-stitcher')
-
-                    # write_multiple(filepath, full_layer_data_list[:])
 
                     read_im = tifffile.imread(filepath)
 

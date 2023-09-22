@@ -4,7 +4,16 @@ from pathlib import Path
 import tempfile
 import tifffile
 
-from napari_stitcher import StitcherQWidget, _widget, _sample_data, _viewer_utils, _msi_utils
+from napari_stitcher import (
+    StitcherQWidget,
+    _widget,
+    _sample_data,
+    viewer_utils,
+)
+
+from ngff_stitcher import msi_utils
+from ngff_stitcher.io import METADATA_TRANSFORM_KEY
+from ngff_stitcher.sample_data import get_mosaic_sample_data_path
 
 import pytest
 
@@ -14,8 +23,8 @@ def test_data_loading_while_plugin_open(make_napari_viewer):
     # make viewer and add an image layer using our fixture
     viewer = make_napari_viewer()
 
-    test_path = Path(__file__).parent.parent.parent.parent /\
-                             "image-datasets" / "mosaic_test.czi"
+    test_path = get_mosaic_sample_data_path()
+
     viewer.open(test_path, plugin='napari-stitcher')
 
     stitcher_widget = StitcherQWidget(viewer)
@@ -39,8 +48,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 
     stitcher_widget = StitcherQWidget(viewer)
 
-    test_path = Path(__file__).parent.parent.parent.parent /\
-                             "image-datasets" / "mosaic_test.czi"
+    test_path = get_mosaic_sample_data_path()
     
     ndim = 2
     
@@ -119,7 +127,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 
 #     # # First, view 0 is not shifted
 #     # assert(np.allclose(
-#     #     # _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
+#     #     # spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
 #     #     np.eye(viewer.layers[0].data.ndim + 1),
 #     #     viewer.layers[0].affine.affine_matrix))
     
@@ -127,7 +135,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 #     stitcher_widget.visualization_type_rbuttons.value=_widget.CHOICE_REGISTERED
 #     # Make sure view 0 is shifted now
 #     assert(~np.allclose(
-#         # _spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
+#         # spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
 #         np.eye(viewer.layers[0].data.ndim + 1),
 #         viewer.layers[0].affine.affine_matrix))
 
@@ -149,8 +157,6 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 )
 def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer):
 
-    from napari_stitcher import StitcherQWidget
-
     viewer = make_napari_viewer()
 
     wdg = StitcherQWidget(viewer)
@@ -159,9 +165,9 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
     xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
             tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=overlap, zoom=10, dtype=dtype)
 
-    msims = [_msi_utils.get_msim_from_xim(xim, scale_factors=[]) for xim in xims]
-    layer_tuples = _viewer_utils.create_image_layer_tuples_from_msims(
-        msims, transform_key='affine_metadata')
+    msims = [msi_utils.get_msim_from_xim(xim, scale_factors=[]) for xim in xims]
+    layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
+        msims, transform_key=METADATA_TRANSFORM_KEY)
    
     for lt in layer_tuples:
         viewer.add_image(lt[0], **lt[1])
@@ -182,7 +188,6 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         outfile = str(Path(tmpdir) / "test.tif")
-        # from napari_stitcher._writer import write_multiple
         viewer.layers[-N_c:].save(outfile, plugin='napari-stitcher')
         tifffile.imread(outfile)
 
@@ -192,8 +197,6 @@ def test_time_slider(make_napari_viewer):
     Register and fuse only 3 out of 4 time points
     present in the input layers.
     """
-
-    from napari_stitcher import StitcherQWidget
 
     viewer = make_napari_viewer()
 
@@ -205,9 +208,9 @@ def test_time_slider(make_napari_viewer):
         tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1,
         overlap=5, zoom=10, dtype=np.uint8)
 
-    msims = [_msi_utils.get_msim_from_xim(xim, scale_factors=[]) for xim in xims]
-    layer_tuples = _viewer_utils.create_image_layer_tuples_from_msims(
-        msims, transform_key='affine_metadata')
+    msims = [msi_utils.get_msim_from_xim(xim, scale_factors=[]) for xim in xims]
+    layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
+        msims, transform_key=METADATA_TRANSFORM_KEY)
    
     for lt in layer_tuples:
         viewer.add_image(lt[0], **lt[1])
@@ -237,8 +240,6 @@ def test_update_transformations(ndim, N_c, N_t, make_napari_viewer):
     Basic test: scroll through time and confirm that no error is thrown.
     """
 
-    from napari_stitcher import StitcherQWidget
-
     viewer = make_napari_viewer()
 
     wdg = StitcherQWidget(viewer)
@@ -247,10 +248,10 @@ def test_update_transformations(ndim, N_c, N_t, make_napari_viewer):
     xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
             tile_size=5, tiles_x=2, tiles_y=1, tiles_z=1)
     
-    mxims = [_msi_utils.get_msim_from_xim(xim) for xim in xims]
+    mxims = [msi_utils.get_msim_from_xim(xim) for xim in xims]
 
-    layer_tuples = _viewer_utils.create_image_layer_tuples_from_msims(
-        mxims, positional_cmaps=False, transform_key='affine_metadata')
+    layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
+        mxims, positional_cmaps=False, transform_key=METADATA_TRANSFORM_KEY)
 
     for lt in layer_tuples:
         viewer.add_image(lt[0], **lt[1])

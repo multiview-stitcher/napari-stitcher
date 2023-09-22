@@ -35,25 +35,6 @@ class VisibleActivityDock(object):
         self.viewer.window._status_bar._toggle_activity_dock(False)
 
 
-def compute_dask_object(dask_object,
-                        viewer,
-                        widgets_to_disable=None,
-                        message="Registering tiles",
-                        scheduler='threading',
-                        ):
-    """
-    Compute dask object. While doing so:
-     - show progress bar
-     - disable widgets temporarily
-    """
-    with TemporarilyDisabledWidgets(widgets_to_disable),\
-         VisibleActivityDock(viewer),\
-         TqdmCallback(tqdm_class=progress, desc=message, bar_format=" "):
-        result = compute(dask_object, scheduler=scheduler)[0]
-
-    return result
-
-
 def get_str_unique_to_view_from_layer_name(layer_name):
     return layer_name.split(' :: ')[0]
 
@@ -71,22 +52,3 @@ def filter_layers(layers, xims, view=None, ch=None):
         if view is not None and get_str_unique_to_view_from_layer_name(l.name) != view: continue
         if ch is not None and get_str_unique_to_ch_from_xim_coords(xims[l.name].coords) != ch: continue
         yield l
-
-
-def duplicate_channel_xims(xims):
-
-    xims_ch_duplicated = [
-        xr.concat([xim] * 2, dim='c')\
-        .assign_coords(c=[
-            xim.coords['c'].data[0],
-            xim.coords['c'].data[0] + '_2']
-        ) for xim in xims]
-    
-    return xims_ch_duplicated
-
-
-def shift_to_matrix(shift):
-    ndim = len(shift)
-    M = np.concatenate([shift, [1]], axis=0)
-    M = np.concatenate([np.eye(ndim + 1)[:,:ndim], M[:,None]], axis=1)
-    return M
