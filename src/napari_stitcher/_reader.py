@@ -70,11 +70,26 @@ def read_mosaic(path, scene_index=None):
     # handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
-    xims = read_mosaic_image_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
-    msims = [msi_utils.get_msim_from_xim(xim) for xim in xims]
+    sims = read_mosaic_image_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
+    msims = [msi_utils.get_msim_from_sim(sim) for sim in sims]
 
     out_layers = viewer_utils.create_image_layer_tuples_from_msims(
         msims,
         transform_key=METADATA_TRANSFORM_KEY)
 
     return out_layers
+
+
+if __name__ == "__main__":
+
+    from ngff_stitcher.sample_data import get_mosaic_sample_data_path
+
+    filename = get_mosaic_sample_data_path()
+
+    sims = read_mosaic_image_into_list_of_spatial_xarrays(filename)
+
+    from ngff_stitcher import msi_utils
+
+    msim = msi_utils.get_msim_from_sim(sims[0], scale_factors=[])
+
+    msim_sel = msi_utils.multiscale_sel_coords(msim, {'c':'EGFP'})

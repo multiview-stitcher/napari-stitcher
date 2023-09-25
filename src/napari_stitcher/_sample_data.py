@@ -18,7 +18,7 @@ from napari_stitcher._reader import read_mosaic
 from ngff_stitcher.sample_data import get_mosaic_sample_data_path
 from ngff_stitcher.io import METADATA_TRANSFORM_KEY
 from ngff_stitcher.sample_data import generate_tiled_dataset
-from ngff_stitcher.msi_utils import get_msim_from_xim
+from ngff_stitcher.msi_utils import get_msim_from_sim
 
 
 def make_sample_data():
@@ -36,13 +36,13 @@ def make_sample_data():
 
 def drifting_timelapse_with_stage_shifts_no_overlap_2d():
 
-    xims = generate_tiled_dataset(
+    sims = generate_tiled_dataset(
         ndim=2, N_t=20, N_c=1,
         tile_size=30, tiles_x=3, tiles_y=3, tiles_z=1,
         drift_scale=2., shift_scale=2.,
         overlap=0, zoom=8, dtype=np.uint8)
     
-    msims = [get_msim_from_xim(xim) for xim in xims]
+    msims = [get_msim_from_sim(sim) for sim in sims]
 
     layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
         msims, transform_key=METADATA_TRANSFORM_KEY)
@@ -52,13 +52,13 @@ def drifting_timelapse_with_stage_shifts_no_overlap_2d():
 
 def timelapse_with_stage_shifts_with_overlap_3d():
 
-    xims = generate_tiled_dataset(
+    sims = generate_tiled_dataset(
         ndim=3, N_t=20, N_c=1,
         tile_size=30, tiles_x=3, tiles_y=3, tiles_z=1,
         drift_scale=0., shift_scale=2.,
         overlap=3, zoom=8, dtype=np.uint8)
     
-    msims = [get_msim_from_xim(xim) for xim in xims]
+    msims = [get_msim_from_sim(sim) for sim in sims]
 
     layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
         msims, transform_key=METADATA_TRANSFORM_KEY)

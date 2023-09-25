@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 import xarray as xr
 
+import warnings
 from typing import TYPE_CHECKING, Any, List, Sequence, Tuple, Union
 
 from ngff_stitcher import spatial_image_utils, io
@@ -41,21 +42,24 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
     if not path.endswith('.tif'):
         raise ValueError('Only .tif file saving is supported.')
     
-    xims = [d[0][0] for d in data]
+    sims = [d[0][0] for d in data]
 
-    spacings = [spatial_image_utils.get_spacing_from_xim(xim, asarray=True) for xim in xims]
-    origins = [spatial_image_utils.get_origin_from_xim(xim, asarray=True) for xim in xims]
-    shapes = [spatial_image_utils.get_shape_from_xim(xim, asarray=True) for xim in xims]
+    spacings = [spatial_image_utils.get_spacing_from_sim(sim, asarray=True) for sim in sims]
+    origins = [spatial_image_utils.get_origin_from_sim(sim, asarray=True) for sim in sims]
+    shapes = [spatial_image_utils.get_shape_from_sim(sim, asarray=True) for sim in sims]
 
-    for ixim in range(len(data)):
-        if not np.allclose(spacings[ixim], spacings[0]) or \
-           not np.allclose(origins[ixim], origins[0]) or \
-           not np.allclose(shapes[ixim], shapes[0]):
+    for isim in range(len(data)):
+        if not np.allclose(spacings[isim], spacings[0]) or \
+           not np.allclose(origins[isim], origins[0]) or \
+           not np.allclose(shapes[isim], shapes[0]):
             raise ValueError('Image saving: Data of all layers must occupy the same space.')
 
-    xim_to_write = xr.concat([xim for xim in xims], dim='c')
+    # suppress pandas future warning occuring within xarray.concat
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+        sim_to_write = xr.concat([sim for sim in sims], dim='c')
 
-    io.save_xim_as_tif(path, xim_to_write)
+    io.save_sim_as_tif(path, sim_to_write)
 
     # return path to any file(s) that were successfully written
     return [path]

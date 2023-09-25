@@ -9,10 +9,10 @@ def test_read_mosaic_image_into_list_of_spatial_xarrays():
 
     test_path = get_mosaic_sample_data_path()
     
-    view_xims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(test_path)
+    view_sims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(test_path)
 
-    assert(2, len(view_xims))
-    assert(min([ax in view_xims[0].dims for ax in ['x', 'y']]))
+    assert(2, len(view_sims))
+    assert(min([ax in view_sims[0].dims for ax in ['x', 'y']]))
 
     return
 

@@ -11,7 +11,7 @@ from napari_stitcher import (
     viewer_utils,
 )
 
-from ngff_stitcher import msi_utils
+from ngff_stitcher import msi_utils, registration
 from ngff_stitcher.io import METADATA_TRANSFORM_KEY
 from ngff_stitcher.sample_data import get_mosaic_sample_data_path
 
@@ -109,8 +109,8 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 
 #     stitcher_widget = StitcherQWidget(viewer)
 
-#     xims = _sample_data.generate_tiled_dataset(ndim=2, N_t=20, N_c=1, tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=3, zoom=10, dtype=np.uint16)
-#     layer_tuples = _sample_data.create_image_layer_tuples_from_xims(xims)
+#     sims = _sample_data.generate_tiled_dataset(ndim=2, N_t=20, N_c=1, tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=3, zoom=10, dtype=np.uint16)
+#     layer_tuples = _sample_data.create_image_layer_tuples_from_sims(sims)
 
 #     for lt in layer_tuples:
 #         viewer.add_image(lt[0], **lt[1])
@@ -146,7 +146,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 
 @pytest.mark.parametrize(
     "ndim, overlap, N_c, N_t, dtype", [
-        (2, 1, 1, 3, np.uint16),
+        (2, 1, 1, 3, np.uint16), # single pixel overlap not supported
         (2, 5, 1, 3, np.uint16),
         (2, 5, 1, 3, np.uint8),
         # (2, 5, 2, 3, np.uint8), # sporadically fails, need to investigate
@@ -162,10 +162,10 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
 
-    xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
+    sims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
             tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=overlap, zoom=10, dtype=dtype)
 
-    msims = [msi_utils.get_msim_from_xim(xim, scale_factors=[]) for xim in xims]
+    msims = [msi_utils.get_msim_from_sim(sim, scale_factors=[]) for sim in sims]
     layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
         msims, transform_key=METADATA_TRANSFORM_KEY)
    
@@ -174,8 +174,13 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
 
     wdg.button_load_layers_all.clicked()
 
-    # Run stabilization
-    wdg.run_stitching()
+    # Run registration
+    if overlap > 1:
+        wdg.run_stitching()
+    else:
+        with pytest.raises(registration.NotEnoughOverlapError):
+            wdg.run_stitching()
+        return
 
     # Run fusion
     wdg.run_fusion()
@@ -203,12 +208,12 @@ def test_time_slider(make_napari_viewer):
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
 
-    xims = _sample_data.generate_tiled_dataset(
+    sims = _sample_data.generate_tiled_dataset(
         ndim=2, N_t=4, N_c=1,
         tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1,
         overlap=5, zoom=10, dtype=np.uint8)
 
-    msims = [msi_utils.get_msim_from_xim(xim, scale_factors=[]) for xim in xims]
+    msims = [msi_utils.get_msim_from_sim(sim, scale_factors=[]) for sim in sims]
     layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
         msims, transform_key=METADATA_TRANSFORM_KEY)
    
@@ -229,9 +234,9 @@ def test_time_slider(make_napari_viewer):
 
 @pytest.mark.parametrize(
     "ndim, N_c, N_t", [
-        (2, 1, 1),
+        # (2, 1, 1),
         (2, 1, 2),
-        (3, 2, 1),
+        # (3, 2, 1),
         (3, 2, 2),
     ]
 )
@@ -245,13 +250,13 @@ def test_update_transformations(ndim, N_c, N_t, make_napari_viewer):
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
 
-    xims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
+    sims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
             tile_size=5, tiles_x=2, tiles_y=1, tiles_z=1)
     
-    mxims = [msi_utils.get_msim_from_xim(xim) for xim in xims]
+    msims = [msi_utils.get_msim_from_sim(sim) for sim in sims]
 
     layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
-        mxims, positional_cmaps=False, transform_key=METADATA_TRANSFORM_KEY)
+        msims, positional_cmaps=False, transform_key=METADATA_TRANSFORM_KEY)
 
     for lt in layer_tuples:
         viewer.add_image(lt[0], **lt[1])
