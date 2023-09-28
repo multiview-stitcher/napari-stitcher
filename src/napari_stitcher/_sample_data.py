@@ -15,10 +15,10 @@ from pathlib import Path
 from napari_stitcher import viewer_utils
 from napari_stitcher._reader import read_mosaic
 
-from ngff_stitcher.sample_data import get_mosaic_sample_data_path
-from ngff_stitcher.io import METADATA_TRANSFORM_KEY
-from ngff_stitcher.sample_data import generate_tiled_dataset
-from ngff_stitcher.msi_utils import get_msim_from_sim
+from multiview_stitcher.sample_data import get_mosaic_sample_data_path
+from multiview_stitcher.io import METADATA_TRANSFORM_KEY
+from multiview_stitcher.sample_data import generate_tiled_dataset
+from multiview_stitcher.msi_utils import get_msim_from_sim
 
 
 def make_sample_data():

@@ -47,4 +47,4 @@ contributions:
       key: unique_id.3
   widgets:
     - command: napari-stitcher.make_qwidget
-      display_name: Stitcher
+      display_name: napari-stitcher

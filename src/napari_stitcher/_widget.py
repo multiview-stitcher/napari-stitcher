@@ -19,7 +19,7 @@ from qtpy.QtWidgets import QVBoxLayout, QWidget
 
 import spatial_image as si
 
-from ngff_stitcher import (
+from multiview_stitcher import (
     registration,
     fusion,
     spatial_image_utils,
@@ -507,10 +507,10 @@ class StitcherQWidget(QWidget):
 if __name__ == "__main__":
 
     import napari
-    from ngff_stitcher.sample_data import get_mosaic_sample_data_path
+    from multiview_stitcher.sample_data import get_mosaic_sample_data_path
 
     # filename = get_mosaic_sample_data_path()
-    filename = "/Users/malbert/software/ngff-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    filename = "/Users/malbert/software/multiview-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
 
     viewer = napari.Viewer()
     

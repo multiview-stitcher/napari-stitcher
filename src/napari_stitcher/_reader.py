@@ -6,8 +6,8 @@ implement multiple readers or even other plugin contributions. see:
 https://napari.org/stable/plugins/guides.html?#readers
 """
 
-from ngff_stitcher import msi_utils
-from ngff_stitcher.io import read_mosaic_image_into_list_of_spatial_xarrays,\
+from multiview_stitcher import msi_utils
+from multiview_stitcher.io import read_mosaic_image_into_list_of_spatial_xarrays,\
     METADATA_TRANSFORM_KEY
 
 from napari_stitcher import viewer_utils
@@ -82,13 +82,13 @@ def read_mosaic(path, scene_index=None):
 
 if __name__ == "__main__":
 
-    from ngff_stitcher.sample_data import get_mosaic_sample_data_path
+    from multiview_stitcher.sample_data import get_mosaic_sample_data_path
 
     filename = get_mosaic_sample_data_path()
 
     sims = read_mosaic_image_into_list_of_spatial_xarrays(filename)
 
-    from ngff_stitcher import msi_utils
+    from multiview_stitcher import msi_utils
 
     msim = msi_utils.get_msim_from_sim(sims[0], scale_factors=[])
 

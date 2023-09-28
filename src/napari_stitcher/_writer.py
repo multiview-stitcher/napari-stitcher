@@ -14,7 +14,7 @@ import xarray as xr
 import warnings
 from typing import TYPE_CHECKING, Any, List, Sequence, Tuple, Union
 
-from ngff_stitcher import spatial_image_utils, io
+from multiview_stitcher import spatial_image_utils, io
 
 if TYPE_CHECKING:
     DataType = Union[Any, Sequence[Any]]

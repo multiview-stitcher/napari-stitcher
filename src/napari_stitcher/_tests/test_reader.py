@@ -2,7 +2,7 @@ from pathlib import Path
 
 from napari_stitcher import napari_get_reader, _reader
 
-from ngff_stitcher.sample_data import get_mosaic_sample_data_path
+from multiview_stitcher.sample_data import get_mosaic_sample_data_path
 
 
 def test_read_mosaic_image_into_list_of_spatial_xarrays():

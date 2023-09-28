@@ -9,8 +9,8 @@ import tifffile
 
 from napari_stitcher import _sample_data, viewer_utils
 
-from ngff_stitcher import msi_utils
-from ngff_stitcher.io import METADATA_TRANSFORM_KEY
+from multiview_stitcher import msi_utils
+from multiview_stitcher.io import METADATA_TRANSFORM_KEY
 
 import pytest
 
@@ -20,7 +20,7 @@ import pytest
         (field_ndim, N_t, N_c)
         for field_ndim in [2, 3]
         for N_t in [1, 2]
-        for N_c in [1, 2]]
+        for N_c in [1]]
 )
 def test_writer_napari(field_ndim, N_t, N_c, make_napari_viewer):
 

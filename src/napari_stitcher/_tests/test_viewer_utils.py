@@ -2,8 +2,8 @@ import numpy as np
 import dask.array as da
 import xarray as xr
 
-from ngff_stitcher.io import METADATA_TRANSFORM_KEY
-from ngff_stitcher import msi_utils, sample_data
+from multiview_stitcher.io import METADATA_TRANSFORM_KEY
+from multiview_stitcher import msi_utils, sample_data
 
 from napari_stitcher import viewer_utils, _reader
 

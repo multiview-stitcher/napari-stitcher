@@ -5,7 +5,7 @@ from functools import partial
 
 import multiscale_spatial_image as msi
 
-from ngff_stitcher import mv_graph, spatial_image_utils, msi_utils
+from multiview_stitcher import mv_graph, spatial_image_utils, msi_utils
 
 from napari.experimental import link_layers
 from napari.utils import notifications

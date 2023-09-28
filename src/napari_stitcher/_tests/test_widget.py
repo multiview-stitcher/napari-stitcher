@@ -11,9 +11,9 @@ from napari_stitcher import (
     viewer_utils,
 )
 
-from ngff_stitcher import msi_utils, registration
-from ngff_stitcher.io import METADATA_TRANSFORM_KEY
-from ngff_stitcher.sample_data import get_mosaic_sample_data_path
+from multiview_stitcher import msi_utils, registration
+from multiview_stitcher.io import METADATA_TRANSFORM_KEY
+from multiview_stitcher.sample_data import get_mosaic_sample_data_path
 
 import pytest
 
