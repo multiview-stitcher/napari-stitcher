@@ -202,14 +202,14 @@ class StitcherQWidget(QWidget):
             try:
                 p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp])).squeeze()
             except:
-                # notifications.notification_manager.receive_info(
-                #     'Timepoint %s: no parameters available, register first.' % curr_tp)
-                # continue
-
-                # if curr_tp not available, use nearest available parameter
                 notifications.notification_manager.receive_info(
-                    'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
-                p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp], method='nearest')).squeeze()
+                    'Timepoint %s: no parameters available, register first.' % curr_tp)
+                continue
+
+                # # if curr_tp not available, use nearest available parameter
+                # notifications.notification_manager.receive_info(
+                #     'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
+                # p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp], method='nearest')).squeeze()
 
             ndim_layer_data = len(layer_sim.shape)
 
@@ -520,9 +520,6 @@ if __name__ == "__main__":
     viewer.open(filename, scene_index=0, plugin='napari-stitcher')
 
     wdg.button_load_layers_all.clicked()
-
-    # wdg.times_slider.min = -1
-    # wdg.times_slider.max = 1
 
     wdg.times_slider.value = (-1, 1)
 
