@@ -5,7 +5,7 @@ from functools import partial
 
 import multiscale_spatial_image as msi
 
-from multiview_stitcher import mv_graph, spatial_image_utils, msi_utils
+from multiview_stitcher import mv_graph, spatial_image_utils, msi_utils, param_utils
 
 from napari.experimental import link_layers
 from napari.utils import notifications
@@ -20,7 +20,7 @@ def image_layer_to_msim(l):
         
         ndim = spatial_image_utils.get_ndim_from_sim(msi_utils.get_sim_from_msim(msim))
         affine = np.array(l.affine.affine_matrix)[-(ndim+1):, -(ndim+1):]
-        affine_xr = spatial_image_utils.affine_to_xr(affine, t_coords=l.data[0].coords['t'])
+        affine_xr = param_utils.affine_to_xaffine(affine, t_coords=l.data[0].coords['t'])
         msi_utils.set_affine_transform(
             msim, affine_xr, transform_key='affine_metadata')
         
@@ -275,6 +275,7 @@ def create_image_layer_tuples_from_msims(
         n_colors=2,
         transform_key=None,
         contrast_limits=None,
+        ch_coord=None,
 ):
 
     sims = [msi_utils.get_sim_from_msim(msim) for msim in msims]
@@ -289,8 +290,8 @@ def create_image_layer_tuples_from_msims(
     out_layers = []
     for iview, msim in enumerate(msims):
         out_layers += create_image_layer_tuples_from_msim(
-            # msi_utils.multiscale_sel_coords(msim, {'c': ch_coord}),
-            msim,
+            msim if ch_coord is None
+            else msi_utils.multiscale_sel_coords(msim, {'c': ch_coord}),
             cmaps[iview],
             name_prefix=name_prefix + '_%03d' %iview,
             transform_key=transform_key,
