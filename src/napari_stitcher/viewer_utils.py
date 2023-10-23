@@ -175,6 +175,7 @@ def create_image_layer_tuples_from_msim(
     ch_name=None,
     contrast_limits=None,
     blending='additive',
+    data_as_array=False,
     ):
 
     """
@@ -233,8 +234,9 @@ def create_image_layer_tuples_from_msim(
 
     multiscale_data = []
     for scale_key in scale_keys:
-        multiscale_sim = msim[scale_key]['image']
-        multiscale_sim.attrs['transforms'] = msi_utils.get_transforms_from_dataset_as_dict(msim[scale_key])
+        multiscale_sim = msi_utils.get_sim_from_msim(msim, scale=scale_key)
+        if data_as_array:
+            multiscale_sim = multiscale_sim.data
         multiscale_data.append(multiscale_sim)
 
     spatial_dims = spatial_image_utils.get_spatial_dims_from_sim(
@@ -276,6 +278,7 @@ def create_image_layer_tuples_from_msims(
         transform_key=None,
         contrast_limits=None,
         ch_coord=None,
+        data_as_array=False,
 ):
 
     sims = [msi_utils.get_sim_from_msim(msim) for msim in msims]
@@ -296,6 +299,7 @@ def create_image_layer_tuples_from_msims(
             name_prefix=name_prefix + '_%03d' %iview,
             transform_key=transform_key,
             contrast_limits=contrast_limits,
+            data_as_array=data_as_array,
             )
     
     return out_layers
