@@ -34,6 +34,10 @@ Screenshot:
 
 Image data by [Arthur Michaut](https://research.pasteur.fr/fr/member/arthur-michaut/) @ [Jérôme Gros Lab](https://research.pasteur.fr/fr/team/dynamic-regulation-of-morphogenesis/) @ Institut Pasteur.
 
+Screen recording showing the use of `napari-stitcher` together with [`napari-threedee`](https://github.com/napari-threedee/napari-threedee) on a 3D multipositioning [BigStitcher](https://imagej.net/plugins/bigstitcher/) example dataset.
+
+![](misc-data/napari_stitcher_threedee_screen_recording.mp4)
+
 ----------------------------------
 ## Installation
 

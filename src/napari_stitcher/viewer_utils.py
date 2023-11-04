@@ -41,6 +41,9 @@ def image_layer_to_msim(l, viewer):
                 raise(NotImplementedError('Multiscale layers with non-xarray data not supported yet.'))
             else:
                 sdims = spatial_image_utils.get_spatial_dims_from_sim(ldata)
+
+                ldata = ldata.assign_coords({'c': str(ldata.coords['c'].values)})
+
                 sim = to_spatial_image(
                     ldata,
                     scale={dim: s for dim, s in zip(sdims, l.scale[-len(sdims):])},
