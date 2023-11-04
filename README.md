@@ -36,7 +36,10 @@ Image data by [Arthur Michaut](https://research.pasteur.fr/fr/member/arthur-mich
 
 Screen recording showing the use of `napari-stitcher` together with [`napari-threedee`](https://github.com/napari-threedee/napari-threedee) on a 3D multipositioning [BigStitcher](https://imagej.net/plugins/bigstitcher/) example dataset.
 
-![](misc-data/napari_stitcher_threedee_screen_recording.mp4)
+
+https://github.com/multiview-stitcher/napari-stitcher/assets/12528388/c474a90b-4512-49f9-8073-aeabd2f1e89e
+
+
 
 ----------------------------------
 ## Installation
