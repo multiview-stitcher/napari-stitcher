@@ -58,7 +58,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
 
     # Run stitching
     # stitcher_widget.button_stitch.clicked()
-    stitcher_widget.run_stitching()
+    stitcher_widget.run_registration()
 
     # Check that parameters were obtained
     assert(stitcher_widget.params is not None)
@@ -176,10 +176,10 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
 
     # Run registration
     if overlap > 1:
-        wdg.run_stitching()
+        wdg.run_registration()
     else:
         with pytest.raises(registration.NotEnoughOverlapError):
-            wdg.run_stitching()
+            wdg.run_registration()
         return
 
     # Run fusion
@@ -225,8 +225,8 @@ def test_time_slider(make_napari_viewer):
     wdg.times_slider.min=-1
     wdg.times_slider.max=2
 
-    # Run stabilization
-    wdg.run_stitching()
+    # Run stitching
+    wdg.run_registration()
 
     # Run fusion
     wdg.run_fusion()
@@ -265,3 +265,40 @@ def test_update_transformations(ndim, N_c, N_t, make_napari_viewer):
     current_step = list(viewer.dims.current_step)
     current_step[0] = current_step[0] + 1
     viewer.dims.current_step = tuple(current_step)
+
+
+def test_fusion_without_registration(make_napari_viewer):
+
+    viewer = make_napari_viewer()
+
+    stitcher_widget = StitcherQWidget(viewer)
+    test_path = get_mosaic_sample_data_path()
+        
+    viewer.open(test_path, plugin='napari-stitcher')
+
+    stitcher_widget.button_load_layers_all.clicked()
+
+    # Run stitching
+    stitcher_widget.run_fusion()
+    assert(len(viewer.layers) == 3)
+
+
+def test_vanilla_layers_2D_no_time(make_napari_viewer):
+
+    viewer = make_napari_viewer()
+
+    D = 100
+    im = np.random.random((D, D))
+
+    im1 = im[:, :D//2+D//10]
+    im2 = im[:, D//2-D//10:]
+
+    viewer.add_image(im1, translate=(0, 0), name='im1')
+    viewer.add_image(im2, translate=(0, D//2-D//10-5), name='im2')
+
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    wdg.button_load_layers_all.clicked()
+    wdg.run_registration()
+    wdg.run_fusion()

@@ -51,10 +51,10 @@ class StitcherQWidget(QWidget):
         self.button_load_layers_all = widgets.Button(text='All')
         self.button_load_layers_sel = widgets.Button(text='Selected')
         self.buttons_load_layers = widgets.HBox(
-            # label='Load layers: ',
-                                                widgets=\
-                                                [self.button_load_layers_sel,
-                                                 self.button_load_layers_all])
+            widgets=\
+                [self.button_load_layers_sel,
+                    self.button_load_layers_all]
+                    )
         self.layers_selection = widgets.Select(choices=[])
         self.load_layers_box = widgets.VBox(widgets=\
                                             [
@@ -63,7 +63,8 @@ class StitcherQWidget(QWidget):
                                             ],
                                             label='Loaded\nlayers:')
 
-        self.times_slider = widgets.RangeSlider(min=-1, max=0, label='Timepoints:', enabled=False,
+        self.times_slider = widgets.RangeSlider(
+            min=-1, max=0, label='Timepoints:', enabled=False,
             tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\n(3, 5) means timepoints 4 and 5 are processed')
         
         self.reg_ch_picker = widgets.ComboBox(
@@ -71,16 +72,17 @@ class StitcherQWidget(QWidget):
             choices=[],
             tooltip='Choose a file to process using napari-stitcher.')
 
-        self.button_stitch = widgets.Button(text='Stitch', enabled=False,
+        self.button_stitch = widgets.Button(text='Register', enabled=False,
             tooltip='Use the overlaps between tiles to determine their relative positions.')
-        self.button_stabilize = widgets.Button(text='Stabilize', enabled=False,
-            tooltip='Use time lapse information to stabilize each tile over time,'+\
-                    'eliminating abrupt shifts between frames. No tile overlap needed.')
+        
+        # self.button_stabilize = widgets.Button(text='Stabilize', enabled=False,
+        #     tooltip='Use time lapse information to stabilize each tile over time,'+\
+        #             'eliminating abrupt shifts between frames. No tile overlap needed.')
 
         self.buttons_register_tracks = widgets.HBox(
             widgets=[
                     self.button_stitch,
-                    self.button_stabilize
+                    # self.button_stabilize
                     ]
                     )
 
@@ -138,8 +140,8 @@ class StitcherQWidget(QWidget):
         self.visualization_type_rbuttons.changed.connect(self.update_viewer_transformations)
         self.viewer.dims.events.connect(self.update_viewer_transformations)
 
-        self.button_stitch.clicked.connect(self.run_stitching)
-        self.button_stabilize.clicked.connect(self.run_stabilization)
+        self.button_stitch.clicked.connect(self.run_registration)
+        # self.button_stabilize.clicked.connect(self.run_stabilization)
         self.button_fuse.clicked.connect(self.run_fusion)
 
         self.button_load_layers_all.clicked.connect(self.load_layers_all)
@@ -153,26 +155,27 @@ class StitcherQWidget(QWidget):
         - for each (compatible) layer loaded in viewer
         """
 
-        # if not len(self.params): return
+        if not len(self.msims): return
 
         compatible_layers = [l for l in self.viewer.layers
-                             if si.is_spatial_image(l.data[0])]
+                             if l.name in self.msims.keys()]
         
         if not len(compatible_layers): return
         
+        sims = [msi_utils.get_sim_from_msim(self.msims[l.name])
+                for l in compatible_layers]
+
         # determine spatial dimensions from layers
-        all_spatial_dims = [spatial_image_utils.get_spatial_dims_from_sim(l.data[0])
-            for l in compatible_layers]
+        all_spatial_dims = [spatial_image_utils.get_spatial_dims_from_sim(
+            sims[il])
+            for il, l in enumerate(compatible_layers)]
         
         highest_sdim = max([len(sdim) for sdim in all_spatial_dims])
-
-        # reference_sim = compatible_layers[0].data[0]
-        # spatial_dims = spatial_image_utils.get_spatial_dims_from_sim(reference_sim)
-        # ndim = spatial_image_utils
 
         # get curr tp
         # handle possibility that there had been no T dimension
         # when collecting sims from layers
+
         if len(self.viewer.dims.current_step) > highest_sdim:
             curr_tp = self.viewer.dims.current_step[-highest_sdim-1]
         else:
@@ -183,16 +186,11 @@ class StitcherQWidget(QWidget):
         else:
             transform_key = 'affine_registered'
 
-        for _, l in enumerate(compatible_layers):
-
-            layer_sim = l.data[0]
-            # ndim = all_spatial_dims[il]
-
-            # if self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
+        for il, l in enumerate(compatible_layers):
 
             try:
                 params = spatial_image_utils.get_affine_from_sim(
-                    layer_sim, transform_key=transform_key
+                    sims[il], transform_key=transform_key
                     )
             except:
                 # notifications.notification_manager.receive_info(
@@ -200,7 +198,7 @@ class StitcherQWidget(QWidget):
                 continue
 
             try:
-                p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp])).squeeze()
+                p = np.array(params.sel(t=sims[il].coords['t'][curr_tp])).squeeze()
             except:
                 notifications.notification_manager.receive_info(
                     'Timepoint %s: no parameters available, register first.' % curr_tp)
@@ -211,7 +209,7 @@ class StitcherQWidget(QWidget):
                 #     'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
                 # p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp], method='nearest')).squeeze()
 
-            ndim_layer_data = len(layer_sim.shape)
+            ndim_layer_data = l.ndim
 
             # if stitcher sim has more dimensions than layer data (i.e. time)
             vis_p = p[-(ndim_layer_data + 1):, -(ndim_layer_data + 1):]
@@ -229,56 +227,14 @@ class StitcherQWidget(QWidget):
             except:
                 pass
 
-        # # fused layers
-        # for l in self.fused_layers:
-        #     continue
 
-
-    def run_stabilization(self):
-
-        layers = list(_utils.filter_layers(
-            self.input_layers,
-            {lname: msi_utils.get_sim_from_msim(msim) for lname, msim in self.msims.items()},
-            ch=self.reg_ch_picker.value))
-
-        sims = [msi_utils.get_sim_from_msim(self.msims[l.name]) for l in layers]
-
-        times = range(self.times_slider.value[0] + 1, self.times_slider.value[1] + 1)
-
-        if len(times) < 8:
-            message = 'Need at least 8 time points to perform stabilization.'
-            notifications.notification_manager.receive_info(message)
-            return
-        
-        sims_tsel = [x.sel(t=[x.coords['t'][it] for it in times]) for x in sims]
-
-        # ndim = len(spatial_image_utils.get_spatial_dims_from_sim(sims_tsel[0]))
-
-        params = [registration.get_stabilization_parameters_from_sim(sim) for sim in sims_tsel]
-
-        with _utils.TemporarilyDisabledWidgets([self.container]),\
-            _utils.VisibleActivityDock(self.viewer),\
-            _utils.TqdmCallback(tqdm_class=_utils.progress,
-                                desc='Stabilize tiles', bar_format=" "):
-            
-            params = dask.compute(params)[0]
-            
-        self.params.update(
-            {_utils.get_str_unique_to_view_from_layer_name(l.name): params[il]
-                for il, l in enumerate(layers)})
-
-        self.visualization_type_rbuttons.enabled = True
-
-
-    def run_stitching(self):
+    def run_registration(self):
 
         msims_dict = {_utils.get_str_unique_to_view_from_layer_name(lname): msim
                       for lname, msim in self.msims.items()
                       if self.reg_ch_picker.value in msi_utils.get_sim_from_msim(msim).coords['c']}
         
         sorted_lnames = sorted(list(msims_dict.keys()))
-
-        # sims = [msi_utils.get_sim_from_msim(msims_dict[lname]) for lname in sorted_lnames]
 
         msims = [msims_dict[lname] for lname in sorted_lnames]
 
@@ -298,7 +254,6 @@ class StitcherQWidget(QWidget):
                 # registration_binning={'z': 2, 'y': 8, 'x': 8},
                 registration_binning=None,
                 transform_key='affine_metadata',
-                # output_transform_key='affine_registered',
             )
 
         for lname, msim in self.msims.items():
@@ -309,9 +264,12 @@ class StitcherQWidget(QWidget):
             
         for l in self.input_layers:
             params_index = sorted_lnames.index(_utils.get_str_unique_to_view_from_layer_name(l.name))
-            viewer_utils.set_layer_xaffine(
-                l, params[params_index],
-                transform_key='affine_registered', base_transform_key='affine_metadata')
+            try:
+                viewer_utils.set_layer_xaffine(
+                    l, params[params_index],
+                    transform_key='affine_registered', base_transform_key='affine_metadata')
+            except:
+                pass
 
         # if not len(g_reg.edges):
         #     message = 'No overlap between views for stitching. Consider stabilizing the tiles instead.'
@@ -319,6 +277,7 @@ class StitcherQWidget(QWidget):
         #     return
         
         self.visualization_type_rbuttons.enabled = True
+        self.visualization_type_rbuttons.value = CHOICE_REGISTERED
 
 
     def run_fusion(self):
@@ -344,7 +303,9 @@ class StitcherQWidget(QWidget):
 
             fused = fusion.fuse(
                 sims,
-                transform_key='affine_registered',
+                transform_key='affine_registered'
+                if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
+                else 'affine_metadata',
             )
 
             fused = fused.expand_dims({'c': [sims[0].coords['c'].values]})
@@ -372,8 +333,6 @@ class StitcherQWidget(QWidget):
         
             self.fused_layers.append(fused_layer)
 
-        # self.update_viewer_transformations()
-
 
     def reset(self):
             
@@ -389,14 +348,11 @@ class StitcherQWidget(QWidget):
 
     def load_metadata(self):
         
-        # reference_sim = self.msims[self.input_layers[0].name]
         reference_sim = msi_utils.get_sim_from_msim(self.msims[self.input_layers[0].name])
         
         # assume dims are the same for all layers
         if 't' in reference_sim.dims:
             self.times_slider.enabled = True
-            # self.times_slider.min = int(l0.data.coords['t'][0] - 1)
-            # self.times_slider.max = int(l0.data.coords['t'][-1] - 1)
             self.times_slider.min = -1
             self.times_slider.max = len(reference_sim.coords['t']) - 1
             self.times_slider.value = self.times_slider.min, self.times_slider.max
@@ -449,11 +405,8 @@ class StitcherQWidget(QWidget):
         # load in layers as sims
         for l in layers:
 
-            msim = viewer_utils.image_layer_to_msim(l)
+            msim = viewer_utils.image_layer_to_msim(l, self.viewer)
             
-            # sim = l.data
-            # try:
-            #     len(sim.coords['c'])
             if 'c' in msim['scale0/image'].dims:
                 notifications.notification_manager.receive_info(
                     "Layer '%s' has more than one channel.Consider splitting the stack (right click on layer -> 'Split Stack')." %l.name
@@ -463,10 +416,8 @@ class StitcherQWidget(QWidget):
                 return
             
             msim = msi_utils.ensure_time_dim(msim)
-            # msim.attrs['layer_name'] = l.name
             self.msims[l.name] = msim
 
-        # sims = {l.name: msi_utils.get_sim_from_msim(msim) for l.name, msim in self.msims.items()}
         sims = [msi_utils.get_sim_from_msim(msim) for l.name, msim in self.msims.items()]
 
         number_of_channels = len(np.unique([
@@ -484,7 +435,6 @@ class StitcherQWidget(QWidget):
         # link channel layers
         from napari.experimental import link_layers
 
-        # msims = [self.msims[l.name] for l in layers]
         sims = {l.name: msi_utils.get_sim_from_msim(self.msims[l.name])
                 for l in layers}
 
@@ -523,5 +473,5 @@ if __name__ == "__main__":
 
     wdg.times_slider.value = (-1, 1)
 
-    wdg.run_stitching()
-    wdg.run_fusion()
+    wdg.run_registration()
+    # wdg.run_fusion()

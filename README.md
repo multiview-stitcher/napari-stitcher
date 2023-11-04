@@ -1,9 +1,9 @@
 <!--
-[![License BSD-3](https://img.shields.io/pypi/l/napari-stitcher.svg?color=green)](https://github.com/m-albert/napari-stitcher/raw/main/LICENSE)
+[![License BSD-3](https://img.shields.io/pypi/l/napari-stitcher.svg?color=green)](https://github.com/multiview-stitcher/napari-stitcher/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-stitcher.svg?color=green)](https://pypi.org/project/napari-stitcher)
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-stitcher.svg?color=green)](https://python.org)
-[![tests](https://github.com/m-albert/napari-stitcher/workflows/tests/badge.svg)](https://github.com/m-albert/napari-stitcher/actions)
-[![codecov](https://codecov.io/gh/m-albert/napari-stitcher/branch/main/graph/badge.svg)](https://codecov.io/gh/m-albert/napari-stitcher)
+[![tests](https://github.com/multiview-stitcher/napari-stitcher/workflows/tests/badge.svg)](https://github.com/multiview-stitcher/napari-stitcher/actions)
+[![codecov](https://codecov.io/gh/multiview-stitcher/napari-stitcher/branch/main/graph/badge.svg)](https://codecov.io/gh/multiview-stitcher/napari-stitcher)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-stitcher)](https://napari-hub.org/plugins/napari-stitcher)
 -->
 
@@ -24,25 +24,22 @@
 [PyPI]: https://pypi.org/
 
 # napari-stitcher
-A napari plugin and visualization functionality for [multiview-stitcher](https://github.com/multiview-stitcher), which is a toolbox for registering / fusing / stitching multi-view / multi-positioning image datasets in 2-3D.
+A napari plugin and visualization functionality for [multiview-stitcher](https://github.com/multiview-stitcher/multiview-stitcher), which is a toolbox for registering / fusing / stitching multi-view / multi-positioning image datasets in 2-3D.
 
-WARNING: THIS IS WORK IN PROGRESS.
+WARNING: THIS IS WORK IN PROGRESS. `napari-stitcher` is being developed in the open but has not been released yet.
 
 Screenshot:
 
 ![](misc-data/20230929_screenshot.png)
+
+Image data by [Arthur Michaut](https://research.pasteur.fr/fr/member/arthur-michaut/) @ [Jérôme Gros Lab](https://research.pasteur.fr/fr/team/dynamic-regulation-of-morphogenesis/) @ Institut Pasteur.
 
 ----------------------------------
 ## Installation
 
 [TODO] You can install `napari-stitcher` via [pip]:
 
-    `pip install https://github.com/m-albert/napari-stitcher`
-
-## Ideas / things to check out
-
-- https://github.com/carbonplan/ndpyramid
-- https://www.napari-hub.org/plugins/affinder
+    `pip install https://github.com/multiview-stitcher/napari-stitcher`
 
 ## Contributing
 

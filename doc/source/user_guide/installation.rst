@@ -44,4 +44,4 @@ napari-stitcher dependencies
 - tifffile
 - aicsimageio
 - aicspylibczi
-- mvregfus@ git+https://git@github.com/m-albert/MVRegFus.git@stitching_nd_napari
+- multiview-stitcher
