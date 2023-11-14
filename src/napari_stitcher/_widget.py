@@ -199,6 +199,8 @@ class StitcherQWidget(QWidget):
 
             try:
                 p = np.array(params.sel(t=sims[il].coords['t'][curr_tp])).squeeze()
+                if np.isnan(p).any():
+                    raise(Exception())
             except:
                 notifications.notification_manager.receive_info(
                     'Timepoint %s: no parameters available, register first.' % curr_tp)
@@ -469,9 +471,9 @@ if __name__ == "__main__":
 
     viewer.open(filename, scene_index=0, plugin='napari-stitcher')
 
-    wdg.button_load_layers_all.clicked()
+    # wdg.button_load_layers_all.clicked()
 
-    wdg.times_slider.value = (-1, 1)
+    # wdg.times_slider.value = (-1, 1)
 
-    wdg.run_registration()
+    # wdg.run_registration()
     # wdg.run_fusion()
