@@ -4,6 +4,7 @@ import xarray as xr
 import dask.array as da
 from dask import compute
 from functools import partial
+import warnings
 
 import multiscale_spatial_image as msi
 from spatial_image import to_spatial_image
@@ -220,6 +221,9 @@ def create_image_layer_tuples_from_msim(
 
     spacing = spatial_image_utils.get_spacing_from_sim(sim)
     origin = spatial_image_utils.get_origin_from_sim(sim)
+
+    if len(scale_keys) > 1 and ndim == 3:
+        warnings.warn('In 3D, theres a napari bug concerning scale/translate when using multiscale images.')
 
     kwargs = \
         {
