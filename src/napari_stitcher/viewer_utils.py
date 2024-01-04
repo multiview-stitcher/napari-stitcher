@@ -173,8 +173,15 @@ def create_image_layer_tuples_from_msim(
             
         return out_layers
 
-    sim = msi_utils.get_sim_from_msim(msim)
     scale_keys = msi_utils.get_sorted_scale_keys(msim)
+    ndim = spatial_image_utils.get_ndim_from_sim(msi_utils.get_sim_from_msim(msim))
+
+    if ndim == 3 and len(scale_keys) > 1:
+        warnings.warn('In 3D, theres a napari bug concerning scale/translate when using multiscale images. Using only a single resolution (the lowest).')
+        msim = msi_utils.get_msim_from_sim(msi_utils.get_sim_from_msim(msim, scale=scale_keys[-1]), scale_factors=[])
+        scale_keys = msi_utils.get_sorted_scale_keys(msim)
+
+    sim = msi_utils.get_sim_from_msim(msim)
 
     if contrast_limits is None:
         sim_thumb = msim[scale_keys[-1]]['image'].sel(t=sim.coords['t'][0])
@@ -217,13 +224,9 @@ def create_image_layer_tuples_from_msim(
 
     spatial_dims = spatial_image_utils.get_spatial_dims_from_sim(
         sim)
-    ndim = len(spatial_dims)
 
     spacing = spatial_image_utils.get_spacing_from_sim(sim)
     origin = spatial_image_utils.get_origin_from_sim(sim)
-
-    if len(scale_keys) > 1 and ndim == 3:
-        warnings.warn('In 3D, theres a napari bug concerning scale/translate when using multiscale images.')
 
     kwargs = \
         {
