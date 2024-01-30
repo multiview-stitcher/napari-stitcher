@@ -106,7 +106,10 @@ def image_layer_to_msim(l, viewer):
             dims=dims,
         )
 
-        sim = sim.assign_coords(c='default_channel')
+        if len(l.name.split(' :: ')) > 1:
+            sim = sim.assign_coords(c=l.name.split(' :: ')[-1])
+        else:
+            sim = sim.assign_coords(c='default_channel')
             
         msim = msi.MultiscaleSpatialImage()
         msi.MultiscaleSpatialImage(name='scale%s' %0, data=sim, parent=msim)
@@ -244,12 +247,14 @@ def create_image_layer_tuples_from_msim(
         'scale': np.array([spacing[dim] for dim in spatial_dims]),
         'cache': True,
         'blending': blending,
+        # 'multiscale': False,
         'multiscale': True,
         'metadata': {'full_affine_transform': affine_transform_xr}
         if transform_key is not None else None,
         }
 
     return [(multiscale_data, kwargs, 'image')]
+    # return [(multiscale_data[0], kwargs, 'image')]
 
 
 def create_image_layer_tuples_from_msims(
@@ -266,9 +271,11 @@ def create_image_layer_tuples_from_msims(
     sims = [msi_utils.get_sim_from_msim(msim) for msim in msims]
 
     if positional_cmaps:
-        cmaps = get_cmaps_from_sims(
+        cmaps = ['red', 'green', 'blue', 'yellow']
+        greedy_colors = mv_graph.get_greedy_colors(
             [spatial_image_utils.sim_sel_coords(sim, {'t':sim.coords['t'][0]}) for sim in sims],
             n_colors=n_colors, transform_key=transform_key)
+        cmaps = [cmaps[greedy_colors[iview] % len(cmaps)] for iview in range(len(msims))]
     else:
         cmaps = [None for _ in msims]
 
@@ -285,55 +292,6 @@ def create_image_layer_tuples_from_msims(
             )
     
     return out_layers
-
-
-def get_cmaps_from_sims(sims, n_colors=2, transform_key=None):
-    """
-    Get colors from view adjacency graph analysis
-
-    Idea: use the same logic to determine relevant registration edges
-
-    """
-
-    view_adj_graph = mv_graph.build_view_adjacency_graph_from_msims(
-        [msi_utils.get_msim_from_sim(sim, scale_factors=[]) for sim in sims],
-        expand=True,
-        transform_key=transform_key
-        )
-
-    # thresholds = threshold_multiotsu(overlaps)
-
-    # strategy: remove edges with overlap values of increasing thresholds until
-    # the graph division into n_colors is successful
-
-    # modify overlap values
-    # strategy: add a small amount to edge overlap depending on how many edges the nodes it connects have (betweenness?)
-
-    edge_vals = nx.edge_betweenness_centrality(view_adj_graph)
-
-    edges = [e for e in view_adj_graph.edges(data=True)]
-    for e in edges:
-        edge_vals[tuple(e[:2])] = edge_vals[tuple(e[:2])] + e[2]['overlap']
-
-    sorted_unique_vals = sorted(np.unique([v for v in edge_vals.values()]))
-
-    nx.set_edge_attributes(view_adj_graph, edge_vals, name='edge_val')
-
-    thresh_ind = 0
-    while 1:
-        colors = nx.coloring.greedy_color(view_adj_graph)
-        if len(set(colors.values())) <= n_colors:# and nx.coloring.equitable_coloring.is_equitable(view_adj_graph, colors):
-            break
-        view_adj_graph.remove_edges_from(
-            [(a,b) for a, b, attrs in view_adj_graph.edges(data=True)
-            if attrs["edge_val"] <= sorted_unique_vals[thresh_ind]])
-        thresh_ind += 1
-
-    cmaps = ['red', 'green', 'blue', 'yellow']
-    cmaps = {iview: cmaps[color_index % len(cmaps)]
-             for iview, color_index in colors.items()}
-    
-    return cmaps
 
 
 def set_layer_xaffine(l, xaffine, transform_key, base_transform_key=None):

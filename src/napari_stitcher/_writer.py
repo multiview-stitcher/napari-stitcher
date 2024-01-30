@@ -41,7 +41,7 @@ def write_multiple(path: str, data: List[FullLayerData]) -> List[str]:
 
     if not path.endswith('.tif'):
         raise ValueError('Only .tif file saving is supported.')
-    
+
     sims = [d[0][0] for d in data]
 
     spacings = [spatial_image_utils.get_spacing_from_sim(sim, asarray=True) for sim in sims]
