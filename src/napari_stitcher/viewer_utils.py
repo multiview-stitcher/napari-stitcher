@@ -188,9 +188,11 @@ def create_image_layer_tuples_from_msim(
 
     if contrast_limits is None:
         sim_thumb = msim[scale_keys[-1]]['image'].sel(t=sim.coords['t'][0])
-        contrast_limits = [v for v in [
-                    compute(np.min(sim_thumb.data))[0],
-                    compute(np.max(sim_thumb.data))[0]]]
+        contrast_limits = [
+            compute(np.min(sim_thumb.data))[0],
+            compute(np.max(sim_thumb.data))[0]]
+        if contrast_limits[0] == contrast_limits[1]:
+            contrast_limits[1] = contrast_limits[1] + 1
 
     if ch_name is None:
         try:
@@ -213,7 +215,10 @@ def create_image_layer_tuples_from_msim(
 
     if not transform_key is None:
         affine_transform_xr = msi_utils.get_transform_from_msim(msim, transform_key=transform_key)
-        affine_transform = np.array(affine_transform_xr.sel(t=sim.coords['t'][0]).data)
+        if 't' in affine_transform_xr.dims:
+            affine_transform = np.array(affine_transform_xr.sel(t=sim.coords['t'][0]).data)
+        else:
+            affine_transform = np.array(affine_transform_xr.data)
     else:
         ndim = spatial_image_utils.get_ndim_from_sim(sim)
         affine_transform = np.eye(ndim + 1)
@@ -268,13 +273,12 @@ def create_image_layer_tuples_from_msims(
         data_as_array=False,
 ):
 
-    sims = [msi_utils.get_sim_from_msim(msim) for msim in msims]
-
     if positional_cmaps:
+        sims = [spatial_image_utils.get_sim_field(
+            msi_utils.get_sim_from_msim(msim)) for msim in msims]
         cmaps = ['red', 'green', 'blue', 'yellow']
         greedy_colors = mv_graph.get_greedy_colors(
-            [spatial_image_utils.sim_sel_coords(sim, {'t':sim.coords['t'][0]}) for sim in sims],
-            n_colors=n_colors, transform_key=transform_key)
+            sims, n_colors=n_colors, transform_key=transform_key)
         cmaps = [cmaps[greedy_colors[iview] % len(cmaps)] for iview in range(len(msims))]
     else:
         cmaps = [None for _ in msims]
@@ -342,11 +346,13 @@ def manage_viewer_transformations_callback(event, viewer):
         params = l.metadata['full_affine_transform']
 
         try:
-            p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp])).squeeze()
-
+            if 't' in params.dims:
+                p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp])).squeeze()
+            else:
+                p = np.array(params).squeeze()
         except:
             notifications.notification_manager.receive_info(
-                'Timepoint %s: no parameters available for tp %s' % curr_tp)
+                'Timepoint %s: no parameters available for tp' % curr_tp)
             continue
             # if curr_tp not available, use nearest available parameter
             # notifications.notification_manager.receive_info(

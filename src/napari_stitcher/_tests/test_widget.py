@@ -7,13 +7,13 @@ import tifffile
 from napari_stitcher import (
     StitcherQWidget,
     _widget,
-    _sample_data,
     viewer_utils,
 )
 
-from multiview_stitcher import msi_utils, registration
+from multiview_stitcher import msi_utils, registration, mv_graph
 from multiview_stitcher.io import METADATA_TRANSFORM_KEY
-from multiview_stitcher.sample_data import get_mosaic_sample_data_path
+from multiview_stitcher.sample_data import (
+    get_mosaic_sample_data_path, generate_tiled_dataset)
 
 import pytest
 
@@ -82,67 +82,6 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
     # stitcher_widget.button_fuse.clicked()
     stitcher_widget.run_fusion()
 
-    # # Make sure layers are created
-    # assert(3, len(viewer.layers))
-    # assert(True, min(['fused' in l.name for l in viewer.layers]))
-
-    # create our widget, passing in the viewer
-
-
-    # call our widget method
-    # my_widget._on_click()
-
-    # read captured output and check that it's as we expected
-    # captured = capsys.readouterr()
-    # assert captured.out == "napari has 1 layers\n"
-
-
-# # make_napari_viewer is a pytest fixture that returns a napari viewer object
-# # capsys is a pytest fixture that captures stdout and stderr output streams
-# def test_stabilization_workflow(make_napari_viewer, capsys):
-#     """
-#     Integration test covering stabilization workflow.
-#     """
-
-#     # make viewer and add an image layer using our fixture
-#     viewer = make_napari_viewer()
-
-#     stitcher_widget = StitcherQWidget(viewer)
-
-#     sims = _sample_data.generate_tiled_dataset(ndim=2, N_t=20, N_c=1, tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=3, zoom=10, dtype=np.uint16)
-#     layer_tuples = _sample_data.create_image_layer_tuples_from_sims(sims)
-
-#     for lt in layer_tuples:
-#         viewer.add_image(lt[0], **lt[1])
-
-#     stitcher_widget.button_load_layers_all.clicked()
-
-#     # Run stabilization
-#     stitcher_widget.run_stabilization()
-
-#     # Check that parameters were obtained
-#     assert(stitcher_widget.params is not None)
-
-#     # Check that parameters are visualised
-
-#     # # First, view 0 is not shifted
-#     # assert(np.allclose(
-#     #     # spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
-#     #     np.eye(viewer.layers[0].data.ndim + 1),
-#     #     viewer.layers[0].affine.affine_matrix))
-    
-#     # Toggle showing the registrations
-#     stitcher_widget.visualization_type_rbuttons.value=_widget.CHOICE_REGISTERED
-#     # Make sure view 0 is shifted now
-#     assert(~np.allclose(
-#         # spatial_image_utils.get_data_to_world_matrix_from_spatial_image(viewer.layers[0].data),
-#         np.eye(viewer.layers[0].data.ndim + 1),
-#         viewer.layers[0].affine.affine_matrix))
-
-#     # Run fusion
-#     # stitcher_widget.button_fuse.clicked()
-#     stitcher_widget.run_fusion()
-
 
 @pytest.mark.parametrize(
     "ndim, overlap, N_c, N_t, dtype", [
@@ -162,7 +101,7 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
 
-    sims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
+    sims = generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
             tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1, overlap=overlap, zoom=10, dtype=dtype)
 
     msims = [msi_utils.get_msim_from_sim(sim, scale_factors=[]) for sim in sims]
@@ -178,7 +117,7 @@ def test_diversity_stitching(ndim, overlap, N_c, N_t, dtype, make_napari_viewer)
     if overlap > 1:
         wdg.run_registration()
     else:
-        with pytest.raises(registration.NotEnoughOverlapError):
+        with pytest.raises(mv_graph.NotEnoughOverlapError):
             wdg.run_registration()
         return
 
@@ -208,7 +147,7 @@ def test_time_slider(make_napari_viewer):
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
 
-    sims = _sample_data.generate_tiled_dataset(
+    sims = generate_tiled_dataset(
         ndim=2, N_t=4, N_c=1,
         tile_size=30, tiles_x=2, tiles_y=1, tiles_z=1,
         overlap=5, zoom=10, dtype=np.uint8)
@@ -250,7 +189,7 @@ def test_update_transformations(ndim, N_c, N_t, make_napari_viewer):
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
 
-    sims = _sample_data.generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
+    sims = generate_tiled_dataset(ndim=ndim, N_t=N_t, N_c=N_c,
             tile_size=5, tiles_x=2, tiles_y=1, tiles_z=1)
     
     msims = [msi_utils.get_msim_from_sim(sim) for sim in sims]
