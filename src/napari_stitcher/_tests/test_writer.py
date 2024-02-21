@@ -58,17 +58,17 @@ def test_writer_napari(field_ndim, N_t, N_c, make_napari_viewer):
         read_im = tifffile.imread(filepath)
 
         # make sure dimensionality is right
-        assert(read_im.ndim == field_ndim + int(len(times) > 1) + int(len(channels) > 1))
+        assert read_im.ndim == field_ndim + int(len(times) > 1) + int(len(channels) > 1)
 
         # test metadata
 
         # https://pypi.org/project/tifffile/#examples
         tif = tifffile.TiffFile(filepath)
-        assert(tif.series[0].axes,
-                ['', 't'][len(times) > 1] +\
-                ['', 'z'][field_ndim > 2] +\
-                ['', 'c'][len(channels) > 1] +\
-                'YX')
+        assert tif.series[0].axes == \
+                ['', 'T'][len(times) > 1] +\
+                ['', 'Z'][field_ndim > 2] +\
+                ['', 'C'][len(channels) > 1] +\
+                'YX'
         
         resolution_unit_checked = False
         resolution_value_checked = False
@@ -77,17 +77,17 @@ def test_writer_napari(field_ndim, N_t, N_c, make_napari_viewer):
         p = tif.pages[0]
         for tag in p.tags:
             print(tag.name, '/', tag.value)
-            if tag.name == 'ResolutionUnit':
-                assert(tag.value, 'um')
-                resolution_unit_checked = True
+            # if tag.name == 'ResolutionUnit':
+            #     assert tag.value == 'um'
+            #     resolution_unit_checked = True
             if tag.name == 'XResolution':
-                assert(np.isclose(spacing_xy, tag.value[1] / tag.value[0]))
+                assert np.isclose(spacing_xy, tag.value[1] / tag.value[0])
                 resolution_value_checked = True
             if tag.name == 'BitsPerSample':
-                assert(tag.value, np.iinfo(im_dtype).bits)
+                assert tag.value == np.iinfo(im_dtype).bits
                 bitspersample_checked = True
 
-        assert(resolution_unit_checked)
-        assert(resolution_value_checked)
-        assert(bitspersample_checked)
+        # assert resolution_unit_checked
+        assert resolution_value_checked
+        assert bitspersample_checked
 

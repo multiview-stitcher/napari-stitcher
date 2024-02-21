@@ -140,8 +140,15 @@ def add_image_layer_tuples_to_viewer(
     # add callback to manage viewer transformations
     # (napari doesn't yet support different affine transforms for a single layer)
     if manage_viewer_transformations:
-        viewer.dims.events.connect(
-            partial(manage_viewer_transformations_callback, viewer=viewer))
+
+        for l in layers:
+            l.metadata['napari_stitcher_manage_transformations'] = True
+
+        if manage_viewer_transformations_callback not in viewer.dims.events.callbacks:
+            viewer.dims.events.connect(
+                partial(manage_viewer_transformations_callback,
+                        viewer=viewer)
+                        )
 
     return layers
 
@@ -315,17 +322,17 @@ def manage_viewer_transformations_callback(event, viewer):
     - for each (compatible) layer loaded in viewer
     """
 
-    # compatible_layers = [l for l in self.viewer.layers
-    #                         if si.is_spatial_image(l.data[0])]
+    # layers_to_manage = [l for l in viewer.layers if l.name in layer_names_to_manage]
+
+    layers_to_manage = [l for l in viewer.layers
+                        if 'napari_stitcher_manage_transformations' in l.metadata.keys()
+                        and l.metadata['napari_stitcher_manage_transformations']]
     
-    # consider all layers for now
-    compatible_layers = viewer.layers
-    
-    if not len(compatible_layers): return
+    if not len(layers_to_manage): return
     
     # determine spatial dimensions from layers
     all_spatial_dims = [spatial_image_utils.get_spatial_dims_from_sim(
-        l.data[0]) for l in compatible_layers]
+        l.data[0]) for l in layers_to_manage]
     
     highest_sdim = max([len(sdim) for sdim in all_spatial_dims])
 
@@ -337,7 +344,7 @@ def manage_viewer_transformations_callback(event, viewer):
     else:
         curr_tp = 0
 
-    for _, l in enumerate(compatible_layers):
+    for _, l in enumerate(layers_to_manage):
 
         if not 'full_affine_transform' in l.metadata.keys(): continue
 
@@ -345,19 +352,19 @@ def manage_viewer_transformations_callback(event, viewer):
 
         params = l.metadata['full_affine_transform']
 
-        try:
-            if 't' in params.dims:
+        if 't' in params.dims:
+            try:
                 p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp])).squeeze()
-            else:
-                p = np.array(params).squeeze()
-        except:
-            notifications.notification_manager.receive_info(
-                'Timepoint %s: no parameters available for tp' % curr_tp)
-            continue
-            # if curr_tp not available, use nearest available parameter
-            # notifications.notification_manager.receive_info(
-            #     'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
-            # p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp], method='nearest')).squeeze()
+            except:
+                notifications.notification_manager.receive_info(
+                    'Timepoint %s: no parameters available for tp' % curr_tp)
+                # if curr_tp not available, use nearest available parameter
+                # notifications.notification_manager.receive_info(
+                #     'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
+                p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp], method='nearest')).squeeze()
+                continue
+        else:
+            p = np.array(params).squeeze()
 
         ndim_layer_data = len(layer_sim.shape)
 
@@ -368,6 +375,7 @@ def manage_viewer_transformations_callback(event, viewer):
         full_vis_p = np.eye(ndim_layer_data + 1)
         full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
 
+        # import pdb; pdb.set_trace()
         l.affine.affine_matrix = full_vis_p
 
         # refreshing layers fails sometimes

@@ -61,22 +61,22 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
     stitcher_widget.run_registration()
 
     # Check that parameters were obtained
-    assert(stitcher_widget.params is not None)
+    assert stitcher_widget.params is not None
 
     # Check that parameters are visualised
 
     # First, view 0 is not shifted
-    assert(np.allclose(
+    assert np.allclose(
         np.eye(ndim + 1),
-        viewer.layers[0].affine.affine_matrix[-(ndim+1):, -(ndim+1):]))
+        viewer.layers[0].affine.affine_matrix[-(ndim+1):, -(ndim+1):])
     
     # Toggle showing the registrations
     stitcher_widget.visualization_type_rbuttons.value=_widget.CHOICE_REGISTERED
 
     # Make sure view 0 is shifted now
-    assert(~np.allclose(
+    assert ~np.allclose(
         np.eye(ndim + 1),
-        viewer.layers[1].affine.affine_matrix[-(ndim+1):, -(ndim+1):]))
+        viewer.layers[1].affine.affine_matrix[-(ndim+1):, -(ndim+1):])
 
     # Run fusion
     # stitcher_widget.button_fuse.clicked()
@@ -219,7 +219,7 @@ def test_fusion_without_registration(make_napari_viewer):
 
     # Run stitching
     stitcher_widget.run_fusion()
-    assert(len(viewer.layers) == 3)
+    assert len(viewer.layers) == 3
 
 
 def test_vanilla_layers_2D_no_time(make_napari_viewer):

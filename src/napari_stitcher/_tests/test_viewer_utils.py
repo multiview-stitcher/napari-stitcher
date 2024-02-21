@@ -17,6 +17,7 @@ from napari_stitcher import viewer_utils, _reader
         for ndim in [2, 3]
         for N_c in [1, 2]
         for N_t in [1, 2]
+        # (3, 1, 2)
     ]
 )
 def test_create_image_layer_tuples_from_msims(ndim, N_c, N_t, make_napari_viewer):
@@ -52,13 +53,15 @@ def test_create_image_layer_tuples_from_msims(ndim, N_c, N_t, make_napari_viewer
     lds = viewer_utils.create_image_layer_tuples_from_msims(
         msims, transform_key=registered_transform_key)
     assert len(lds) == N_c * tiles_x * tiles_y * tiles_z
-    viewer_utils.add_image_layer_tuples_to_viewer(viewer, lds)
-
+    viewer_utils.add_image_layer_tuples_to_viewer(
+        viewer, lds, manage_viewer_transformations=True)
 
     lds = viewer_utils.create_image_layer_tuples_from_msims(
         [mfused], transform_key=registered_transform_key)
     assert len(lds) == N_c
-    viewer_utils.add_image_layer_tuples_to_viewer(viewer, lds)
+
+    viewer_utils.add_image_layer_tuples_to_viewer(
+        viewer, lds, manage_viewer_transformations=True)
 
     # wiggle time
     if N_t > 1:
