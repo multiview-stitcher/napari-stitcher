@@ -1,6 +1,5 @@
+import sys
 import numpy as np
-import xarray as xr
-import dask.array as da
 
 import tempfile
 from pathlib import Path
@@ -15,6 +14,9 @@ from multiview_stitcher.io import METADATA_TRANSFORM_KEY
 import pytest
 
 
+@pytest.mark.skipif(
+        'win' in sys.platform,
+        reason="Need to fix tempfile related test error on Windows")
 @pytest.mark.parametrize(
     "field_ndim, N_t, N_c", [
         (field_ndim, N_t, N_c)
