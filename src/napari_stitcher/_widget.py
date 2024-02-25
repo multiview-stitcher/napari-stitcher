@@ -10,14 +10,11 @@ from typing import TYPE_CHECKING
 import os, tempfile, sys
 
 import numpy as np
-import dask
 
 from napari.utils import notifications
 
 from magicgui import widgets
 from qtpy.QtWidgets import QVBoxLayout, QWidget
-
-import spatial_image as si
 
 from multiview_stitcher import (
     registration,
@@ -232,10 +229,12 @@ class StitcherQWidget(QWidget):
 
     def run_registration(self):
 
+        # select layers corresponding to the chosen registration channel
         msims_dict = {_utils.get_str_unique_to_view_from_layer_name(lname): msim
                       for lname, msim in self.msims.items()
                       if self.reg_ch_picker.value in msi_utils.get_sim_from_msim(msim).coords['c']}
         
+        # sort layers by name
         sorted_lnames = sorted(list(msims_dict.keys()))
 
         msims = [msims_dict[lname] for lname in sorted_lnames]
@@ -417,7 +416,7 @@ class StitcherQWidget(QWidget):
                 self.reset()
                 return
             
-            msim = msi_utils.ensure_time_dim(msim)
+            msim = msi_utils.ensure_dim(msim, 't')
             self.msims[l.name] = msim
 
         sims = [msi_utils.get_sim_from_msim(msim) for l.name, msim in self.msims.items()]
