@@ -71,7 +71,9 @@ def read_mosaic(path, scene_index=None):
     paths = [path] if isinstance(path, str) else path
 
     sims = read_mosaic_image_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
-    msims = [msi_utils.get_msim_from_sim(sim) for sim in sims]
+
+    msims = [msi_utils.get_msim_from_sim(sim, scale_factors=[])
+             for sim in sims]
 
     out_layers = viewer_utils.create_image_layer_tuples_from_msims(
         msims,
