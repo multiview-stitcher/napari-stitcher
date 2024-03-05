@@ -179,6 +179,7 @@ def create_image_layer_tuples_from_msim(
                 ch_name=str(ch_coord.values),
                 contrast_limits=contrast_limits,
                 blending=blending,
+                data_as_array=data_as_array,
                 )
             
         return out_layers
@@ -220,7 +221,7 @@ def create_image_layer_tuples_from_msim(
     else:
         name = ' :: '.join([name_prefix, ch_name])
 
-    if not transform_key is None:
+    if transform_key is not None:
         affine_transform_xr = msi_utils.get_transform_from_msim(msim, transform_key=transform_key)
         if 't' in affine_transform_xr.dims:
             affine_transform = np.array(affine_transform_xr.sel(t=sim.coords['t'][0]).data)

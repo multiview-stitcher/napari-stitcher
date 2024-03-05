@@ -77,7 +77,8 @@ def read_mosaic(path, scene_index=None):
 
     out_layers = viewer_utils.create_image_layer_tuples_from_msims(
         msims,
-        transform_key=METADATA_TRANSFORM_KEY)
+        transform_key=METADATA_TRANSFORM_KEY,
+        data_as_array=False)
 
     return out_layers
 
