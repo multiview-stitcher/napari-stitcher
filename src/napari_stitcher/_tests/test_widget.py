@@ -6,7 +6,7 @@ import tifffile
 
 from napari_stitcher import (
     StitcherQWidget,
-    _widget,
+    _stitcher_widget,
     viewer_utils,
 )
 
@@ -71,7 +71,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
         viewer.layers[0].affine.affine_matrix[-(ndim+1):, -(ndim+1):])
     
     # Toggle showing the registrations
-    stitcher_widget.visualization_type_rbuttons.value=_widget.CHOICE_REGISTERED
+    stitcher_widget.visualization_type_rbuttons.value=_stitcher_widget.CHOICE_REGISTERED
 
     # Make sure view 0 is shifted now
     assert ~np.allclose(
