@@ -25,8 +25,11 @@ contributions:
       title: Load sample data from Stitchery
 
     - id: napari-stitcher.make_qwidget
-      python_name: napari_stitcher._widget:StitcherQWidget
+      python_name: napari_stitcher._stitcher_widget:StitcherQWidget
       title: Make Stitcher QWidget
+    - id: napari-stitcher.make_loader
+      python_name: napari_stitcher._loader_widget:LoaderQWidget
+      title: Make Stitcher Loader
   readers:
     - command: napari-stitcher.get_reader
       accepts_directories: false
@@ -48,3 +51,5 @@ contributions:
   widgets:
     - command: napari-stitcher.make_qwidget
       display_name: napari-stitcher
+    - command: napari-stitcher.make_loader
+      display_name: napari-stitcher-loader
