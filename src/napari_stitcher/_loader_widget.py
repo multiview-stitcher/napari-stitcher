@@ -39,6 +39,7 @@ class LoaderQWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
         self.viewer = napari_viewer
+        self.viewer.title = "Napari Stitcher"
 
         self.setLayout(QVBoxLayout())
 
@@ -57,14 +58,32 @@ class LoaderQWidget(QWidget):
                                             ],
                                             label='Loaded\nlayers:')
 
+        # mosaic arrangement widgets
+        self.overlap = widgets.FloatSlider(value=0.1, min=0, max=0.9999, label='overlap:')
+        self.n_col = widgets.SpinBox(value=1, min=1, max=100, label='number of columns:') 
+        self.n_row = widgets.SpinBox(value=1, min=1, max=100, label='number of rows:') 
+        self.mosaic_arr = widgets.ComboBox(choices=['rows first','columns first','snake by rows','snake by columns'],
+                                             value='snake by rows', 
+                                             label='Mosaic arrangement:')
+        self.button_arrange_tiles = widgets.Button(text='Arrange tiles')
 
+        # organize widgets
         self.loading_widgets = [
                             self.load_layers_box,
+                            ]
+        
+        self.mosaic_widgets = [
+                            self.overlap,
+                            self.n_col, 
+                            self.n_row, 
+                            self.mosaic_arr, 
+                            self.button_arrange_tiles,
                             ]
 
 
         self.container = widgets.VBox(widgets=\
-                            self.loading_widgets
+                            self.loading_widgets+
+                            self.mosaic_widgets
                             )
 
         self.container.native.setMinimumWidth = 50
@@ -74,8 +93,7 @@ class LoaderQWidget(QWidget):
         # initialize registration parameter dict
         self.input_layers= []
         self.msims = {}
-        self.fused_layers = []
-        self.params = dict()
+
 
         # create temporary directory for storing dask arrays
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -83,42 +101,13 @@ class LoaderQWidget(QWidget):
         self.button_load_layers_all.clicked.connect(self.load_layers_all)
         self.button_load_layers_sel.clicked.connect(self.load_layers_sel)
 
+        self.button_arrange_tiles.clicked.connect(self.arrange_tiles)
+
 
     def reset(self):
             
         self.msims = {}
-        self.params = dict()
-        self.reg_ch_picker.choices = ()
-        self.times_slider.min, self.times_slider.max = (-1, 0)
-        self.times_slider.value = (-1, 0)
         self.input_layers = []
-        self.fused_layers = []
-
-
-    def load_metadata(self):
-        
-        reference_sim = msi_utils.get_sim_from_msim(self.msims[self.input_layers[0].name])
-        
-        # assume dims are the same for all layers
-        if 't' in reference_sim.dims:
-            self.times_slider.enabled = True
-            self.times_slider.min = -1
-            self.times_slider.max = len(reference_sim.coords['t']) - 1
-            self.times_slider.value = self.times_slider.min, self.times_slider.max
-
-        if 'c' in reference_sim.coords.keys():
-            self.reg_ch_picker.enabled = True
-            self.reg_ch_picker.choices = np.unique([
-                _utils.get_str_unique_to_ch_from_sim_coords(msi_utils.get_sim_from_msim(msim).coords)
-                for l_name, msim in self.msims.items()])
-            self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
-
-        from collections.abc import Iterable
-        for w in self.reg_widgets + self.fusion_widgets:
-            if isinstance(w, Iterable):
-                for sw in w:
-                    sw.enabled = True
-            w.enabled = True
 
 
     def load_layers_all(self):
@@ -176,7 +165,7 @@ class LoaderQWidget(QWidget):
         if len(layers) and number_of_channels > 1:
             self.link_channel_layers(layers)
 
-        self.load_metadata()
+        #self.load_metadata()  ## remove? 
 
 
     def link_channel_layers(self, layers):
@@ -194,6 +183,47 @@ class LoaderQWidget(QWidget):
             if len(ch_layers):
                 link_layers(ch_layers, ('contrast_limits', 'visible'))
 
+    
+    def arrange_tiles(self):
+        """
+        Arrange tiles depending on the selected mosaic arrangement.
+        """
+
+        if not len(self.msims):
+            notifications.notification_manager.receive_info(
+                'No layers loaded.'
+            )
+            return
+
+        n_tiles = len(self.msims)
+
+        # get mosaic parameters assuming all tiles have the same size
+        tile_w = self.msims[self.input_layers[0].name]['scale0/image'].x.shape[0]
+        tile_h = self.msims[self.input_layers[0].name]['scale0/image'].y.shape[0]
+        overlap = self.overlap.value
+        n_col = self.n_col.value
+        n_row = self.n_row.value
+        mosaic_arr = self.mosaic_arr.value
+
+        # define mosaic position
+        x_spacing = tile_w * (1 - overlap)  # x spacing between two adjacent tiles
+        x_max = tile_w * (0.5 + (n_col - 1) * (1 - overlap))  # last column tile center x coordinate
+        total_w = tile_w * (1 + (n_col - 1) * (1 - overlap))  # width of the total mosaic
+
+        y_spacing = tile_h * (1 - overlap)  # y spacing between two adjacent tiles
+        y_max = tile_h * (0.5 + (n_row - 1) * (1 - overlap))  # last row tile center y coordinate
+        total_h = tile_h * (1 + (n_row - 1) * (1 - overlap))  # height of the total mosaic
+
+        x_array = np.linspace(tile_w/2, x_max, n_col)
+        y_array = np.linspace(tile_h/2, y_max, n_row)
+
+        # get tile arrangement
+        ind_list = _utils.get_tile_indices(mosaic_arr=mosaic_arr,n_col=n_col,n_row=n_row,n_tiles=n_tiles)
+        pos_list = []  # list of tiles' positions
+        for i in range(len(ind_list)): 
+            pos_list.append((x_array[ind_list[i][0]],y_array[ind_list[i][1]]))
+
+        print(pos_list)
 
     def __del__(self):
 
