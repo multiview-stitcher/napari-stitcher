@@ -68,6 +68,13 @@ class StitcherQWidget(QWidget):
             label='Reg channel: ',
             choices=[],
             tooltip='Choose a file to process using napari-stitcher.')
+        
+        self.custom_reg_binning = widgets.CheckBox(value=False, text='Use custom registration binning')
+        self.x_reg_binning = widgets.Slider(value=1, min=1, max=10, label='X binning:')
+        self.y_reg_binning = widgets.Slider(value=1, min=1, max=10, label='Y binning:')
+
+        self.do_quality_filter = widgets.CheckBox(value=False, text='Filter registrations by quality')
+        self.quality_threshold = widgets.FloatSlider(value=0.2, min=0, max=1, label='Quality threshold:')
 
         self.button_stitch = widgets.Button(text='Register', enabled=False,
             tooltip='Use the overlaps between tiles to determine their relative positions.')
@@ -102,6 +109,11 @@ class StitcherQWidget(QWidget):
         self.reg_widgets = [
                             self.times_slider,
                             self.reg_ch_picker,
+                            self.custom_reg_binning,
+                            self.x_reg_binning,
+                            self.y_reg_binning,
+                            self.do_quality_filter,
+                            self.quality_threshold,
                             self.buttons_register_tracks,
                             ]
 
@@ -258,10 +270,17 @@ class StitcherQWidget(QWidget):
             _utils.TqdmCallback(tqdm_class=_utils.progress,
                                 desc='Registering tiles', bar_format=" "):
             
+            if self.custom_reg_binning.value:
+                registration_binning = {'y': self.x_reg_binning.value, 'x': self.y_reg_binning.value}
+            else:
+                registration_binning = None
+
             params = registration.register(
                 msims,
-                # registration_binning={'z': 2, 'y': 8, 'x': 8},
-                registration_binning=None,
+                registration_binning=registration_binning,
+                pre_registration_pruning_method=None, # this will register all pairs with overlap
+                post_registration_do_quality_filter=self.do_quality_filter.value,
+                post_registration_quality_threshold=self.quality_threshold.value,
                 transform_key='affine_metadata',
             )
 
