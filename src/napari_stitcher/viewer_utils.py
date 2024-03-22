@@ -15,6 +15,50 @@ from napari.experimental import link_layers
 from napari.utils import notifications
 
 
+def get_layer_dims(l,viewer):
+    """
+    Get the dimensions of a napari layer.
+    
+    Parameters
+    ----------
+    l : napari.layers.Image
+        l.data contains Union[array, xr.DataArray] for each scale
+    viewer : napari.Viewer
+        Napari viewer
+
+    Returns
+    -------
+    dims : list
+        List of dimensions of the layer
+    """
+
+    ldata = l.data
+    
+    if isinstance(ldata, xr.DataArray):
+        dims = ldata.dims
+    
+    else:
+        ndim = len(ldata.shape)
+        if 'x' in viewer.dims.axis_labels and 'y' in viewer.dims.axis_labels:
+
+            dims = viewer.dims.axis_labels[-ndim:]
+
+            if 'c' in dims:
+                raise(NotImplementedError('Layers with channel dims are not supported yet.'))
+            
+            if 'y' in dims and 'x' in dims:
+                if dims.index('y') > dims.index('x'):
+                    raise(Exception('y dimension must come before x dimension.'))
+                
+            if 'z' in dims and 'y' in dims:
+                if dims.index('z') > dims.index('y'):
+                    raise(Exception('z dimension must come before y dimension.'))
+
+        else:
+            dims = ['t', 'z', 'y', 'x'][-ndim:]
+    
+    return dims
+
 def image_layer_to_msim(l, viewer):
 
     """
@@ -55,34 +99,9 @@ def image_layer_to_msim(l, viewer):
             msi.MultiscaleSpatialImage(name='scale%s' %isim, data=sim, parent=msim)
         
     else:
-
-        ldata = l.data
-
         # use dimension labels from viewer if indicated
         # consider that labels are set if x and y are present
-
-        if isinstance(ldata, xr.DataArray):
-            dims = ldata.dims
-        
-        else:
-            ndim = len(ldata.shape)
-            if 'x' in viewer.dims.axis_labels and 'y' in viewer.dims.axis_labels:
-
-                dims = viewer.dims.axis_labels[-ndim:]
-
-                if 'c' in dims:
-                    raise(NotImplementedError('Layers with channel dims are not supported yet.'))
-                
-                if 'y' in dims and 'x' in dims:
-                    if dims.index('y') > dims.index('x'):
-                        raise(Exception('y dimension must come before x dimension.'))
-                    
-                if 'z' in dims and 'y' in dims:
-                    if dims.index('z') > dims.index('y'):
-                        raise(Exception('z dimension must come before y dimension.'))
-
-            else:
-                dims = ['t', 'z', 'y', 'x'][-ndim:]
+        dims = get_layer_dims(l,viewer)
 
         sdims = [dim for dim in dims if dim in ['x', 'y', 'z']]
 
