@@ -101,6 +101,7 @@ def image_layer_to_msim(l, viewer):
     else:
         # use dimension labels from viewer if indicated
         # consider that labels are set if x and y are present
+        ldata = l.data
         dims = get_layer_dims(l,viewer)
 
         sdims = [dim for dim in dims if dim in ['x', 'y', 'z']]
