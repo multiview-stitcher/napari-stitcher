@@ -46,7 +46,7 @@ https://github.com/multiview-stitcher/napari-stitcher/assets/12528388/c474a90b-4
 
 [TODO] You can install `napari-stitcher` via [pip]:
 
-    `pip install https://github.com/multiview-stitcher/napari-stitcher`
+    `pip install "git+https://github.com/multiview-stitcher/napari-stitcher.git"`
 
 ## Contributing
 
