@@ -145,12 +145,20 @@ class StitcherQWidget(QWidget):
         self.button_load_layers_sel.clicked.connect(self.load_layers_sel)
 
 
-    def update_viewer_transformations(self):
+    def update_viewer_transformations(self, event=None):
         """
         set transformations
         - for current timepoint
         - for each (compatible) layer loaded in viewer
         """
+
+        try:
+            # events are constantly triggered by viewer.dims.events,
+            # but we only want to update if current_step changes
+            if hasattr(event, 'type') and\
+            event.type != 'current_step': return
+        except AttributeError:
+            pass
 
         if not len(self.msims): return
 

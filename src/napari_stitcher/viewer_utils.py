@@ -323,6 +323,14 @@ def manage_viewer_transformations_callback(event, viewer):
     - for each (compatible) layer loaded in viewer
     """
 
+    try:
+        # events are constantly triggered by viewer.dims.events,
+        # but we only want to update if current_step changes
+        if hasattr(event, 'type') and\
+        event.type != 'current_step': return
+    except AttributeError:
+        pass
+
     # layers_to_manage = [l for l in viewer.layers if l.name in layer_names_to_manage]
 
     layers_to_manage = [l for l in viewer.layers
