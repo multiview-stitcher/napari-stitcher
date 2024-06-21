@@ -235,7 +235,7 @@ class StitcherQWidget(QWidget):
                 pass
 
 
-    def run_registration(self):
+    def run_registration(self):            
 
         # select layers corresponding to the chosen registration channel
         msims_dict = {_utils.get_str_unique_to_view_from_layer_name(lname): msim
@@ -407,18 +407,19 @@ class StitcherQWidget(QWidget):
     def load_layers(self, layers):
 
         self.reset()
+        self.viewer.layers.unlink_layers()
+
         self.layers_selection.choices = sorted([l.name for l in layers])
 
         self.input_layers = [l for l in layers]
 
-        # load in layers as sims
+        # load in layers as msims
         for l in layers:
-
             msim = viewer_utils.image_layer_to_msim(l, self.viewer)
             
             if 'c' in msim['scale0/image'].dims:
                 notifications.notification_manager.receive_info(
-                    "Layer '%s' has more than one channel.Consider splitting the stack (right click on layer -> 'Split Stack')." %l.name
+                    "Layer '%s' has more than one channel. Consider splitting the stack (right click on layer -> 'Split Stack')." %l.name
                 )
                 self.layers_selection.choices = []
                 self.reset()
@@ -436,10 +437,49 @@ class StitcherQWidget(QWidget):
         if len(layers) and number_of_channels > 1:
             self.link_channel_layers(layers)
 
+        if len(layers) / number_of_channels > 1:
+            self.link_view_layers(layers)
+
+        # if loaded layer changes, update msim
+        for l in layers:
+            l.events.connect(self.watch_layer_changes)
+
         self.load_metadata()
 
 
-    def link_channel_layers(self, layers):
+    def watch_layer_changes(self, event):
+        """
+
+        Watch changes in layers and warn user or update msims accordingly.
+        I.e. changes in transformations.
+        """
+        if event.type in ['affine', 'scale', 'translate']:
+            if not self.visualization_type_rbuttons.enabled:
+                # assume user is modifying transforms before registration
+                # reload layer into stitching widget
+                l = event.source
+                self.msims[l.name] = msi_utils.ensure_dim(
+                    viewer_utils.image_layer_to_msim(l, self.viewer),
+                    't',
+                    )
+            else:
+                # inform user about the consequences of modifying transforms
+                if self.visualization_type_rbuttons.value == CHOICE_METADATA:
+                    notifications.notification_manager.receive_info(
+                        'Please reload the layers for a new registration.'
+                        )
+                elif self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
+                    notifications.notification_manager.receive_info(
+                        'Manual corrections of transforms will be supported soon!'
+                        )
+
+
+    def link_channel_layers(self, layers, attributes=('contrast_limits', 'visible')):
+        """
+        Link the following attributes of channel layers:
+          - contrast_limits
+          - visible
+        """
 
         # link channel layers
         from napari.experimental import link_layers
@@ -452,7 +492,31 @@ class StitcherQWidget(QWidget):
             ch_layers = list(_utils.filter_layers(layers, sims, ch=ch))
 
             if len(ch_layers):
-                link_layers(ch_layers, ('contrast_limits', 'visible'))
+                link_layers(ch_layers, attributes)
+
+
+    def link_view_layers(self, layers, attributes=('affine', 'scale', 'translate', 'rotate')):
+        """
+        Link the following attributes of layers that share the same view:
+          - affine
+          - scale
+          - translate
+          - rotate
+        """
+
+        # link tile layers
+        from napari.experimental import link_layers
+
+        sims = {l.name: msi_utils.get_sim_from_msim(self.msims[l.name])
+                for l in layers}
+
+        views = [_utils.get_str_unique_to_view_from_layer_name(l.name) for l in layers]
+        # channels = [_utils.get_str_unique_to_ch_from_sim_coords(sim.coords) for sim in sims.values()]
+        for view in views:
+            view_layers = list(_utils.filter_layers(layers, sims, view=view))
+
+            if len(view_layers):
+                link_layers(view_layers, attributes)
 
 
     def __del__(self):
@@ -461,6 +525,10 @@ class StitcherQWidget(QWidget):
 
         # clean up callbacks
         self.viewer.dims.events.disconnect(self.update_viewer_transformations)
+
+        for l in self.viewer.layers:
+            if l.name in self.layers_selection.choices:
+                l.events.disconnect(self.watch_layer_changes)
 
 
 if __name__ == "__main__":
