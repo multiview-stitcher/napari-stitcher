@@ -50,6 +50,6 @@ contributions:
       key: unique_id.3
   widgets:
     - command: napari-stitcher.make_qwidget
-      display_name: stitcher
+      display_name: Stitcher
     - command: napari-stitcher.make_mosaic
-      display_name: mosaic arrangement 
+      display_name: Mosaic arrangement 
