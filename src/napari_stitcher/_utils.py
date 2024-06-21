@@ -53,7 +53,8 @@ def filter_layers(layers, sims, view=None, ch=None):
         if ch is not None and get_str_unique_to_ch_from_sim_coords(sims[l.name].coords) != ch: continue
         yield l
 
-def get_tile_indices(mosaic_arr='rows first',n_col=1,n_row=1,n_tiles=1):
+
+def get_tile_indices(mosaic_arr='rows first', n_col=1, n_row=1, n_tiles=1):
     """
     Return list of tiles' indices following a mosaic arrangement
     mosaic_arr='rows first','columns first','snake by rows','snake by columns'
