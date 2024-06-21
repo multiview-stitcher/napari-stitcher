@@ -8,6 +8,7 @@ Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
 import os, tempfile, sys
+from collections.abc import Iterable
 
 import numpy as np
 
@@ -62,7 +63,7 @@ class StitcherQWidget(QWidget):
                                             label='Loaded\nlayers:')
 
         self.times_slider = widgets.RangeSlider(
-            min=-1, max=0, label='Timepoints:', enabled=False,
+            min=-1, max=0, label='Timepoints:',
             tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\n(3, 5) means timepoints 4 and 5 are processed')
         
         self.reg_ch_picker = widgets.ComboBox(
@@ -77,10 +78,10 @@ class StitcherQWidget(QWidget):
         self.do_quality_filter = widgets.CheckBox(value=False, text='Filter registrations by quality')
         self.quality_threshold = widgets.FloatSlider(value=0.2, min=0, max=1, label='Quality threshold:')
 
-        self.button_stitch = widgets.Button(text='Register', enabled=False,
+        self.button_stitch = widgets.Button(text='Register',
             tooltip='Use the overlaps between tiles to determine their relative positions.')
         
-        # self.button_stabilize = widgets.Button(text='Stabilize', enabled=False,
+        # self.button_stabilize = widgets.Button(text='Stabilize',
         #     tooltip='Use time lapse information to stabilize each tile over time,'+\
         #             'eliminating abrupt shifts between frames. No tile overlap needed.')
 
@@ -94,10 +95,10 @@ class StitcherQWidget(QWidget):
         self.visualization_type_rbuttons = widgets.RadioButtons(
             choices=[CHOICE_METADATA, CHOICE_REGISTERED],
             label="Show:",
-            value=CHOICE_METADATA, enabled=False,
+            value=CHOICE_METADATA,
             orientation='horizontal')
 
-        self.button_fuse = widgets.Button(text='Fuse', enabled=False,
+        self.button_fuse = widgets.Button(text='Fuse',
             tooltip='Fuse the tiles using the parameters obtained'+\
                     'from stitching or stabilization.\nCombines all'+\
                     'tiles and timepoints into a single image, smoothly'+\
@@ -137,6 +138,13 @@ class StitcherQWidget(QWidget):
         self.container.native.setMinimumWidth = 50
 
         self.layout().addWidget(self.container.native)
+
+        # disable all widgets until layers are loaded
+        for w in self.reg_widgets + self.visualization_widgets + self.fusion_widgets:
+            if isinstance(w, Iterable):
+                for sw in w:
+                    sw.enabled = False
+            w.enabled = False
 
         # initialize registration parameter dict
         self.input_layers= []
@@ -299,11 +307,6 @@ class StitcherQWidget(QWidget):
                     transform_key='affine_registered', base_transform_key='affine_metadata')
             except:
                 pass
-
-        # if not len(g_reg.edges):
-        #     message = 'No overlap between views for stitching. Consider stabilizing the tiles instead.'
-        #     notifications.notification_manager.receive_info(message)
-        #     return
         
         self.visualization_type_rbuttons.enabled = True
         self.visualization_type_rbuttons.value = CHOICE_REGISTERED
@@ -381,19 +384,16 @@ class StitcherQWidget(QWidget):
         
         # assume dims are the same for all layers
         if 't' in reference_sim.dims:
-            self.times_slider.enabled = True
             self.times_slider.min = -1
             self.times_slider.max = len(reference_sim.coords['t']) - 1
             self.times_slider.value = self.times_slider.min, self.times_slider.max
 
         if 'c' in reference_sim.coords.keys():
-            self.reg_ch_picker.enabled = True
             self.reg_ch_picker.choices = np.unique([
                 _utils.get_str_unique_to_ch_from_sim_coords(msi_utils.get_sim_from_msim(msim).coords)
                 for l_name, msim in self.msims.items()])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
-        from collections.abc import Iterable
         for w in self.reg_widgets + self.fusion_widgets:
             if isinstance(w, Iterable):
                 for sw in w:
