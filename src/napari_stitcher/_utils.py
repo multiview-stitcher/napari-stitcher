@@ -39,6 +39,10 @@ def get_str_unique_to_view_from_layer_name(layer_name):
     return layer_name.split(' :: ')[0]
 
 
+def get_str_unique_to_ch_from_layer_name(layer_name):
+    return layer_name.split(' :: ')[1]
+
+
 def get_str_unique_to_ch_from_sim_coords(layer_coords):
     return str(layer_coords['c'].values)
 

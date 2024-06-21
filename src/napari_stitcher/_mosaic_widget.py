@@ -51,7 +51,8 @@ class MosaicQWidget(QWidget):
         self.mosaic_arr = widgets.ComboBox(
             choices=['rows first','columns first','snake by rows','snake by columns'],
             value='snake by columns', 
-            label='Mosaic arrangement:')
+            label='Mosaic arrangement:',
+            tooltip='Select the type of grid arrangement. The tile order is taken from the list of layers.')
         self.button_arrange_tiles = widgets.Button(text='Arrange tiles')
 
         # organize widgets        
@@ -101,8 +102,22 @@ class MosaicQWidget(QWidget):
         """
         Arrange tiles in the viewer according to the selected mosaic arrangement.
         """
+
+        layer_channels = [
+            _utils.get_str_unique_to_ch_from_layer_name(l.name)
+            for l in self.viewer.layers]
+
+        layer_views = [
+            _utils.get_str_unique_to_view_from_layer_name(l.name)
+            for l in self.viewer.layers]
+
+        view_order = []
+        for lview in layer_views:
+            if lview not in view_order:
+                view_order.append(lview)
         
-        n_tiles = len(self.viewer.layers)  # not handling case of mulitple channels for now
+        n_channels = len(np.unique(layer_channels))
+        n_tiles = len(np.unique(layer_views))
 
         if n_tiles != self.n_col.value * self.n_row.value:
             notifications.notification_manager.receive_info(
@@ -126,17 +141,22 @@ class MosaicQWidget(QWidget):
                 n_tiles=n_tiles
             )
         l0_translate = self.viewer.layers[0].translate[-2:]
-        for i, tile_index in enumerate(tile_indices):
-            self.viewer.layers[i].translate[-2:] = [
+
+        for l in self.viewer.layers:
+            view = _utils.get_str_unique_to_view_from_layer_name(l.name)
+            itile = view_order.index(view)
+            tile_index = tile_indices[itile]
+            
+            l.translate[-2:] = [
                 l0_translate[0] + tile_index[1] * tile_w - tile_index[1] * tile_w * self.overlap.value,
                 l0_translate[1] + tile_index[0] * tile_h - tile_index[0] * tile_h * self.overlap.value
             ]
-            self.viewer.layers[i].refresh()
+            l.refresh()
         
 
     def __del__(self):
 
-        print('Deleting napari-stitcher widget')
+        print('Deleting napari-stitcher mosaic widget')
 
 
 if __name__ == "__main__":
@@ -150,7 +170,8 @@ if __name__ == "__main__":
 
     for irow in range(2):
         for icol in range(2):
-            viewer.add_image(np.random.randint(0, 100, [100] * 3), name=f'layer_{irow}_{icol}')
+            for ch in range(2):
+                viewer.add_image(np.random.randint(0, 100, [100] * 3), name=f'layer_{irow}_{icol} :: ch{ch}')
 
     wdg.n_col.value = 2
     wdg.n_row.value = 2
