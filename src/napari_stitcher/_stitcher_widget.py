@@ -8,13 +8,15 @@ Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
 import os, tempfile, sys
+from collections.abc import Iterable
 
 import numpy as np
 
 from napari.utils import notifications
 
 from magicgui import widgets
-from qtpy.QtWidgets import QVBoxLayout, QWidget
+from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QTabWidget, QLabel
+from qtpy.QtGui import QPixmap
 
 from multiview_stitcher import (
     registration,
@@ -45,12 +47,16 @@ class StitcherQWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
-        self.button_load_layers_all = widgets.Button(text='All')
         self.button_load_layers_sel = widgets.Button(text='Selected')
+        self.button_load_layers_all = widgets.Button(text='All')
         self.buttons_load_layers = widgets.HBox(
-            widgets=\
-                [self.button_load_layers_sel,
-                    self.button_load_layers_all]
+            widgets=[
+                widgets.Label(
+                    value='Load layers:',
+                    tooltip='Load layers to stitch from the napari layer list.'),
+                self.button_load_layers_sel,
+                self.button_load_layers_all,
+                ]
                     )
         self.layers_selection = widgets.Select(choices=[])
         self.load_layers_box = widgets.VBox(widgets=\
@@ -58,38 +64,39 @@ class StitcherQWidget(QWidget):
             self.buttons_load_layers,
             self.layers_selection,
                                             ],
-                                            label='Loaded\nlayers:')
+                                            # label='Loaded\nlayers:',
+                                            )
 
         self.times_slider = widgets.RangeSlider(
-            min=-1, max=0, label='Timepoints:', enabled=False,
+            min=-1, max=0, label='Timepoints:',
             tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\n(3, 5) means timepoints 4 and 5 are processed')
         
         self.reg_ch_picker = widgets.ComboBox(
             label='Reg channel: ',
             choices=[],
             tooltip='Choose a file to process using napari-stitcher.')
+        
+        self.custom_reg_binning = widgets.CheckBox(value=False, text='Use custom registration binning')
+        self.x_reg_binning = widgets.Slider(value=1, min=1, max=10, label='X binning:')
+        self.y_reg_binning = widgets.Slider(value=1, min=1, max=10, label='Y binning:')
 
-        self.button_stitch = widgets.Button(text='Register', enabled=False,
+        self.do_quality_filter = widgets.CheckBox(value=False, text='Filter registrations by quality')
+        self.quality_threshold = widgets.FloatSlider(value=0.2, min=0, max=1, label='Quality threshold:')
+
+        self.button_stitch = widgets.Button(text='Register',
             tooltip='Use the overlaps between tiles to determine their relative positions.')
         
-        # self.button_stabilize = widgets.Button(text='Stabilize', enabled=False,
+        # self.button_stabilize = widgets.Button(text='Stabilize',
         #     tooltip='Use time lapse information to stabilize each tile over time,'+\
         #             'eliminating abrupt shifts between frames. No tile overlap needed.')
-
-        self.buttons_register_tracks = widgets.HBox(
-            widgets=[
-                    self.button_stitch,
-                    # self.button_stabilize
-                    ]
-                    )
 
         self.visualization_type_rbuttons = widgets.RadioButtons(
             choices=[CHOICE_METADATA, CHOICE_REGISTERED],
             label="Show:",
-            value=CHOICE_METADATA, enabled=False,
+            value=CHOICE_METADATA,
             orientation='horizontal')
 
-        self.button_fuse = widgets.Button(text='Fuse', enabled=False,
+        self.button_fuse = widgets.Button(text='Fuse',
             tooltip='Fuse the tiles using the parameters obtained'+\
                     'from stitching or stabilization.\nCombines all'+\
                     'tiles and timepoints into a single image, smoothly'+\
@@ -99,31 +106,87 @@ class StitcherQWidget(QWidget):
                             self.load_layers_box,
                             ]
 
-        self.reg_widgets = [
+        self.reg_config_widgets_basic = [
                             self.times_slider,
                             self.reg_ch_picker,
-                            self.buttons_register_tracks,
                             ]
+
+        self.reg_config_widgets_advanced = [
+                            self.custom_reg_binning,
+                            self.x_reg_binning,
+                            self.y_reg_binning,
+                            self.do_quality_filter,
+                            self.quality_threshold,
+        ]
+
+        self.reg_config_widgets = self.reg_config_widgets_basic + self.reg_config_widgets_advanced
+
+        # Initialize tab screen 
+        self.reg_config_widgets_tabs = QTabWidget() 
+        self.reg_config_widgets_tabs.resize(300, 200) 
+  
+        # Add tabs 
+        self.reg_config_widgets_tabs.addTab(
+            widgets.VBox(widgets=self.reg_config_widgets_basic).native, "Basic") 
+        self.reg_config_widgets_tabs.addTab(
+            widgets.VBox(widgets=self.reg_config_widgets_advanced).native, "More") 
 
         self.visualization_widgets = [
                             self.visualization_type_rbuttons,
         ]
 
-        self.fusion_widgets = [
-                            widgets.HBox(widgets=[self.button_fuse]),
-                            ]
+        self.all_widgets = \
+            self.loading_widgets +\
+            self.reg_config_widgets +\
+            [self.button_stitch] +\
+            [self.button_fuse] +\
+            self.visualization_widgets
 
+        self.container = QWidget()
+        self.container.setLayout(QVBoxLayout())
 
-        self.container = widgets.VBox(widgets=\
-                            self.loading_widgets+
-                            self.reg_widgets+
-                            self.visualization_widgets+
-                            self.fusion_widgets
-                            )
+        # for w_list in self.all_widgets:
+        #     for w in w_list:
+        #         if hasattr(w, 'native'):
+        #             self.container.layout().addWidget(w.native)
+        #         else:
+        #             self.container.layout().addWidget(w)
 
-        self.container.native.setMinimumWidth = 50
+        # add logo / title?
+        # self.ns_label = widgets.Label(value='Napari Stitcher').native
+        # self.ns_label.setPixmap(QPixmap("multiview_stitcher_icon.png")) # doesn't work
+        # self.container.layout().addWidget(self.ns_label)
 
-        self.layout().addWidget(self.container.native)
+        for w in self.loading_widgets:
+            if hasattr(w, 'native'):
+                self.container.layout().addWidget(w.native)
+            else:
+                self.container.layout().addWidget(w)
+
+        self.container.layout().addWidget(self.reg_config_widgets_tabs)
+        self.container.layout().addWidget(self.button_stitch.native)
+        self.container.layout().addWidget(self.button_fuse.native)
+
+        # add horizontal widget with visualization options
+
+        self.visualization_widgets_qt = QWidget()
+        self.visualization_widgets_qt.setLayout(QHBoxLayout())
+        self.visualization_widgets_qt.layout().addWidget(QLabel('Show: '))
+        self.visualization_widgets_qt.layout().addWidget(self.visualization_widgets[0].native)
+
+        self.container.layout().addWidget(self.visualization_widgets_qt)
+
+        self.container.setMinimumWidth = 50
+        self.layout().addWidget(self.container)
+
+        # disable all widgets (apart from loading) until layers are loaded
+        for w in self.reg_config_widgets + self.visualization_widgets +\
+            [self.button_stitch, self.button_fuse]:
+            w.enabled = False
+            if isinstance(w, Iterable):
+                for sw in w:
+                    sw.enabled = False
+            w.enabled = False
 
         # initialize registration parameter dict
         self.input_layers= []
@@ -253,15 +316,23 @@ class StitcherQWidget(QWidget):
                                          self.times_slider.value[1] + 1)]})
                   for msim in msims]
 
-        with _utils.TemporarilyDisabledWidgets([self.container]),\
+        # with _utils.TemporarilyDisabledWidgets([self.container]),\
+        with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
             _utils.VisibleActivityDock(self.viewer),\
             _utils.TqdmCallback(tqdm_class=_utils.progress,
                                 desc='Registering tiles', bar_format=" "):
             
+            if self.custom_reg_binning.value:
+                registration_binning = {'y': self.x_reg_binning.value, 'x': self.y_reg_binning.value}
+            else:
+                registration_binning = None
+
             params = registration.register(
                 msims,
-                # registration_binning={'z': 2, 'y': 8, 'x': 8},
-                registration_binning=None,
+                registration_binning=registration_binning,
+                pre_registration_pruning_method=None, # this will register all pairs with overlap
+                post_registration_do_quality_filter=self.do_quality_filter.value,
+                post_registration_quality_threshold=self.quality_threshold.value,
                 transform_key='affine_metadata',
             )
 
@@ -279,11 +350,6 @@ class StitcherQWidget(QWidget):
                     transform_key='affine_registered', base_transform_key='affine_metadata')
             except:
                 pass
-
-        # if not len(g_reg.edges):
-        #     message = 'No overlap between views for stitching. Consider stabilizing the tiles instead.'
-        #     notifications.notification_manager.receive_info(message)
-        #     return
         
         self.visualization_type_rbuttons.enabled = True
         self.visualization_type_rbuttons.value = CHOICE_REGISTERED
@@ -323,7 +389,8 @@ class StitcherQWidget(QWidget):
 
             tmp_fused_path = os.path.join(self.tmpdir.name, 'fused_%s.zarr' %ch)
 
-            with _utils.TemporarilyDisabledWidgets([self.container]),\
+            # with _utils.TemporarilyDisabledWidgets([self.container]),\
+            with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
                 _utils.VisibleActivityDock(self.viewer),\
                 _utils.TqdmCallback(tqdm_class=_utils.progress,
                                     desc='Fusing tiles of channel %s' %ch, bar_format=" "):
@@ -361,20 +428,17 @@ class StitcherQWidget(QWidget):
         
         # assume dims are the same for all layers
         if 't' in reference_sim.dims:
-            self.times_slider.enabled = True
             self.times_slider.min = -1
             self.times_slider.max = len(reference_sim.coords['t']) - 1
             self.times_slider.value = self.times_slider.min, self.times_slider.max
 
         if 'c' in reference_sim.coords.keys():
-            self.reg_ch_picker.enabled = True
             self.reg_ch_picker.choices = np.unique([
                 _utils.get_str_unique_to_ch_from_sim_coords(msi_utils.get_sim_from_msim(msim).coords)
                 for l_name, msim in self.msims.items()])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
-        from collections.abc import Iterable
-        for w in self.reg_widgets + self.fusion_widgets:
+        for w in self.reg_config_widgets + [self.button_stitch, self.button_fuse]:
             if isinstance(w, Iterable):
                 for sw in w:
                     sw.enabled = True
@@ -536,19 +600,9 @@ if __name__ == "__main__":
     import napari
     from multiview_stitcher.sample_data import get_mosaic_sample_data_path
 
-    # filename = get_mosaic_sample_data_path()
-    filename = "/Users/malbert/software/multiview-stitcher/image-datasets/arthur_20220621_premovie_dish2-max.czi"
+    filename = get_mosaic_sample_data_path()
 
     viewer = napari.Viewer()
     
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
-
-    viewer.open(filename, scene_index=0, plugin='napari-stitcher')
-
-    # wdg.button_load_layers_all.clicked()
-
-    # wdg.times_slider.value = (-1, 1)
-
-    # wdg.run_registration()
-    # wdg.run_fusion()

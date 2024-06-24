@@ -6,27 +6,30 @@ contributions:
   commands:
     - id: napari-stitcher.get_reader
       python_name: napari_stitcher._reader:napari_get_reader
-      title: Open data with Stitchery
+      title: Open data with Stitcher
     - id: napari-stitcher.write_multiple
       python_name: napari_stitcher._writer:write_multiple
-      title: Save multi-layer data with Stitchery
+      title: Save multi-layer data with Stitcher
     - id: napari-stitcher.write_single_image
       python_name: napari_stitcher._writer:write_single_image
-      title: Save image data with Stitchery
+      title: Save image data with Stitcher
 
     - id: napari-stitcher.make_sample_data
       python_name: napari_stitcher._sample_data:make_sample_data
-      title: Load sample data from Stitchery
+      title: Load sample data from Stitcher
     - id: napari-stitcher.drifting_timelapse_with_stage_shifts_no_overlap_2d
       python_name: napari_stitcher._sample_data:drifting_timelapse_with_stage_shifts_no_overlap_2d
-      title: Load sample data from Stitchery
+      title: Load sample data from Stitcher
     - id: napari-stitcher.timelapse_with_stage_shifts_with_overlap_3d
       python_name: napari_stitcher._sample_data:timelapse_with_stage_shifts_with_overlap_3d
-      title: Load sample data from Stitchery
+      title: Load sample data from Stitcher
 
     - id: napari-stitcher.make_qwidget
-      python_name: napari_stitcher._widget:StitcherQWidget
+      python_name: napari_stitcher._stitcher_widget:StitcherQWidget
       title: Make Stitcher QWidget
+    - id: napari-stitcher.make_mosaic
+      python_name: napari_stitcher._mosaic_widget:MosaicQWidget
+      title: Make Stitcher Mosaic
   readers:
     - command: napari-stitcher.get_reader
       accepts_directories: false
@@ -47,4 +50,6 @@ contributions:
       key: unique_id.3
   widgets:
     - command: napari-stitcher.make_qwidget
-      display_name: napari-stitcher
+      display_name: Stitcher
+    - command: napari-stitcher.make_mosaic
+      display_name: Mosaic arrangement 
