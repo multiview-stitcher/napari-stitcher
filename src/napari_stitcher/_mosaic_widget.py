@@ -7,7 +7,6 @@ see: https://napari.org/stable/plugins/guides.html?#widgets
 Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
-import os, tempfile, sys
 
 import numpy as np
 
@@ -17,13 +16,10 @@ from magicgui import widgets
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 
 from multiview_stitcher import (
-    registration,
-    fusion,
-    spatial_image_utils,
     msi_utils,
     )
 
-from napari_stitcher import _reader, viewer_utils, _utils
+from napari_stitcher import _utils
 
 if TYPE_CHECKING:
     import napari

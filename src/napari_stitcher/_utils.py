@@ -100,3 +100,27 @@ def get_tile_indices(mosaic_arr='rows first', n_col=1, n_row=1, n_tiles=1):
 
     # select only the indices for the existing tiles
     return ind_list[:n_tiles]
+
+
+def infer_metadata(input_metadata=""):
+    """
+    Infer metadata from input metadata passed as a string (typically a Fiji text). 
+    Returns a dictionary with the metadata.
+    """
+
+    metadata = {}  # output metadata dictionary
+    metadata_list = input_metadata.split('\n')
+
+    for item in metadata_list:
+        if 'frame' in item: 
+            n_frame = item.split('=')[-1]
+            metadata['n_frame'] = n_frame
+        elif 'channels' in item: 
+            n_channel = item.split('=')[-1]
+            metadata['n_channel'] = n_channel
+        elif 'slices' in item: 
+            n_slices = item.split('=')[-1]
+            metadata['n_slices'] = n_slices
+    
+    return metadata
+    
