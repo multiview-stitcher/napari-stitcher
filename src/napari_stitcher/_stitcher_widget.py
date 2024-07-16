@@ -99,8 +99,8 @@ class StitcherQWidget(QWidget):
             orientation='horizontal')
         
         # metadata widgets
-        self.t_dim_picker = widgets.SpinBox(
-            value=1, min=1, max=100, label='Number of columns:') 
+        # self.t_dim_picker = widgets.SpinBox(
+        #     value=1, min=1, max=100, label='Number of columns:') 
         #widgets.FloatSpinBox(
 
         # fusion widgets
@@ -119,14 +119,14 @@ class StitcherQWidget(QWidget):
                             self.reg_ch_picker,
                             ]
         
-        self.reg_config_widgets_metadata = [
-                            self.t_dim_picker,
-                            self.z_dim_picker,
-                            #self.c_dim_picker, ## do we need this? depending on how we handle channels
-                            self.xy_scale_picker,
-                            #self.z_scale_picker, ## do we need this?
-                            self.update_metadata_button,
-                            ]
+        # self.reg_config_widgets_metadata = [
+        #                     self.t_dim_picker,
+        #                     self.z_dim_picker,
+        #                     #self.c_dim_picker, ## do we need this? depending on how we handle channels
+        #                     self.xy_scale_picker,
+        #                     #self.z_scale_picker, ## do we need this?
+        #                     self.update_metadata_button,
+        #                     ]
 
         self.reg_config_widgets_advanced = [
                             self.custom_reg_binning,
@@ -145,8 +145,8 @@ class StitcherQWidget(QWidget):
         # Add tabs 
         self.reg_config_widgets_tabs.addTab(
             widgets.VBox(widgets=self.reg_config_widgets_basic).native, "Basic") 
-        self.reg_config_widgets_tabs.addTab(
-            widgets.VBox(widgets=self.reg_config_widgets_metadata).native, "Metadata") 
+        # self.reg_config_widgets_tabs.addTab(
+        #     widgets.VBox(widgets=self.reg_config_widgets_metadata).native, "Metadata") 
         self.reg_config_widgets_tabs.addTab(
             widgets.VBox(widgets=self.reg_config_widgets_advanced).native, "More") 
 

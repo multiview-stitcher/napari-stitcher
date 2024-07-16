@@ -11,6 +11,8 @@ from spatial_image import to_spatial_image
 
 from multiview_stitcher import mv_graph, spatial_image_utils, msi_utils, param_utils
 
+from napari_stitcher import _utils
+
 from napari.experimental import link_layers
 from napari.utils import notifications
 
@@ -54,8 +56,19 @@ def get_layer_dims(l,viewer):
                 if dims.index('z') > dims.index('y'):
                     raise(Exception('z dimension must come before y dimension.'))
 
-        else:
-            dims = ['t', 'z', 'y', 'x'][-ndim:]
+        else:  # if no information on dimensions is available, try to infer them from Fiji metadata
+            if 'raw_image_metadata' in l.metadata.keys():
+                metadata = _utils.infer_metadata(l.metadata['raw_image_metadata'])
+                dims = [''] * (ndim - 2) + ['y','x']  # initialize with empty strings
+                if 'n_frames' in metadata.keys():
+                    t_index = ldata.shape.index(metadata['n_frames'])
+                    dims[t_index] = 't'
+                if 'n_slices' in metadata.keys():
+                    z_index = ldata.shape.index(metadata['n_slices'])
+                    dims[z_index] = 'z'
+                print('Inferred dimensions:', dims)
+            else:  # if no metadata is available use default order: 't', 'z', 'y', 'x'
+                dims = ['t', 'z', 'y', 'x'][-ndim:]
     
     return dims
 

@@ -112,15 +112,15 @@ def infer_metadata(input_metadata=""):
     metadata_list = input_metadata.split('\n')
 
     for item in metadata_list:
-        if 'frame' in item: 
-            n_frame = item.split('=')[-1]
-            metadata['n_frame'] = n_frame
+        if 'frames' in item: 
+            n_frames = item.split('=')[-1]
+            metadata['n_frames'] = int(n_frames)
         elif 'channels' in item: 
-            n_channel = item.split('=')[-1]
-            metadata['n_channel'] = n_channel
+            n_channels = item.split('=')[-1]
+            metadata['n_channels'] = int(n_channels)
         elif 'slices' in item: 
             n_slices = item.split('=')[-1]
-            metadata['n_slices'] = n_slices
+            metadata['n_slices'] = int(n_slices)
     
-    return metadata
+    return metadata 
     
