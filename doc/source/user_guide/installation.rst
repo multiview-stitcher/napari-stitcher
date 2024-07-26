@@ -42,6 +42,6 @@ napari-stitcher dependencies
 - dask_image
 - zarr
 - tifffile
-- aicsimageio
-- aicspylibczi
+- bioio
+- bioio-czi
 - multiview-stitcher
