@@ -47,6 +47,7 @@ class StitcherQWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
+        # loading widgets
         self.button_load_layers_sel = widgets.Button(text='Selected')
         self.button_load_layers_all = widgets.Button(text='All')
         self.buttons_load_layers = widgets.HBox(
@@ -67,6 +68,7 @@ class StitcherQWidget(QWidget):
                                             # label='Loaded\nlayers:',
                                             )
 
+        # registration widgets
         self.times_slider = widgets.RangeSlider(
             min=-1, max=0, label='Timepoints:',
             tooltip='Timepoints to process. Because the two sliders cannot coincide, positions are a bit criptic: E.g.\n(-1, 0) means timepoint 0 is processed\n(3, 5) means timepoints 4 and 5 are processed')
@@ -95,7 +97,13 @@ class StitcherQWidget(QWidget):
             label="Show:",
             value=CHOICE_METADATA,
             orientation='horizontal')
+        
+        # metadata widgets
+        # self.t_dim_picker = widgets.SpinBox(
+        #     value=1, min=1, max=100, label='Number of columns:') 
+        #widgets.FloatSpinBox(
 
+        # fusion widgets
         self.button_fuse = widgets.Button(text='Fuse',
             tooltip='Fuse the tiles using the parameters obtained'+\
                     'from stitching or stabilization.\nCombines all'+\
@@ -110,6 +118,15 @@ class StitcherQWidget(QWidget):
                             self.times_slider,
                             self.reg_ch_picker,
                             ]
+        
+        # self.reg_config_widgets_metadata = [
+        #                     self.t_dim_picker,
+        #                     self.z_dim_picker,
+        #                     #self.c_dim_picker, ## do we need this? depending on how we handle channels
+        #                     self.xy_scale_picker,
+        #                     #self.z_scale_picker, ## do we need this?
+        #                     self.update_metadata_button,
+        #                     ]
 
         self.reg_config_widgets_advanced = [
                             self.custom_reg_binning,
@@ -128,6 +145,8 @@ class StitcherQWidget(QWidget):
         # Add tabs 
         self.reg_config_widgets_tabs.addTab(
             widgets.VBox(widgets=self.reg_config_widgets_basic).native, "Basic") 
+        # self.reg_config_widgets_tabs.addTab(
+        #     widgets.VBox(widgets=self.reg_config_widgets_metadata).native, "Metadata") 
         self.reg_config_widgets_tabs.addTab(
             widgets.VBox(widgets=self.reg_config_widgets_advanced).native, "More") 
 
