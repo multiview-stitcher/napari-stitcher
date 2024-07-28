@@ -36,28 +36,20 @@ def get_layer_dims(l,viewer):
     
     if isinstance(ldata, xr.DataArray):
         dims = ldata.dims
+
+    # infer dimensions for images loaded with napari-aicsimageio
+    elif 'aicsimage' in l.metadata:
+        xim = l.metadata['aicsimage']
+        xim = xim.squeeze()
+        dims = [dim.lower() for dim in xim.dims]
+        dims = [dim for dim in dims if dim not in ['c']] # remove channel dim
     
     else:
         ndim = len(ldata.shape)
-        if 'x' in viewer.dims.axis_labels and 'y' in viewer.dims.axis_labels:
-
-            dims = viewer.dims.axis_labels[-ndim:]
-
-            if 'c' in dims:
-                raise(NotImplementedError('Layers with channel dims are not supported yet.'))
-            
-            if 'y' in dims and 'x' in dims:
-                if dims.index('y') > dims.index('x'):
-                    raise(Exception('y dimension must come before x dimension.'))
-                
-            if 'z' in dims and 'y' in dims:
-                if dims.index('z') > dims.index('y'):
-                    raise(Exception('z dimension must come before y dimension.'))
-
-        else:
-            dims = ['t', 'z', 'y', 'x'][-ndim:]
+        dims = ['t', 'z', 'y', 'x'][-ndim:]
     
     return dims
+
 
 def image_layer_to_msim(l, viewer):
 
