@@ -241,3 +241,37 @@ def test_vanilla_layers_2D_no_time(make_napari_viewer):
     wdg.button_load_layers_all.clicked()
     wdg.run_registration()
     wdg.run_fusion()
+
+
+def test_load_layers_filters_non_image_layers(make_napari_viewer):
+    viewer = make_napari_viewer()
+
+    # Add image and non-image layers
+    viewer.add_image(np.random.random((10, 10)), name='image_layer')
+    viewer.add_points(np.random.random((10, 2)), name='points_layer')
+
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    wdg.button_load_layers_all.clicked()
+
+    # Check if only image layer is loaded
+    assert len(wdg.input_layers) == 1
+    assert wdg.input_layers[0].name == 'image_layer'
+
+
+def test_fuse_register_buttons_not_grayed_out(make_napari_viewer):
+    viewer = make_napari_viewer()
+
+    # Add image and labels layers
+    viewer.add_image(np.random.random((10, 10)), name='image_layer')
+    viewer.add_labels(np.random.randint(0, 2, (10, 10)), name='labels_layer')
+
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    wdg.button_load_layers_all.clicked()
+
+    # Check if the buttons are not grayed out
+    assert wdg.button_stitch.enabled
+    assert wdg.button_fuse.enabled
