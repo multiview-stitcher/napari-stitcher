@@ -454,7 +454,7 @@ class StitcherQWidget(QWidget):
             )
             return
 
-        self.load_layers(self.viewer.layers)
+        self.load_layers(self.compatible_layers)
 
 
     def load_layers_sel(self):
@@ -466,7 +466,8 @@ class StitcherQWidget(QWidget):
             )
             return
 
-        self.load_layers([l for l in self.viewer.layers.selection])
+        selected_layers = [l for l in self.compatible_layers if l in self.viewer.layers.selection]
+        self.load_layers(selected_layers)
 
 
     def load_layers(self, layers):
@@ -593,6 +594,13 @@ class StitcherQWidget(QWidget):
         for l in self.viewer.layers:
             if l.name in self.layers_selection.choices:
                 l.events.disconnect(self.watch_layer_changes)
+
+    @property
+    def compatible_layers(self):
+        """
+        Check if layers are compatible with the current widget.
+        """
+        return [l for l in self.viewer.layers if isinstance(l, (Image, Labels))]
 
 
 if __name__ == "__main__":
