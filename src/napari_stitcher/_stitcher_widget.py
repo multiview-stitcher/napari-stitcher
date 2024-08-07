@@ -453,8 +453,16 @@ class StitcherQWidget(QWidget):
                 'No images in the layer list.'
             )
             return
+        
+        layers = self._get_compatible_layers(only_selected=False)
 
-        self.load_layers(self._get_compatible_layers(only_selected=False))
+        if len(layers) == 0:
+            notifications.notification_manager.receive_info(
+                'No compatible layers found.'
+            )
+            return
+
+        self.load_layers(layers)
 
 
     def load_layers_sel(self):
@@ -465,8 +473,15 @@ class StitcherQWidget(QWidget):
                     %('control' if ('command' in sys.platform) else 'shift')
             )
             return
+        
+        layers = self._get_compatible_layers(only_selected=True)
+        if len(layers) == 0:
+            notifications.notification_manager.receive_info(
+                'No compatible layers selected.'
+            )
+            return
 
-        self.load_layers(self._get_compatible_layers(only_selected=True))
+        self.load_layers(layers)
 
 
     def load_layers(self, layers):
