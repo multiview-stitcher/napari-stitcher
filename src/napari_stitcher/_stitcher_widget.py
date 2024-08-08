@@ -24,6 +24,7 @@ from multiview_stitcher import (
     spatial_image_utils,
     msi_utils,
     )
+from napari.layers import Image, Labels
 
 from napari_stitcher import _reader, viewer_utils, _utils
 
@@ -124,7 +125,7 @@ class StitcherQWidget(QWidget):
         # Initialize tab screen 
         self.reg_config_widgets_tabs = QTabWidget() 
         self.reg_config_widgets_tabs.resize(300, 200) 
-  
+   
         # Add tabs 
         self.reg_config_widgets_tabs.addTab(
             widgets.VBox(widgets=self.reg_config_widgets_basic).native, "Basic") 
@@ -465,7 +466,7 @@ class StitcherQWidget(QWidget):
             )
             return
 
-        self.load_layers([l for l in self.viewer.layers.selection])
+        self.load_layers(self.viewer.layers.selection)
 
 
     def load_layers(self, layers):
@@ -473,12 +474,19 @@ class StitcherQWidget(QWidget):
         self.reset()
         self.viewer.layers.unlink_layers()
 
+        layers = [l for l in layers if isinstance(l, (Image, Labels))]
+
+        if len(layers) == 0:
+            notifications.notification_manager.receive_info(
+                'No compatible layers selected or available.'
+            )
+            return
+
+        self.input_layers = layers
         self.layers_selection.choices = sorted([l.name for l in layers])
 
-        self.input_layers = [l for l in layers]
-
         # load in layers as msims
-        for l in layers:
+        for l in self.input_layers:
             msim = viewer_utils.image_layer_to_msim(l, self.viewer)
             
             if 'c' in msim['scale0/image'].dims:
@@ -505,7 +513,7 @@ class StitcherQWidget(QWidget):
             self.link_view_layers(layers)
 
         # if loaded layer changes, update msim
-        for l in layers:
+        for l in self.input_layers:
             l.events.connect(self.watch_layer_changes)
 
         self.load_metadata()
@@ -513,7 +521,6 @@ class StitcherQWidget(QWidget):
 
     def watch_layer_changes(self, event):
         """
-
         Watch changes in layers and warn user or update msims accordingly.
         I.e. changes in transformations.
         """
@@ -606,3 +613,4 @@ if __name__ == "__main__":
     
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
+
