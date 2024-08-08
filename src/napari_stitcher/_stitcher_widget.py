@@ -600,12 +600,6 @@ class StitcherQWidget(QWidget):
         for l in self.viewer.layers:
             if l.name in self.layers_selection.choices:
                 l.events.disconnect(self.watch_layer_changes)
-    
-    def _get_compatible_layers(self, only_selected=False):
-        if only_selected:
-            return [l for l in self.viewer.layers.selection if isinstance(l, (Image, Labels))]
-        else:
-            return [l for l in self.viewer.layers if isinstance(l, (Image, Labels))]
 
 
 if __name__ == "__main__":
