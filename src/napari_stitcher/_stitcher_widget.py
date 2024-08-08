@@ -453,16 +453,8 @@ class StitcherQWidget(QWidget):
                 'No images in the layer list.'
             )
             return
-        
-        layers = self._get_compatible_layers(only_selected=False)
 
-        if len(layers) == 0:
-            notifications.notification_manager.receive_info(
-                'No compatible layers found.'
-            )
-            return
-
-        self.load_layers(layers)
+        self.load_layers(self.viewer.layers)
 
 
     def load_layers_sel(self):
@@ -473,15 +465,8 @@ class StitcherQWidget(QWidget):
                     %('control' if ('command' in sys.platform) else 'shift')
             )
             return
-        
-        layers = self._get_compatible_layers(only_selected=True)
-        if len(layers) == 0:
-            notifications.notification_manager.receive_info(
-                'No compatible layers selected.'
-            )
-            return
 
-        self.load_layers(layers)
+        self.load_layers(self.viewer.layers.selection)
 
 
     def load_layers(self, layers):
@@ -489,9 +474,16 @@ class StitcherQWidget(QWidget):
         self.reset()
         self.viewer.layers.unlink_layers()
 
-        self.layers_selection.choices = sorted([l.name for l in layers])
+        layers = [l for l in layers if isinstance(l, (Image, Labels))]
 
-        self.input_layers = [l for l in layers if isinstance(l, (Image, Labels))]
+        if len(layers) == 0:
+            notifications.notification_manager.receive_info(
+                'No compatible layers selected or available.'
+            )
+            return
+
+        self.input_layers = layers
+        self.layers_selection.choices = sorted([l.name for l in layers])
 
         # load in layers as msims
         for l in self.input_layers:
