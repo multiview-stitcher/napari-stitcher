@@ -17,7 +17,6 @@ from napari_stitcher import viewer_utils, _reader
         for ndim in [2, 3]
         for N_c in [1, 2]
         for N_t in [1, 2]
-        # (3, 1, 2)
     ]
 )
 def test_create_image_layer_tuples_from_msims(ndim, N_c, N_t, make_napari_viewer):

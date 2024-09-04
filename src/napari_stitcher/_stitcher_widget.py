@@ -146,18 +146,6 @@ class StitcherQWidget(QWidget):
         self.container = QWidget()
         self.container.setLayout(QVBoxLayout())
 
-        # for w_list in self.all_widgets:
-        #     for w in w_list:
-        #         if hasattr(w, 'native'):
-        #             self.container.layout().addWidget(w.native)
-        #         else:
-        #             self.container.layout().addWidget(w)
-
-        # add logo / title?
-        # self.ns_label = widgets.Label(value='Napari Stitcher').native
-        # self.ns_label.setPixmap(QPixmap("multiview_stitcher_icon.png")) # doesn't work
-        # self.container.layout().addWidget(self.ns_label)
-
         for w in self.loading_widgets:
             if hasattr(w, 'native'):
                 self.container.layout().addWidget(w.native)
@@ -169,7 +157,6 @@ class StitcherQWidget(QWidget):
         self.container.layout().addWidget(self.button_fuse.native)
 
         # add horizontal widget with visualization options
-
         self.visualization_widgets_qt = QWidget()
         self.visualization_widgets_qt.setLayout(QHBoxLayout())
         self.visualization_widgets_qt.layout().addWidget(QLabel('Show: '))
@@ -289,14 +276,7 @@ class StitcherQWidget(QWidget):
             full_vis_p = np.eye(ndim_layer_data + 1)
             full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
 
-            l.affine.affine_matrix = full_vis_p
-
-            # refreshing layers fails sometimes
-            # this solution is suboptimal though
-            try:
-                l.refresh()
-            except:
-                pass
+            l.affine = full_vis_p
 
 
     def run_registration(self):            
@@ -390,7 +370,6 @@ class StitcherQWidget(QWidget):
 
             tmp_fused_path = os.path.join(self.tmpdir.name, 'fused_%s.zarr' %ch)
 
-            # with _utils.TemporarilyDisabledWidgets([self.container]),\
             with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
                 _utils.VisibleActivityDock(self.viewer),\
                 _utils.TqdmCallback(tqdm_class=_utils.progress,
@@ -582,7 +561,6 @@ class StitcherQWidget(QWidget):
                 for l in layers}
 
         views = [_utils.get_str_unique_to_view_from_layer_name(l.name) for l in layers]
-        # channels = [_utils.get_str_unique_to_ch_from_sim_coords(sim.coords) for sim in sims.values()]
         for view in views:
             view_layers = list(_utils.filter_layers(layers, sims, view=view))
 
