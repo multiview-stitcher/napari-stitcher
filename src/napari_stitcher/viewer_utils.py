@@ -387,7 +387,7 @@ def manage_viewer_transformations_callback(event, viewer):
         else:
             p = np.array(params).squeeze()
 
-        ndim_layer_data = len(layer_sim.shape)
+        ndim_layer_data = l.ndim
 
         # if stitcher sim has more dimensions than layer data (i.e. time)
         vis_p = p[-(ndim_layer_data + 1):, -(ndim_layer_data + 1):]
@@ -396,12 +396,4 @@ def manage_viewer_transformations_callback(event, viewer):
         full_vis_p = np.eye(ndim_layer_data + 1)
         full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
 
-        # import pdb; pdb.set_trace()
-        l.affine.affine_matrix = full_vis_p
-
-        # refreshing layers fails sometimes
-        # this solution is suboptimal though
-        try:
-            l.refresh()
-        except:
-            pass
+        l.affine = full_vis_p
