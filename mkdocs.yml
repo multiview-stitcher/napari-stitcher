@@ -1,0 +1,66 @@
+site_name: napari-stitcher
+site_url: https://multiview-stitcher.github.io/napari-stitcher
+site_description: A napari plugin for stitching large multi-positioning datasets in 2/3D+t using multiview-stitcher
+
+repo_name: napari-stitcher
+repo_url: https://github.com/multiview-stitcher/napari-stitcher
+# edit_uri: edit/main/docs/
+# use_directory_urls: false
+
+plugins:
+  - mike:
+      canonical_version: main
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+nav:
+  - napari-stitcher:
+    - index.md
+    - installation.md
+    - contributing.md
+
+theme:
+  name: material
+  features:
+    - content.tabs.link
+    - content.code.annotate
+    - content.code.copy
+    - navigation.tabs
+    - navigation.footer  # next/previous links in footer
+  icon:
+    logo: fontawesome/solid/clone
+    repo: fontawesome/brands/github
+  favicon:
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: dark blue
+      accent: dark blue
+      toggle:
+        icon: material/lightbulb-outline
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: light green
+      toggle:
+        icon: material/lightbulb
+        name: Switch to light mode
+
+extra:
+  version:
+    provider: mike
