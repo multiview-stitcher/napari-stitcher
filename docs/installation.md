@@ -2,11 +2,14 @@
 
 You can install `napari-stitcher` via pip:
 
-    pip install napari-stitcher
+```bash
+pip install napari-stitcher
+```
 
 To install latest development version:
-
-    pip install git+https://github.com/multiview-stitcher/napari-stitcher.git
+```bash
+pip install git+https://github.com/multiview-stitcher/napari-stitcher.git
+```
 
 !!! note "Don't have conda installed?"
     We recommend using python and `napari-stitcher` within a conda environment. Follow the instructions below to install `conda` on your computer.
@@ -111,7 +114,15 @@ Select the installation instructions for your operating system and processor fro
     4. Once the installation has completed, you can verify it was correctly installed by searching for the "miniforge prompt" in your Start menu.
 
 
-### Opening napari
+## Creating a conda environment
+
+- Create a new conda environment with the necessary packages:
+
+    ```bash
+    conda create -n napari-stitcher python=3.10 napari pyqt=5
+    ```
+
+## Opening napari
 
 === "MacOS/Linux"
     1. Open a terminal
