@@ -346,11 +346,31 @@
   
   
     <li class="md-nav__item">
-      <a href="quickstart/" class="md-nav__link">
+      <a href="loading/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Quickstart
+    Loading images
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="naming_convention/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Layer naming convention
   </span>
   
 
@@ -386,11 +406,11 @@
   
   
     <li class="md-nav__item">
-      <a href="naming_convention/" class="md-nav__link">
+      <a href="writing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
-    Layer naming convention
+    Saving fused images
   </span>
   
 
@@ -476,6 +496,14 @@
 <h2 id="napari-stitcher">napari-stitcher</h2>
 <p>A napari plugin for stitching large multi-positioning datasets in 2/3D+t using <a href="https://github.com/multiview-stitcher/multiview-stitcher"><code>multiview-stitcher</code></a>.</p>
 <p><img alt="" src="images/napari-stitcher-loaded-mosaic-annotated.png" /></p>
+<ol>
+<li>Directly stitch napari layers: Use napari to load, visualize and <a href="prearrangement/">preposition</a> the tiles to be stitched.</li>
+<li>When working with multi-channel data, stick to the following <a href="naming_convention/">naming convention</a>: <code>{tile} :: {channel}</code>.</li>
+<li>Load either all or just a subset of the layers into the plugin.</li>
+<li>Choose registration options: registration channel, binning and more.</li>
+<li>Stitching = registration (refining the positions) + fusion (joining the tiles into a single image).</li>
+<li>The registration result is shown in the viewer and the fused channels are added as new layers.</li>
+</ol>
 
 
 

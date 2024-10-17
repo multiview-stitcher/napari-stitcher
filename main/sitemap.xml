@@ -13,6 +13,10 @@
          <lastmod>2024-10-17</lastmod>
     </url>
     <url>
+         <loc>https://multiview-stitcher.github.io/napari-stitcher/main/loading/</loc>
+         <lastmod>2024-10-17</lastmod>
+    </url>
+    <url>
          <loc>https://multiview-stitcher.github.io/napari-stitcher/main/naming_convention/</loc>
          <lastmod>2024-10-17</lastmod>
     </url>
@@ -21,7 +25,7 @@
          <lastmod>2024-10-17</lastmod>
     </url>
     <url>
-         <loc>https://multiview-stitcher.github.io/napari-stitcher/main/quickstart/</loc>
+         <loc>https://multiview-stitcher.github.io/napari-stitcher/main/writing/</loc>
          <lastmod>2024-10-17</lastmod>
     </url>
 </urlset>
