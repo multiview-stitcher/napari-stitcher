@@ -53,6 +53,11 @@ class MosaicQWidget(QWidget):
             value='snake by columns', 
             label='Mosaic arrangement:',
             tooltip='Select the type of grid arrangement. The tile order is taken from the list of layers.')
+        self.input_order = widgets.ComboBox(
+            choices=['forward','backward'],
+            value='forward', 
+            label='Image order:',
+            tooltip='Whether to arrange the tiles in forward or backward order.')
         self.button_arrange_tiles = widgets.Button(text='Arrange tiles')
 
         # organize widgets        
@@ -60,7 +65,8 @@ class MosaicQWidget(QWidget):
                             self.overlap,
                             self.n_col, 
                             self.n_row, 
-                            self.mosaic_arr, 
+                            self.mosaic_arr,
+                            self.input_order,
                             self.button_arrange_tiles,
                             ]
 
@@ -104,7 +110,7 @@ class MosaicQWidget(QWidget):
         """
 
         layer_channels = [
-            _utils.get_str_unique_to_ch_from_layer_name(l.name)
+            l.name if not '::' in l.name else _utils.get_str_unique_to_ch_from_layer_name(l.name)
             for l in self.viewer.layers]
 
         layer_views = [
@@ -115,6 +121,9 @@ class MosaicQWidget(QWidget):
         for lview in layer_views:
             if lview not in view_order:
                 view_order.append(lview)
+
+        if self.input_order.value == 'backward':
+            view_order = view_order[::-1]
         
         n_channels = len(np.unique(layer_channels))
         n_tiles = len(np.unique(layer_views))
@@ -136,17 +145,21 @@ class MosaicQWidget(QWidget):
         
         tile_indices = _utils.get_tile_indices(
                 mosaic_arr=self.mosaic_arr.value,
-                n_col=self.n_col.value,
-                n_row=self.n_row.value,
+                n_col=self.n_row.value,
+                n_row=self.n_col.value,
                 n_tiles=n_tiles
             )
-        l0_translate = self.viewer.layers[0].translate[-2:]
+
+        if self.input_order.value == 'forward':
+            l0_translate = self.viewer.layers[0].translate[-2:]
+        else:
+            l0_translate = self.viewer.layers[-1].translate[-2:]
 
         for l in self.viewer.layers:
             view = _utils.get_str_unique_to_view_from_layer_name(l.name)
             itile = view_order.index(view)
             tile_index = tile_indices[itile]
-            
+            # print(f'Layer {l.name} -> tile index: {tile_index}')
             l.translate[-2:] = [
                 l0_translate[0] + tile_index[1] * tile_w - tile_index[1] * tile_w * self.overlap.value,
                 l0_translate[1] + tile_index[0] * tile_h - tile_index[0] * tile_h * self.overlap.value
