@@ -352,17 +352,26 @@
   
 </li>
         
-          <li class="md-nav__item">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-a-conda-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating a conda environment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#opening-napari" class="md-nav__link">
     <span class="md-ellipsis">
       Opening napari
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -528,17 +537,26 @@
   
 </li>
         
-          <li class="md-nav__item">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-a-conda-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating a conda environment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#opening-napari" class="md-nav__link">
     <span class="md-ellipsis">
       Opening napari
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -562,11 +580,11 @@
 
 <h1 id="installation">Installation</h1>
 <p>You can install <code>napari-stitcher</code> via pip:</p>
-<div class="language-text highlight"><pre><span></span><code>pip install napari-stitcher
-</code></pre></div>
-<p>To install latest development version:</p>
-<div class="language-text highlight"><pre><span></span><code>pip install git+https://github.com/multiview-stitcher/napari-stitcher.git
-</code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>napari-stitcher
+</span></code></pre></div>
+<p>To install latest development version:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/multiview-stitcher/napari-stitcher.git
+</span></code></pre></div></p>
 <div class="admonition note">
 <p class="admonition-title">Don't have conda installed?</p>
 <p>We recommend using python and <code>napari-stitcher</code> within a conda environment. Follow the instructions below to install <code>conda</code> on your computer.</p>
@@ -589,12 +607,12 @@
 <li>Open your terminal application</li>
 <li>Navigate to the folder you downloaded the installer to (usually this is in your Downloads folder). If the file was downloaded to your Downloads folder, you would enter:</li>
 </ol>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>~/Downloads
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>~/Downloads
 </span></code></pre></div>
 <ol>
 <li>Execute the installer with the command below. You can use your arrow keys to scroll up and down to read the license agreement and enter "yes" if you agree.</li>
 </ol>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>bash<span class="w"> </span>Miniforge-Linux-x86_64.sh
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>bash<span class="w"> </span>Miniforge-Linux-x86_64.sh
 </span></code></pre></div>
 <ol>
 <li>After installation, you will be asked if you would like to initialize your terminal with "conda init". Enter "yes" to initalize your terminal.</li>
@@ -603,7 +621,7 @@
 <div class="admonition note">
 <p class="admonition-title">Don't see (base)?</p>
 <p>You can manually initialize conda by entering the command below and re-opening your terminal application.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>conda<span class="w"> </span>init
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>conda<span class="w"> </span>init
 </span></code></pre></div>
 </div>
 </div>
@@ -614,12 +632,12 @@
 <li>Open your Terminal (you can search for it in spotlight - <code>cmd</code> + <code>space</code>)</li>
 <li>Navigate to the folder you downloaded the installer to (usually this is in your Downloads folder). If the file was downloaded to your Downloads folder, you would enter:</li>
 </ol>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>~/Downloads
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>~/Downloads
 </span></code></pre></div>
 <ol>
 <li>Execute the installer with the command below.  You can use your arrow keys to scroll up and down to read the license agreement and enter "yes" if you agree.</li>
 </ol>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bash<span class="w"> </span>Miniforge-MacOSX-x86_64.sh
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>bash<span class="w"> </span>Miniforge-MacOSX-x86_64.sh
 </span></code></pre></div>
 <ol>
 <li>After installation, you will be asked if you would like to initialize your terminal with "conda init". Enter "yes" to initalize your terminal.   </li>
@@ -628,7 +646,7 @@
 <div class="admonition note">
 <p class="admonition-title">Don't see (base)?</p>
 <p>You can manually initialize conda by entering the command below and re-opening your terminal application.
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>conda<span class="w"> </span>init
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>conda<span class="w"> </span>init
 </span></code></pre></div></p>
 </div>
 </div>
@@ -639,12 +657,12 @@
 <li>Open your Terminal (you can search for it in spotlight - <code>cmd</code> + <code>space</code>)</li>
 <li>Navigate to the folder you downloaded the installer to (usually this is in your Downloads folder). If the file was downloaded to your Downloads folder, you would enter:</li>
 </ol>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>~/Downloads
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>~/Downloads
 </span></code></pre></div>
 <ol>
 <li>Execute the installer with the command below. You can use your arrow keys to scroll up and down to read it/agree to it.</li>
 </ol>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>bash<span class="w"> </span>Miniforge-MacOSX-arm64.sh
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>bash<span class="w"> </span>Miniforge-MacOSX-arm64.sh
 </span></code></pre></div>
 <ol>
 <li>After installation, you will be asked if you would like to initialize your terminal with "conda init". Enter "yes" to initalize your terminal. </li>
@@ -653,7 +671,7 @@
 <div class="admonition note">
 <p class="admonition-title">Don't see (base)?</p>
 <p>You can manually initialize conda by entering the command below and re-opening your terminal application.
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>conda<span class="w"> </span>init
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>conda<span class="w"> </span>init
 </span></code></pre></div></p>
 </div>
 </div>
@@ -667,7 +685,15 @@
 </div>
 </div>
 </div>
-<h3 id="opening-napari">Opening napari</h3>
+<h2 id="creating-a-conda-environment">Creating a conda environment</h2>
+<ul>
+<li>
+<p>Create a new conda environment with the necessary packages:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>napari-stitcher<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10<span class="w"> </span>napari<span class="w"> </span><span class="nv">pyqt</span><span class="o">=</span><span class="m">5</span>
+</span></code></pre></div>
+</li>
+</ul>
+<h2 id="opening-napari">Opening napari</h2>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">MacOS/Linux</label><label for="__tabbed_2_2">Windows</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
