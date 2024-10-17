@@ -48,9 +48,10 @@ markdown_extensions:
 nav:
   - index.md
   - installation.md
-  - quickstart.md
-  - prearrangement.md
+  - loading.md
   - naming_convention.md
+  - prearrangement.md
+  - writing.md
   - contributing.md
 
 theme:
