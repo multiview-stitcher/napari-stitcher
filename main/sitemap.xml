@@ -2,17 +2,26 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://multiview-stitcher.github.io/napari-stitcher/main/</loc>
-         <lastmod>2024-10-16</lastmod>
-         <changefreq>daily</changefreq>
+         <lastmod>2024-10-17</lastmod>
     </url>
     <url>
          <loc>https://multiview-stitcher.github.io/napari-stitcher/main/contributing/</loc>
-         <lastmod>2024-10-16</lastmod>
-         <changefreq>daily</changefreq>
+         <lastmod>2024-10-17</lastmod>
     </url>
     <url>
          <loc>https://multiview-stitcher.github.io/napari-stitcher/main/installation/</loc>
-         <lastmod>2024-10-16</lastmod>
-         <changefreq>daily</changefreq>
+         <lastmod>2024-10-17</lastmod>
+    </url>
+    <url>
+         <loc>https://multiview-stitcher.github.io/napari-stitcher/main/naming_convention/</loc>
+         <lastmod>2024-10-17</lastmod>
+    </url>
+    <url>
+         <loc>https://multiview-stitcher.github.io/napari-stitcher/main/prearrangement/</loc>
+         <lastmod>2024-10-17</lastmod>
+    </url>
+    <url>
+         <loc>https://multiview-stitcher.github.io/napari-stitcher/main/quickstart/</loc>
+         <lastmod>2024-10-17</lastmod>
     </url>
 </urlset>
