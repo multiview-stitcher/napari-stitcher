@@ -1,63 +1,53 @@
-<!--
-[![License BSD-3](https://img.shields.io/pypi/l/napari-stitcher.svg?color=green)](https://github.com/multiview-stitcher/napari-stitcher/raw/main/LICENSE)
+[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-stitcher)](https://napari-hub.org/plugins/napari-stitcher)
+[![License {{cookiecutter.license}}](https://img.shields.io/pypi/l/napari-stitcher.svg?color=green)](https://github.com/multiview-stitcher/napari-stitcher/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-stitcher.svg?color=green)](https://pypi.org/project/napari-stitcher)
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-stitcher.svg?color=green)](https://python.org)
-[![tests](https://github.com/multiview-stitcher/napari-stitcher/workflows/tests/badge.svg)](https://github.com/multiview-stitcher/napari-stitcher/actions)
+[![tests](https://github.com/multiview-stitcher/napari-stitcher/actions/workflows/test_and_deploy.yml/badge.svg)](https://github.com/multiview-stitcher/napari-stitcher/actions)
 [![codecov](https://codecov.io/gh/multiview-stitcher/napari-stitcher/branch/main/graph/badge.svg)](https://codecov.io/gh/multiview-stitcher/napari-stitcher)
-[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-stitcher)](https://napari-hub.org/plugins/napari-stitcher)
--->
+[![DOI](https://zenodo.org/badge/697999800.svg)](https://zenodo.org/doi/10.5281/zenodo.13151252)
 
-[napari]: https://github.com/napari/napari
-[Cookiecutter]: https://github.com/audreyr/cookiecutter
-[@napari]: https://github.com/napari
-[MIT]: http://opensource.org/licenses/MIT
-[BSD-3]: http://opensource.org/licenses/BSD-3-Clause
-[GNU GPL v3.0]: http://www.gnu.org/licenses/gpl-3.0.txt
-[GNU LGPL v3.0]: http://www.gnu.org/licenses/lgpl-3.0.txt
-[Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
-[Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
-[cookiecutter-napari-plugin]: https://github.com/napari/cookiecutter-napari-plugin
-
-[napari]: https://github.com/napari/napari
-[tox]: https://tox.readthedocs.io/en/latest/
-[pip]: https://pypi.org/project/pip/
-[PyPI]: https://pypi.org/
 
 # napari-stitcher
-A napari plugin and visualization functionality for [multiview-stitcher](https://github.com/multiview-stitcher/multiview-stitcher), which is a toolbox for registering / fusing / stitching multi-view / multi-positioning image datasets in 2-3D.
 
-WARNING: THIS IS WORK IN PROGRESS. `napari-stitcher` is being developed in the open but has not been released yet.
+A napari plugin for stitching large multi-positioning datasets in 2/3D+t using [`multiview-stitcher`](https://github.com/multiview-stitcher/multiview-stitcher).
 
-Screenshot:
+![](docs/images/napari-stitcher-loaded-mosaic-annotated.png)
+<small>Image data by Arthur Michaut @ Jérôme Gros Lab @ Institut Pasteur.</small>
 
-![](misc-data/20230929_screenshot.png)
+1. Directly stitch napari layers: Use napari to load, visualize and [preposition](prearrangement.md) the tiles to be stitched.
+2. When working with multi-channel data, stick to the following [naming convention](naming_convention.md): `{tile} :: {channel}`.
+3. Load either all or just a subset of the layers into the plugin.
+4. Choose registration options: registration channel, binning and more.
+5. Stitching = registration (refining the positions, optional) + fusion (joining the tiles into a single image).
+6. The registration result is shown in the viewer and the fused channels are added as new layers.
 
-Image data by [Arthur Michaut](https://research.pasteur.fr/fr/member/arthur-michaut/) @ [Jérôme Gros Lab](https://research.pasteur.fr/fr/team/dynamic-regulation-of-morphogenesis/) @ Institut Pasteur.
+## Demo
 
-Screen recording showing the use of `napari-stitcher` together with [`napari-threedee`](https://github.com/napari-threedee/napari-threedee) on a 3D multipositioning [BigStitcher](https://imagej.net/plugins/bigstitcher/) example dataset.
+![](images/demo_3d.mp4)
+<video controls>
+<source src="https://github.com/multiview-stitcher/napari-stitcher/raw/refs/heads/main/docs/images/demo_3d.mp4" type="video/mp4">
+</video>
 
+<small>This demo uses the awesome [`napari-threedee`](https://github.com/napari-threedee/napari-threedee) for prepositioning the tiles. Image data: [BigStitcher](https://imagej.net/plugins/bigstitcher/).</small>
 
-https://github.com/multiview-stitcher/napari-stitcher/assets/12528388/c474a90b-4512-49f9-8073-aeabd2f1e89e
-
-
-
-----------------------------------
 ## Installation
 
-[TODO] You can install `napari-stitcher` via [pip]:
+You can install `napari-stitcher` via `pip`:
 
-    `pip install "git+https://github.com/multiview-stitcher/napari-stitcher.git"`
+```bash
+pip install napari-stitcher
+```
+
+For more installation options, see the [installation docs](https://multiview-stitcher.github.io/napari-stitcher/main/installation/).
 
 ## Contributing
 
-Contributions are very welcome. Tests can be run with [tox], please ensure
-the coverage at least stays the same before you submit a pull request.
+Contributions are very welcome. Tests can be run with `tox`.
 
 ## License
 
-Distributed under the terms of the [BSD-3] license,
-"napari-stitcher" is free and open source software
+Distributed under the terms of the [BSD-3] license, "napari-stitcher" is free and open source software
 
 ## Issues
 
-If you encounter any problems, please [file an issue] along with a detailed description.
+If you encounter any problems, please [file an issue](https://github.com/multiview-stitcher/napari-stitcher/issues) along with a detailed description.
