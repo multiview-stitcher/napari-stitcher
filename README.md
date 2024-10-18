@@ -29,6 +29,10 @@ https://github.com/user-attachments/assets/8773e49f-af18-4ff3-ab2f-2a5f1b1cadf2
 
 <small>This demo uses the awesome [`napari-threedee`](https://github.com/napari-threedee/napari-threedee) for prepositioning the tiles. Image data: [BigStitcher](https://imagej.net/plugins/bigstitcher/).</small>
 
+## Documentation
+
+Head over to the [user guide](https://multiview-stitcher.github.io/napari-stitcher/main/) for more details.
+
 ## Installation
 
 You can install `napari-stitcher` via `pip`:
