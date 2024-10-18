@@ -12,8 +12,10 @@
 A napari plugin for stitching large multi-positioning datasets in 2/3D+t using [`multiview-stitcher`](https://github.com/multiview-stitcher/multiview-stitcher).
 
 ![](docs/images/napari-stitcher-loaded-mosaic-annotated.png)
+<small>Image data by Arthur Michaut @ Jérôme Gros Lab @ Institut Pasteur.</small>
 
-Quick guide:
+#### Quick guide:
+
 1. Directly stitch napari layers: Use napari to load, visualize and [preposition](prearrangement.md) the tiles to be stitched.
 2. When working with multi-channel data, stick to the following [naming convention](naming_convention.md): `{tile} :: {channel}`.
 3. Load either all or just a subset of the layers into the plugin.
