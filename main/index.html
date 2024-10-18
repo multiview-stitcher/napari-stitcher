@@ -426,6 +426,26 @@
   
   
     <li class="md-nav__item">
+      <a href="scripting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Scripting and batch processing
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="contributing/" class="md-nav__link">
         
   
@@ -501,7 +521,7 @@
 <li>When working with multi-channel data, stick to the following <a href="naming_convention/">naming convention</a>: <code>{tile} :: {channel}</code>.</li>
 <li>Load either all or just a subset of the layers into the plugin.</li>
 <li>Choose registration options: registration channel, binning and more.</li>
-<li>Stitching = registration (refining the positions) + fusion (joining the tiles into a single image).</li>
+<li>Stitching = registration (refining the positions, optional) + fusion (joining the tiles into a single image).</li>
 <li>The registration result is shown in the viewer and the fused channels are added as new layers.</li>
 </ol>
 <h2 id="demo">Demo</h2>
@@ -510,7 +530,7 @@
 <source src="https://github.com/multiview-stitcher/napari-stitcher/raw/refs/heads/main/docs/images/demo_3d.mp4" type="video/mp4">
 </video>
 
-<p><small>Image data: <a href="https://imagej.net/plugins/bigstitcher/">BigStitcher</a>.</small></p>
+<p><small>This demo uses the awesome <a href="https://github.com/napari-threedee/napari-threedee"><code>napari-threedee</code></a> for prepositioning the tiles. Image data: <a href="https://imagej.net/plugins/bigstitcher/">BigStitcher</a>.</small></p>
 
 
 

@@ -10,22 +10,28 @@
       
       
       
+        <link rel="canonical" href="https://multiview-stitcher.github.io/napari-stitcher/main/scripting/">
       
       
+        <link rel="prev" href="../writing/">
       
-      <link rel="icon" href="/napari-stitcher/main/assets/images/favicon.png">
+      
+        <link rel="next" href="../contributing/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.41">
     
     
       
-        <title>napari-stitcher</title>
+        <title>Scripting and batch processing - napari-stitcher</title>
       
     
     
-      <link rel="stylesheet" href="/napari-stitcher/main/assets/stylesheets/main.0253249f.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.0253249f.min.css">
       
         
-        <link rel="stylesheet" href="/napari-stitcher/main/assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -44,9 +50,9 @@
       
     
     
-      <link rel="stylesheet" href="/napari-stitcher/main/assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
-    <script>__md_scope=new URL("/napari-stitcher/main",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -71,6 +77,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#scripting-and-batch-processing" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -87,9 +98,9 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/napari-stitcher/main/." title="napari-stitcher" class="md-header__button md-logo" aria-label="napari-stitcher" data-md-component="logo">
+    <a href=".." title="napari-stitcher" class="md-header__button md-logo" aria-label="napari-stitcher" data-md-component="logo">
       
-  <img src="/napari-stitcher/main/images/logo.png" alt="logo">
+  <img src="../images/logo.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -106,7 +117,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Scripting and batch processing
             
           </span>
         </div>
@@ -219,9 +230,9 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/napari-stitcher/main/." title="napari-stitcher" class="md-nav__button md-logo" aria-label="napari-stitcher" data-md-component="logo">
+    <a href=".." title="napari-stitcher" class="md-nav__button md-logo" aria-label="napari-stitcher" data-md-component="logo">
       
-  <img src="/napari-stitcher/main/images/logo.png" alt="logo">
+  <img src="../images/logo.png" alt="logo">
 
     </a>
     napari-stitcher
@@ -248,7 +259,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/napari-stitcher/main/." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -268,7 +279,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/napari-stitcher/main/installation/" class="md-nav__link">
+      <a href="../installation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -288,7 +299,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/napari-stitcher/main/loading/" class="md-nav__link">
+      <a href="../loading/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -308,7 +319,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/napari-stitcher/main/naming_convention/" class="md-nav__link">
+      <a href="../naming_convention/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -328,7 +339,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/napari-stitcher/main/prearrangement/" class="md-nav__link">
+      <a href="../prearrangement/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -348,7 +359,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/napari-stitcher/main/writing/" class="md-nav__link">
+      <a href="../writing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -365,10 +376,30 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/napari-stitcher/main/scripting/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Scripting and batch processing
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -377,6 +408,35 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      Getting started
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -388,7 +448,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/napari-stitcher/main/contributing/" class="md-nav__link">
+      <a href="../contributing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -418,6 +478,25 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      Getting started
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -429,8 +508,34 @@
             <div class="md-content" data-md-component="content">
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+  
+  
+
+
+<h1 id="scripting-and-batch-processing">Scripting and batch processing</h1>
+<p>The stitching functionality of <code>napari-stitcher</code> relies on the <a href="https://github.com/multiview-stitcher/multiview-stitcher"><code>multiview-stitcher</code></a> toolbox, which is a Python package to be used in scripts and batch processing. This allows you to automate the stitching process and integrate it into your existing workflows.</p>
+<h2 id="getting-started">Getting started</h2>
+<p>Have a look at:</p>
+<ol>
+<li>The <a href="https://multiview-stitcher.github.io/multiview-stitcher">multiview-stitcher documentation</a> for an overview of the toolbox and its functionality.</li>
+<li>A <a href="https://multiview-stitcher.github.io/multiview-stitcher/main/code_example/">code example</a>.</li>
+<li>Example <a href="https://multiview-stitcher.github.io/multiview-stitcher/main/notebooks/">jupyter notebooks</a>.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -444,6 +549,44 @@
       
         <footer class="md-footer">
   
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../writing/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Saving fused images">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Saving fused images
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../contributing/" class="md-footer__link md-footer__link--next" aria-label="Next: Contributing">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Contributing
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
     
   
   <div class="md-footer-meta md-typeset">
@@ -468,10 +611,10 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "/napari-stitcher/main", "features": ["content.tabs.link", "content.code.annotate", "content.code.copy", "navigation.footer"], "search": "/napari-stitcher/main/assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": ["content.tabs.link", "content.code.annotate", "content.code.copy", "navigation.footer"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="/napari-stitcher/main/assets/javascripts/bundle.83f73b43.min.js"></script>
+      <script src="../assets/javascripts/bundle.83f73b43.min.js"></script>
       
     
   </body>
