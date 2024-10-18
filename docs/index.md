@@ -20,7 +20,6 @@ A napari plugin for stitching large multi-positioning datasets in 2/3D+t using [
 
 ## Demo
 
-![](images/demo_3d.mp4)
 <video controls>
 <source src="https://github.com/multiview-stitcher/napari-stitcher/raw/refs/heads/main/docs/images/demo_3d.mp4" type="video/mp4">
 </video>

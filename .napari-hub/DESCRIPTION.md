@@ -26,7 +26,8 @@ Here's it's [user guide](https://multiview-stitcher.github.io/napari-stitcher/) 
 
 ## Demo
 
-![](images/demo_3d.mp4)
+[Link](https://github.com/user-attachments/assets/8773e49f-af18-4ff3-ab2f-2a5f1b1cadf2) to video demo.
+
 <video controls>
 <source src="https://github.com/multiview-stitcher/napari-stitcher/raw/refs/heads/main/docs/images/demo_3d.mp4" type="video/mp4">
 </video>
