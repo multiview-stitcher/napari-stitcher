@@ -7,3 +7,12 @@
 # in your standard python package metadata (e.g. setup.cfg, setup.py, or
 # pyproject.toml), when you would like those fields to be displayed
 # differently on the hub than in the napari application.
+
+# Add labels the plugin from the EDAM Bioimaging ontology
+labels:
+  ontology: EDAM-BIOIMAGING:alpha06
+  terms:
+  - Image registration
+  - Image reconstruction
+  - 2D image
+  - 3D image
