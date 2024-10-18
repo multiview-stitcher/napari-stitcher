@@ -84,3 +84,4 @@ venv/
 **/_version.py
 
 src/napari_stitcher/_playground
+doc_old
