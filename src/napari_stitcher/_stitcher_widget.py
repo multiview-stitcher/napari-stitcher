@@ -15,7 +15,7 @@ import numpy as np
 from napari.utils import notifications
 
 from magicgui import widgets
-from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QTabWidget, QLabel
+from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QTabWidget, QLabel, QFileDialog
 from qtpy.QtGui import QPixmap
 
 from multiview_stitcher import (
@@ -103,6 +103,9 @@ class StitcherQWidget(QWidget):
                     'tiles and timepoints into a single image, smoothly'+\
                     'blending the overlaps and filling in gaps.')
 
+        self.button_save = widgets.Button(text='Save transformations',
+            tooltip='Select a folder and save transformation matrix.')
+        
         self.loading_widgets = [
                             self.load_layers_box,
                             ]
@@ -141,6 +144,7 @@ class StitcherQWidget(QWidget):
             self.reg_config_widgets +\
             [self.button_stitch] +\
             [self.button_fuse] +\
+            [self.button_save] +\
             self.visualization_widgets
 
         self.container = QWidget()
@@ -155,6 +159,7 @@ class StitcherQWidget(QWidget):
         self.container.layout().addWidget(self.reg_config_widgets_tabs)
         self.container.layout().addWidget(self.button_stitch.native)
         self.container.layout().addWidget(self.button_fuse.native)
+        self.container.layout().addWidget(self.button_save.native)
 
         # add horizontal widget with visualization options
         self.visualization_widgets_qt = QWidget()
@@ -169,7 +174,7 @@ class StitcherQWidget(QWidget):
 
         # disable all widgets (apart from loading) until layers are loaded
         for w in self.reg_config_widgets + self.visualization_widgets +\
-            [self.button_stitch, self.button_fuse]:
+            [self.button_stitch, self.button_fuse, self.button_save]:
             w.enabled = False
             if isinstance(w, Iterable):
                 for sw in w:
@@ -191,9 +196,93 @@ class StitcherQWidget(QWidget):
         self.button_stitch.clicked.connect(self.run_registration)
         # self.button_stabilize.clicked.connect(self.run_stabilization)
         self.button_fuse.clicked.connect(self.run_fusion)
+        self.button_save.clicked.connect(self.save_transform_param)
 
         self.button_load_layers_all.clicked.connect(self.load_layers_all)
         self.button_load_layers_sel.clicked.connect(self.load_layers_sel)
+
+    def save_transform_param(self, event=None):
+        
+        try:
+            # events are constantly triggered by viewer.dims.events,
+            # but we only want to update if current_step changes
+            if hasattr(event, 'type') and\
+            event.type != 'current_step': return
+        except AttributeError:
+            pass
+
+        folder = str(QFileDialog.getExistingDirectory(self, "Select Directory"))
+
+
+        if not len(self.msims): return
+
+        compatible_layers = [l for l in self.viewer.layers
+                             if l.name in self.msims.keys()]
+        
+        if not len(compatible_layers): return
+        
+        sims = [msi_utils.get_sim_from_msim(self.msims[l.name])
+                for l in compatible_layers]
+
+        # determine spatial dimensions from layers
+        all_spatial_dims = [spatial_image_utils.get_spatial_dims_from_sim(
+            sims[il])
+            for il, l in enumerate(compatible_layers)]
+        
+        highest_sdim = max([len(sdim) for sdim in all_spatial_dims])
+
+        # get curr tp
+        # handle possibility that there had been no T dimension
+        # when collecting sims from layers
+
+        if len(self.viewer.dims.current_step) > highest_sdim:
+            curr_tp = self.viewer.dims.current_step[-highest_sdim-1]
+        else:
+            curr_tp = 0
+
+        if self.visualization_type_rbuttons.value == CHOICE_METADATA:
+            transform_key=_reader.METADATA_TRANSFORM_KEY
+        else:
+            transform_key = 'affine_registered'
+
+        for il, l in enumerate(compatible_layers):
+
+            try:
+                params = spatial_image_utils.get_affine_from_sim(
+                    sims[il], transform_key=transform_key
+                    )
+            except:
+                # notifications.notification_manager.receive_info(
+                #     'Update transform: %s not available in %s' %(transform_key, l.name))
+                continue
+
+            try:
+                p = np.array(params.sel(t=sims[il].coords['t'][curr_tp])).squeeze()
+                if np.isnan(p).any():
+                    raise(Exception())
+            except:
+                notifications.notification_manager.receive_info(
+                    'Timepoint %s: no parameters available, register first.' % curr_tp)
+                continue
+
+                # # if curr_tp not available, use nearest available parameter
+                # notifications.notification_manager.receive_info(
+                #     'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
+                # p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp], method='nearest')).squeeze()
+
+            ndim_layer_data = l.ndim
+
+            # if stitcher sim has more dimensions than layer data (i.e. time)
+            vis_p = p[-(ndim_layer_data + 1):, -(ndim_layer_data + 1):]
+
+            # if layer data has more dimensions than stitcher sim
+            full_vis_p = np.eye(ndim_layer_data + 1)
+            full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
+
+            # l.affine = full_vis_p
+            print(f"Saving affine to {folder}/{l.name.split('.')[0]}.npy", full_vis_p)
+            np.save(f"{folder}/{l.name.split('.')[0]}.npy", full_vis_p)
+        print('Done')
 
 
     def update_viewer_transformations(self, event=None):
@@ -418,7 +507,7 @@ class StitcherQWidget(QWidget):
                 for l_name, msim in self.msims.items()])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
-        for w in self.reg_config_widgets + [self.button_stitch, self.button_fuse]:
+        for w in self.reg_config_widgets + [self.button_stitch, self.button_fuse, self.button_save]:
             if isinstance(w, Iterable):
                 for sw in w:
                     sw.enabled = True
