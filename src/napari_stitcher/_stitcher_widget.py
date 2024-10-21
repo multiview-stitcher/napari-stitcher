@@ -23,11 +23,13 @@ from multiview_stitcher import (
     fusion,
     spatial_image_utils,
     msi_utils,
+    param_utils
     )
 from napari.layers import Image, Labels
 
 from napari_stitcher import _reader, viewer_utils, _utils
 
+from pathlib import Path
 if TYPE_CHECKING:
     import napari
 
@@ -106,6 +108,9 @@ class StitcherQWidget(QWidget):
         self.button_save = widgets.Button(text='Save transformations',
             tooltip='Select a folder and save transformation matrix.')
         
+        self.button_load = widgets.Button(text='Load transformations',
+            tooltip='Select a folder that have transformation matrix.')
+        
         self.loading_widgets = [
                             self.load_layers_box,
                             ]
@@ -145,6 +150,7 @@ class StitcherQWidget(QWidget):
             [self.button_stitch] +\
             [self.button_fuse] +\
             [self.button_save] +\
+            [self.button_load] +\
             self.visualization_widgets
 
         self.container = QWidget()
@@ -160,6 +166,7 @@ class StitcherQWidget(QWidget):
         self.container.layout().addWidget(self.button_stitch.native)
         self.container.layout().addWidget(self.button_fuse.native)
         self.container.layout().addWidget(self.button_save.native)
+        self.container.layout().addWidget(self.button_load.native)
 
         # add horizontal widget with visualization options
         self.visualization_widgets_qt = QWidget()
@@ -174,7 +181,7 @@ class StitcherQWidget(QWidget):
 
         # disable all widgets (apart from loading) until layers are loaded
         for w in self.reg_config_widgets + self.visualization_widgets +\
-            [self.button_stitch, self.button_fuse, self.button_save]:
+            [self.button_stitch, self.button_fuse, self.button_save, self.button_load]:
             w.enabled = False
             if isinstance(w, Iterable):
                 for sw in w:
@@ -197,6 +204,7 @@ class StitcherQWidget(QWidget):
         # self.button_stabilize.clicked.connect(self.run_stabilization)
         self.button_fuse.clicked.connect(self.run_fusion)
         self.button_save.clicked.connect(self.save_transform_param)
+        self.button_load.clicked.connect(self.load_registration)
 
         self.button_load_layers_all.clicked.connect(self.load_layers_all)
         self.button_load_layers_sel.clicked.connect(self.load_layers_sel)
@@ -252,8 +260,8 @@ class StitcherQWidget(QWidget):
                     sims[il], transform_key=transform_key
                     )
             except:
-                # notifications.notification_manager.receive_info(
-                #     'Update transform: %s not available in %s' %(transform_key, l.name))
+                notifications.notification_manager.receive_info(
+                    'Update transform: %s not available in %s' %(transform_key, l.name))
                 continue
 
             try:
@@ -366,6 +374,56 @@ class StitcherQWidget(QWidget):
             full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
 
             l.affine = full_vis_p
+
+
+    def load_registration(self):
+        
+        # select layers corresponding to the chosen registration channel
+        lnames = [_utils.get_str_unique_to_view_from_layer_name(lname)
+                      for lname, msim in self.msims.items()
+                      if self.reg_ch_picker.value in msi_utils.get_sim_from_msim(msim).coords['c']]
+        
+        folder = str(QFileDialog.getExistingDirectory(self, "Select Directory"))
+        def get_fn(fn):
+            fn = Path(fn).stem
+            if '.' in fn: get_fn(fn)
+            else: return fn
+
+        lnames_stem = [get_fn(n) for n in lnames]
+        all_tforms = [tform_fn for tform_fn in os.listdir(folder) if get_fn(tform_fn) in lnames_stem]
+
+        params = [None for _ in range(len(lnames))]
+        
+        with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
+            _utils.VisibleActivityDock(self.viewer),\
+            _utils.TqdmCallback(tqdm_class=_utils.progress,
+                                desc='Loading transformations', bar_format=" "):
+            for tform_fn in all_tforms:
+                print('Loading', tform_fn)
+                affine = np.load(f'{folder}/{tform_fn}')
+                param = param_utils.affine_to_xaffine(affine)
+                print('Loaded', param)
+                lid = lnames_stem.index(get_fn(tform_fn))
+                params[lid] = param
+                msi_utils.set_affine_transform(
+                    self.msims[lnames[lid]], param,
+                    transform_key='affine_registered', base_transform_key='affine_metadata')
+            
+        for l in self.input_layers:
+            lname = _utils.get_str_unique_to_view_from_layer_name(l.name)
+            lid = lnames.index(lname)
+            if params[lid] is None:
+                notifications.notification_manager.receive_info(f'Cannot find transform of {lname} in the selected directory')
+                continue
+            try:
+                viewer_utils.set_layer_xaffine(
+                    l, params[lid],
+                    transform_key='affine_registered', base_transform_key='affine_metadata')
+            except:
+                pass
+        
+        self.visualization_type_rbuttons.enabled = True
+        self.visualization_type_rbuttons.value = CHOICE_REGISTERED
 
 
     def run_registration(self):            
@@ -507,7 +565,7 @@ class StitcherQWidget(QWidget):
                 for l_name, msim in self.msims.items()])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
-        for w in self.reg_config_widgets + [self.button_stitch, self.button_fuse, self.button_save]:
+        for w in self.reg_config_widgets + [self.button_stitch, self.button_fuse, self.button_save, self.button_load]:
             if isinstance(w, Iterable):
                 for sw in w:
                     sw.enabled = True
@@ -602,15 +660,18 @@ class StitcherQWidget(QWidget):
                     't',
                     )
             else:
+                l = event.source
+                print("Layer", l)
+                print("Multi-Scale Image", self.msims[l.name])
                 # inform user about the consequences of modifying transforms
                 if self.visualization_type_rbuttons.value == CHOICE_METADATA:
                     notifications.notification_manager.receive_info(
                         'Please reload the layers for a new registration.'
                         )
-                elif self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
-                    notifications.notification_manager.receive_info(
-                        'Manual corrections of transforms will be supported soon!'
-                        )
+                # elif self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
+                #     notifications.notification_manager.receive_info(
+                #         'Manual corrections of transforms will be supported soon!'
+                #         )
 
 
     def link_channel_layers(self, layers, attributes=('contrast_limits', 'visible')):
