@@ -661,8 +661,6 @@ class StitcherQWidget(QWidget):
                     )
             else:
                 l = event.source
-                print("Layer", l)
-                print("Multi-Scale Image", self.msims[l.name])
                 # inform user about the consequences of modifying transforms
                 if self.visualization_type_rbuttons.value == CHOICE_METADATA:
                     notifications.notification_manager.receive_info(
