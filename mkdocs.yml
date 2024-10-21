@@ -52,6 +52,7 @@ nav:
   - naming_convention.md
   - prearrangement.md
   - writing.md
+  - scripting.md
   - contributing.md
 
 theme:

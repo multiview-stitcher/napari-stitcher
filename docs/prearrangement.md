@@ -3,7 +3,7 @@
 !!! note "Prepositioning tiles"
     As a starting point for registration, `napari-stitcher` uses the positions of the layers as they are shown in napari.
 
-There are two ways to preoposition the layers in napari:
+There are two ways to preposition the layers in napari:
 
 ### 1. Manual positioning
 
