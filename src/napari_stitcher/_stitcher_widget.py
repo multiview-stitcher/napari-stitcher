@@ -7,7 +7,7 @@ see: https://napari.org/stable/plugins/guides.html?#widgets
 Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
-import os, tempfile, sys
+import os, tempfile, sys, shutil
 from collections.abc import Iterable
 
 import numpy as np
@@ -389,6 +389,8 @@ class StitcherQWidget(QWidget):
             mfused = msi_utils.get_msim_from_sim(fused, scale_factors=[])
 
             tmp_fused_path = os.path.join(self.tmpdir.name, 'fused_%s.zarr' %ch)
+            if os.path.exists(tmp_fused_path):
+                shutil.rmtree(tmp_fused_path)
 
             with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
                 _utils.VisibleActivityDock(self.viewer),\

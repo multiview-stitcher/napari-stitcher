@@ -221,6 +221,9 @@ def test_fusion_without_registration(make_napari_viewer):
     stitcher_widget.run_fusion()
     assert len(viewer.layers) == 3
 
+    #check that fusion can also be run twice
+    stitcher_widget.run_fusion()
+
 
 def test_vanilla_layers_2D_no_time(make_napari_viewer):
 
