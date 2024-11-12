@@ -83,6 +83,19 @@ class StitcherQWidget(QWidget):
 
         self.do_quality_filter = widgets.CheckBox(value=False, text='Filter registrations by quality')
         self.quality_threshold = widgets.FloatSlider(value=0.2, min=0, max=1, label='Quality threshold:')
+        
+        # widget giving options between different strings
+        self.pair_pruning_method = widgets.ComboBox(
+            choices=[
+                'None',
+                'alternating_pattern',
+                'shortest_paths_overlap_weighted',
+                'otsu_threshold_on_overlap',
+                'keep_axis_aligned',
+                ],
+            value='None',
+            label='Pre-registration pruning method:',
+            tooltip='Choose the method to prune pairs of tiles before registration. By default, all pairs of overlapping views are registered (None). Recommended for best performance on regular grids: "keep_axis_aligned".')
 
         self.button_stitch = widgets.Button(text='Register',
             tooltip='Use the overlaps between tiles to determine their relative positions.')
@@ -118,6 +131,7 @@ class StitcherQWidget(QWidget):
                             self.y_reg_binning,
                             self.do_quality_filter,
                             self.quality_threshold,
+                            self.pair_pruning_method,
         ]
 
         self.reg_config_widgets = self.reg_config_widgets_basic + self.reg_config_widgets_advanced
@@ -311,7 +325,7 @@ class StitcherQWidget(QWidget):
             params = registration.register(
                 msims,
                 registration_binning=registration_binning,
-                pre_registration_pruning_method=None, # this will register all pairs with overlap
+                pre_registration_pruning_method=self.pair_pruning_method.value,
                 post_registration_do_quality_filter=self.do_quality_filter.value,
                 post_registration_quality_threshold=self.quality_threshold.value,
                 transform_key='affine_metadata',
