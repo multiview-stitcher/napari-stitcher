@@ -88,14 +88,20 @@ class StitcherQWidget(QWidget):
         self.pair_pruning_method = widgets.ComboBox(
             choices=[
                 'None',
-                'alternating_pattern',
-                'shortest_paths_overlap_weighted',
-                'otsu_threshold_on_overlap',
-                'keep_axis_aligned',
+                'Only keep axis-aligned',
+                'Alternating pattern'
                 ],
             value='None',
             label='Pre-registration pruning method:',
-            tooltip='Choose the method to prune pairs of tiles before registration. By default, all pairs of overlapping views are registered (None). Recommended for best performance on regular grids: "keep_axis_aligned".')
+            tooltip='Choose the method to prune pairs of tiles before registration. '+\
+            'By default, all pairs of overlapping views are registered (None). '+\
+            'Recommended for best performance on regular grids: "Only keep axis-aligned".')
+
+        self.pair_pruning_method_mapping = {
+            'None': None,
+            'Only keep axis-aligned': 'keep_axis_aligned',
+            'Alternating pattern': 'alternating_pattern',
+        }
 
         self.button_stitch = widgets.Button(text='Register',
             tooltip='Use the overlaps between tiles to determine their relative positions.')
@@ -325,7 +331,7 @@ class StitcherQWidget(QWidget):
             params = registration.register(
                 msims,
                 registration_binning=registration_binning,
-                pre_registration_pruning_method=self.pair_pruning_method.value,
+                pre_registration_pruning_method=self.pair_pruning_method_mapping[self.pair_pruning_method.value],
                 post_registration_do_quality_filter=self.do_quality_filter.value,
                 post_registration_quality_threshold=self.quality_threshold.value,
                 transform_key='affine_metadata',
