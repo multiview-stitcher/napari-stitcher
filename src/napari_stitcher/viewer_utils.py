@@ -147,7 +147,8 @@ def add_image_layer_tuples_to_viewer(
     layers = [viewer.add_image(ld[0], **ld[1]) for ld in lds]
 
     if do_link_layers:
-        link_layers(layers)
+        # make sure not to link affine transformations
+        link_layers(layers, attributes=['contrast_limits', 'visible'])
 
     # add callback to manage viewer transformations
     # (napari doesn't yet support different affine transforms for a single layer)
