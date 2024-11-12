@@ -294,7 +294,7 @@ def create_image_layer_tuples_from_msims(
         data_as_array=False,
 ):
 
-    if positional_cmaps:
+    if positional_cmaps and len(msims) > 1:
         sims = [spatial_image_utils.get_sim_field(
             msi_utils.get_sim_from_msim(msim)) for msim in msims]
         cmaps = ['red', 'green', 'blue', 'yellow']
