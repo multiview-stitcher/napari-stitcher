@@ -526,16 +526,16 @@ class StitcherQWidget(QWidget):
                     viewer_utils.image_layer_to_msim(l, self.viewer),
                     't',
                     )
-            else:
-                # inform user about the consequences of modifying transforms
-                if self.visualization_type_rbuttons.value == CHOICE_METADATA:
-                    notifications.notification_manager.receive_info(
-                        'Please reload the layers for a new registration.'
-                        )
-                elif self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
-                    notifications.notification_manager.receive_info(
-                        'Manual corrections of transforms will be supported soon!'
-                        )
+            # else:
+            #     # inform user about the consequences of modifying transforms
+            #     if self.visualization_type_rbuttons.value == CHOICE_METADATA:
+            #         notifications.notification_manager.receive_info(
+            #             'Please reload the layers for a new registration.'
+            #             )
+            #     elif self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
+            #         notifications.notification_manager.receive_info(
+            #             'Manual corrections of transforms will be supported soon!'
+            #             )
 
 
     def link_channel_layers(self, layers, attributes=('contrast_limits', 'visible')):
