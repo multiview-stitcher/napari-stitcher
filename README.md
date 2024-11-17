@@ -4,7 +4,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-stitcher.svg?color=green)](https://python.org)
 [![tests](https://github.com/multiview-stitcher/napari-stitcher/actions/workflows/test_and_deploy.yml/badge.svg)](https://github.com/multiview-stitcher/napari-stitcher/actions)
 [![codecov](https://codecov.io/gh/multiview-stitcher/napari-stitcher/branch/main/graph/badge.svg)](https://codecov.io/gh/multiview-stitcher/napari-stitcher)
-[![DOI](https://zenodo.org/badge/697999800.svg)](https://zenodo.org/doi/10.5281/zenodo.13151252)
+[![DOI](https://zenodo.org/badge/697999800.svg)](https://zenodo.org/doi/10.5281/zenodo.14176362)
 
 
 # napari-stitcher
