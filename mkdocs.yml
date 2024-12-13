@@ -66,6 +66,7 @@ theme:
   logo: images/logo.png
   icon:
     repo: fontawesome/brands/github
+  favicon: images/logo.png
   color_mode: dark
   palette:
     # Palette toggle for dark mode
