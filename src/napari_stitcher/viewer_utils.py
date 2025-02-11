@@ -6,8 +6,9 @@ from dask import compute
 from functools import partial
 import warnings
 
-import multiscale_spatial_image as msi
 from spatial_image import to_spatial_image
+import multiscale_spatial_image as msi
+from multiscale_spatial_image import to_multiscale
 
 from multiview_stitcher import mv_graph, spatial_image_utils, msi_utils, param_utils
 
@@ -69,7 +70,7 @@ def image_layer_to_msim(l, viewer):
 
     if l.multiscale:
 
-        msim = msi.MultiscaleSpatialImage()
+        data_objects = {}
         for isim, ldata in enumerate(l.data):
 
             # convert to SpatialImage if necessary
@@ -88,7 +89,8 @@ def image_layer_to_msim(l, viewer):
                     dims=ldata.dims,
                 )
 
-            msi.MultiscaleSpatialImage(name='scale%s' %isim, data=sim, parent=msim)
+            data_objects['scale%s' %isim] = sim.to_dataset(name='image', promote_attrs=True)
+        msim = xr.DataTree.from_dict(data_objects)
         
     else:
         # use dimension labels from viewer if indicated
@@ -123,8 +125,7 @@ def image_layer_to_msim(l, viewer):
         else:
             sim = sim.assign_coords(c='default_channel')
             
-        msim = msi.MultiscaleSpatialImage()
-        msi.MultiscaleSpatialImage(name='scale%s' %0, data=sim, parent=msim)
+        msim = to_multiscale(sim, scale_factors=[])
         
     ndim = spatial_image_utils.get_ndim_from_sim(msi_utils.get_sim_from_msim(msim))
     affine = np.array(l.affine.affine_matrix)[-(ndim+1):, -(ndim+1):]
