@@ -52,6 +52,19 @@ def get_layer_dims(l,viewer):
     return dims
 
 
+def set_msims_affine_transforms_from_viewer(viewer, msims, transform_key):
+    viewer_affines = [l.affine.affine_matrix for l in viewer.layers]
+    for viewer_affine, msim in zip(viewer_affines, msims):
+        sim = msi_utils.get_sim_from_msim(msim)
+        if 't' in sim.coords:
+            t_coords = sim.coords['t'].values
+        else:
+            t_coords = None
+        affine = param_utils.affine_to_xaffine(viewer_affine, t_coords=t_coords)
+        msi_utils.set_affine_transform(
+            msim, affine, transform_key=transform_key)
+
+
 def image_layer_to_msim(l, viewer):
 
     """
