@@ -1,5 +1,4 @@
 import numpy as np
-import networkx as nx
 import xarray as xr
 import dask.array as da
 from dask import compute
