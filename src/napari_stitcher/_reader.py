@@ -7,8 +7,11 @@ https://napari.org/stable/plugins/guides.html?#readers
 """
 
 from multiview_stitcher import msi_utils
-from multiview_stitcher.io import read_mosaic_image_into_list_of_spatial_xarrays,\
-    METADATA_TRANSFORM_KEY
+from multiview_stitcher.io import (
+    read_mosaic_into_sims,
+    get_number_of_scenes_in_mosaic,
+    METADATA_TRANSFORM_KEY,
+)
 
 from napari_stitcher import viewer_utils
 
@@ -43,7 +46,6 @@ def napari_get_reader(path):
 
 def read_mosaic(path, scene_index=None):
     """
-    
     Read in tiles as layers.
     
     Take a path or list of paths and return a list of LayerData tuples.
@@ -70,7 +72,22 @@ def read_mosaic(path, scene_index=None):
     # handle both a string and a list of strings
     paths = [path] if isinstance(path, str) else path
 
-    sims = read_mosaic_image_into_list_of_spatial_xarrays(paths[0], scene_index=scene_index)
+    N_scenes = get_number_of_scenes_in_mosaic(paths[0])
+
+    if N_scenes > 1 and scene_index is None:
+        from magicgui.widgets import request_values
+
+        scene_index = request_values(
+            scene_index={
+                "annotation": int,
+                "label": "Which scene should be loaded?",
+                "options": {"min": 0, "max": N_scenes - 1},
+            },
+        )["scene_index"]
+    else:
+        scene_index = 0
+
+    sims = read_mosaic_into_sims(paths[0], scene_index=scene_index)
 
     msims = [msi_utils.get_msim_from_sim(sim, scale_factors=[])
              for sim in sims]
@@ -89,7 +106,7 @@ if __name__ == "__main__":
 
     filename = get_mosaic_sample_data_path()
 
-    sims = read_mosaic_image_into_list_of_spatial_xarrays(filename)
+    sims = read_mosaic_into_sims(filename)
 
     from multiview_stitcher import msi_utils
 
