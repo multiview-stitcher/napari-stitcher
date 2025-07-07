@@ -224,6 +224,12 @@ def test_fusion_without_registration(make_napari_viewer):
     #check that fusion can also be run twice
     stitcher_widget.run_fusion()
 
+    # turn on custom binning
+    stitcher_widget.custom_reg_binning.value = True
+
+    #run fusion with binning
+    stitcher_widget.run_fusion()
+
 
 def test_vanilla_layers_2D_no_time(make_napari_viewer):
 
