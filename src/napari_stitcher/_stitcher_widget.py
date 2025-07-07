@@ -77,7 +77,7 @@ class StitcherQWidget(QWidget):
             choices=[],
             tooltip='Choose a file to process using napari-stitcher.')
         
-        self.custom_reg_binning = widgets.CheckBox(value=False, text='Use custom registration binning')
+        self.custom_reg_binning = widgets.CheckBox(value=False, text='Use custom binning')
         self.x_reg_binning = widgets.Slider(value=1, min=1, max=10, label='X binning:')
         self.y_reg_binning = widgets.Slider(value=1, min=1, max=10, label='Y binning:')
 
@@ -363,6 +363,10 @@ class StitcherQWidget(QWidget):
         """
 
         channels = self.reg_ch_picker.choices
+        if self.custom_reg_binning.value:
+            fusion_binning = {'y': self.x_reg_binning.value, 'x': self.y_reg_binning.value}
+        else:
+            fusion_binning = None
 
         for _, ch in enumerate(channels):
 
@@ -382,6 +386,7 @@ class StitcherQWidget(QWidget):
                 transform_key='affine_registered'
                 if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
                 else 'affine_metadata',
+                output_spacing=fusion_binning,
             )
 
             fused = fused.expand_dims({'c': [sims[0].coords['c'].values]})
