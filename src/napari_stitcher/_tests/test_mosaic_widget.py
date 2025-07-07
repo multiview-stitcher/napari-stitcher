@@ -16,7 +16,7 @@ import pytest
         [3, 2, 2, 'snake by columns', 1],
     ]
 )
-def test_data_loading_while_plugin_open(
+def test_mosaic_loading(
     ndim, n_rows, n_cols, mosaic_arr, n_channels, make_napari_viewer
     ):
 

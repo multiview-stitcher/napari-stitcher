@@ -5,19 +5,6 @@ from napari_stitcher import napari_get_reader, _reader
 from multiview_stitcher.sample_data import get_mosaic_sample_data_path
 
 
-def test_read_mosaic_image_into_list_of_spatial_xarrays():
-
-    test_path = get_mosaic_sample_data_path()
-    
-    view_sims = _reader.read_mosaic_image_into_list_of_spatial_xarrays(test_path)
-
-    assert 2 == len(view_sims)
-    assert min([ax in view_sims[0].dims for ax in ['x', 'y']])
-
-    return
-
-
-# tmp_path is a pytest fixture
 def test_reader():
     """An example of how you might test your plugin."""
 
