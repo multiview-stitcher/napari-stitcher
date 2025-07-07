@@ -381,6 +381,13 @@ class StitcherQWidget(QWidget):
                                             self.times_slider.value[1] + 1)]})
                     for sim in sims]
 
+            # check which keys are in spacing that are missing in fusion_binning and add them
+            if fusion_binning is not None:
+                spacing = spatial_image_utils.get_spacing_from_sim(sims[0])
+                for key in spacing.keys():
+                    if key not in fusion_binning:
+                        fusion_binning[key] = spacing[key]
+
             fused = fusion.fuse(
                 sims,
                 transform_key='affine_registered'
