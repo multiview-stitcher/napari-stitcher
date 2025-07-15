@@ -77,9 +77,13 @@ class StitcherQWidget(QWidget):
             choices=[],
             tooltip='Choose a file to process using napari-stitcher.')
         
-        self.custom_reg_binning = widgets.CheckBox(value=False, text='Use custom binning')
+        self.custom_reg_binning = widgets.CheckBox(value=False, text='Use custom binning for registration')
         self.x_reg_binning = widgets.Slider(value=1, min=1, max=10, label='X binning:')
         self.y_reg_binning = widgets.Slider(value=1, min=1, max=10, label='Y binning:')
+
+        self.custom_fuse_binning = widgets.CheckBox(value=False, text='Use custom binning for fusion')
+        self.x_fuse_binning = widgets.Slider(value=1, min=1, max=10, label='X binning:')
+        self.y_fuse_binning = widgets.Slider(value=1, min=1, max=10, label='Y binning:')
 
         self.do_quality_filter = widgets.CheckBox(value=False, text='Filter registrations by quality')
         self.quality_threshold = widgets.FloatSlider(value=0.2, min=0, max=1, label='Quality threshold:')
