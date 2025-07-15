@@ -370,10 +370,6 @@ class StitcherQWidget(QWidget):
         """
 
         channels = self.reg_ch_picker.choices
-        if self.custom_reg_binning.value:
-            fusion_binning = {'y': self.x_reg_binning.value, 'x': self.y_reg_binning.value}
-        else:
-            fusion_binning = None
 
         for _, ch in enumerate(channels):
 
@@ -389,18 +385,22 @@ class StitcherQWidget(QWidget):
                     for sim in sims]
 
             # check which keys are in spacing that are missing in fusion_binning and add them
-            if fusion_binning is not None:
-                spacing = spatial_image_utils.get_spacing_from_sim(sims[0])
-                for key in spacing.keys():
-                    if key not in fusion_binning:
-                        fusion_binning[key] = spacing[key]
+            if self.custom_fuse_binning.value:
+                fusion_binning = {'y': self.x_fuse_binning.value, 'x': self.x_fuse_binning.value}
+                fusing_spacing = spatial_image_utils.get_spacing_from_sim(sims[0])
+                fusing_spacing = {
+                    key: fusing_spacing[key] * fusion_binning[key]
+                    for key in fusing_spacing.keys() if key in fusion_binning
+                }
+            else:
+                fusing_spacing = None
 
             fused = fusion.fuse(
                 sims,
                 transform_key='affine_registered'
                 if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
                 else 'affine_metadata',
-                output_spacing=fusion_binning,
+                output_spacing=fusing_spacing,
             )
 
             fused = fused.expand_dims({'c': [sims[0].coords['c'].values]})
