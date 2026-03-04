@@ -399,7 +399,7 @@ class StitcherQWidget(QWidget):
                 
                 mfused.to_zarr(tmp_fused_path)
 
-            mfused = msi_utils.multiscale_spatial_image_from_zarr(tmp_fused_path)
+            mfused = msi_utils.multiscale_spatial_image_from_zarr(tmp_fused_path, chunks={})
 
             fused_ch_layer_tuple = viewer_utils.create_image_layer_tuples_from_msim(
                 mfused,
