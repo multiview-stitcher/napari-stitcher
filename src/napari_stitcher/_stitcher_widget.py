@@ -77,9 +77,13 @@ class StitcherQWidget(QWidget):
             choices=[],
             tooltip='Choose a file to process using napari-stitcher.')
         
-        self.custom_reg_binning = widgets.CheckBox(value=False, text='Use custom registration binning')
+        self.custom_reg_binning = widgets.CheckBox(value=False, text='Use custom binning for registration')
         self.x_reg_binning = widgets.Slider(value=1, min=1, max=10, label='X binning:')
         self.y_reg_binning = widgets.Slider(value=1, min=1, max=10, label='Y binning:')
+
+        self.custom_fuse_binning = widgets.CheckBox(value=False, text='Use custom binning for fusion')
+        self.x_fuse_binning = widgets.Slider(value=1, min=1, max=10, label='X binning:')
+        self.y_fuse_binning = widgets.Slider(value=1, min=1, max=10, label='Y binning:')
 
         self.do_quality_filter = widgets.CheckBox(value=False, text='Filter registrations by quality')
         self.quality_threshold = widgets.FloatSlider(value=0.2, min=0, max=1, label='Quality threshold:')
@@ -135,6 +139,9 @@ class StitcherQWidget(QWidget):
                             self.custom_reg_binning,
                             self.x_reg_binning,
                             self.y_reg_binning,
+                            self.custom_fuse_binning,
+                            self.x_fuse_binning,
+                            self.y_fuse_binning,
                             self.do_quality_filter,
                             self.quality_threshold,
                             self.pair_pruning_method,
@@ -377,11 +384,23 @@ class StitcherQWidget(QWidget):
                                             self.times_slider.value[1] + 1)]})
                     for sim in sims]
 
+            # check which keys are in spacing that are missing in fusion_binning and add them
+            if self.custom_fuse_binning.value:
+                fusion_binning = {'y': self.x_fuse_binning.value, 'x': self.x_fuse_binning.value}
+                fusing_spacing = spatial_image_utils.get_spacing_from_sim(sims[0])
+                fusing_spacing = {
+                    key: fusing_spacing[key] * fusion_binning[key]
+                    for key in fusing_spacing.keys() if key in fusion_binning
+                }
+            else:
+                fusing_spacing = None
+
             fused = fusion.fuse(
                 sims,
                 transform_key='affine_registered'
                 if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
                 else 'affine_metadata',
+                output_spacing=fusing_spacing,
             )
 
             fused = fused.expand_dims({'c': [sims[0].coords['c'].values]})
