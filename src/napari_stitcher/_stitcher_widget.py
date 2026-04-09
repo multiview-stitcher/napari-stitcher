@@ -103,6 +103,23 @@ class StitcherQWidget(QWidget):
             'Alternating pattern': 'alternating_pattern',
         }
 
+        self.reg_method = widgets.ComboBox(
+            choices=['Phase Correlation', 'ITKElastix'],
+            value='Phase Correlation',
+            label='Registration method:',
+            tooltip='Choose the pairwise registration method.\n'
+                    '"Phase Correlation" is fast and works well for translation.\n'
+                    '"ITKElastix" supports more transform types but requires the itk-elastix package.')
+
+        self.antspy_transform_types = widgets.Select(
+            choices=['Translation', 'Rigid', 'Affine'],
+            value=['Translation', 'Rigid'],
+            label='Transform types:',
+            tooltip='Sequence of transform types applied in order. The last selected type is also used for global optimization.')
+
+        self.reg_method.changed.connect(self._on_reg_method_changed)
+        self._on_reg_method_changed()
+
         self.button_stitch = widgets.Button(text='Register',
             tooltip='Use the overlaps between tiles to determine their relative positions.')
         
@@ -140,7 +157,12 @@ class StitcherQWidget(QWidget):
                             self.pair_pruning_method,
         ]
 
-        self.reg_config_widgets = self.reg_config_widgets_basic + self.reg_config_widgets_advanced
+        self.reg_config_widgets_method = [
+                            self.reg_method,
+                            self.antspy_transform_types,
+        ]
+
+        self.reg_config_widgets = self.reg_config_widgets_basic + self.reg_config_widgets_advanced + self.reg_config_widgets_method
 
         # Initialize tab screen 
         self.reg_config_widgets_tabs = QTabWidget() 
@@ -150,7 +172,9 @@ class StitcherQWidget(QWidget):
         self.reg_config_widgets_tabs.addTab(
             widgets.VBox(widgets=self.reg_config_widgets_basic).native, "Basic") 
         self.reg_config_widgets_tabs.addTab(
-            widgets.VBox(widgets=self.reg_config_widgets_advanced).native, "More") 
+            widgets.VBox(widgets=self.reg_config_widgets_advanced).native, "More")
+        self.reg_config_widgets_tabs.addTab(
+            widgets.VBox(widgets=self.reg_config_widgets_method).native, "Method")
 
         self.visualization_widgets = [
                             self.visualization_type_rbuttons,
@@ -215,6 +239,10 @@ class StitcherQWidget(QWidget):
         self.button_load_layers_all.clicked.connect(self.load_layers_all)
         self.button_load_layers_sel.clicked.connect(self.load_layers_sel)
 
+
+    def _on_reg_method_changed(self, event=None):
+        """Show/hide transform type widget based on the selected method."""
+        self.antspy_transform_types.visible = self.reg_method.value == 'ITKElastix'
 
     def update_viewer_transformations(self, event=None):
         """
@@ -328,9 +356,22 @@ class StitcherQWidget(QWidget):
             else:
                 registration_binning = None
 
+            if self.reg_method.value == 'ITKElastix':
+                pairwise_reg_func = registration.registration_ITKElastix
+                transform_types = list(self.antspy_transform_types.value)
+                pairwise_reg_func_kwargs = {'transform_types': transform_types}
+                groupwise_resolution_kwargs = {'transform': transform_types[-1].lower()}
+            else:
+                pairwise_reg_func = registration.phase_correlation_registration
+                pairwise_reg_func_kwargs = None
+                groupwise_resolution_kwargs = None
+
             params = registration.register(
                 msims,
                 registration_binning=registration_binning,
+                pairwise_reg_func=pairwise_reg_func,
+                pairwise_reg_func_kwargs=pairwise_reg_func_kwargs,
+                groupwise_resolution_kwargs=groupwise_resolution_kwargs,
                 pre_registration_pruning_method=self.pair_pruning_method_mapping[self.pair_pruning_method.value],
                 post_registration_do_quality_filter=self.do_quality_filter.value,
                 post_registration_quality_threshold=self.quality_threshold.value,
