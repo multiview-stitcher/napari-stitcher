@@ -23,6 +23,7 @@ from multiview_stitcher import (
     fusion,
     spatial_image_utils,
     msi_utils,
+    param_utils,
     )
 from napari.layers import Image, Labels
 
@@ -226,11 +227,16 @@ class StitcherQWidget(QWidget):
         self.fused_layers = []
         self.params = dict()
 
+        # flag to suppress watch_layer_changes during programmatic affine updates
+        self._updating_viewer = False
+        # last timepoint that was applied to the viewer; used to skip no-op current_step events
+        self._last_applied_tp = None
+
         # create temporary directory for storing dask arrays
         self.tmpdir = tempfile.TemporaryDirectory()
         
         self.visualization_type_rbuttons.changed.connect(self.update_viewer_transformations)
-        self.viewer.dims.events.connect(self.update_viewer_transformations)
+        self.viewer.dims.events.current_step.connect(self.update_viewer_transformations)
 
         self.button_stitch.clicked.connect(self.run_registration)
         # self.button_stabilize.clicked.connect(self.run_stabilization)
@@ -249,15 +255,36 @@ class StitcherQWidget(QWidget):
         set transformations
         - for current timepoint
         - for each (compatible) layer loaded in viewer
+
+        Called from exactly two sources:
+          1. viewer.dims.events.current_step  (timepoint scroll)
+          2. visualization_type_rbuttons.changed  (Show toggle)
         """
 
-        try:
-            # events are constantly triggered by viewer.dims.events,
-            # but we only want to update if current_step changes
-            if hasattr(event, 'type') and\
-            event.type != 'current_step': return
-        except AttributeError:
-            pass
+        # When called from a current_step event:
+        #   - only proceed after registration has been performed
+        #   - only proceed when the timepoint actually changed (transform-mode
+        #     interactions also fire current_step without changing the tp)
+        if hasattr(event, 'type'):
+            if not self.visualization_type_rbuttons.enabled:
+                return
+            # Compute the candidate tp now so we can compare
+            # (replicated from the block below; simims may not be loaded yet)
+            if not len(self.msims):
+                return
+            _sims_check = [msi_utils.get_sim_from_msim(self.msims[l.name])
+                           for l in self.viewer.layers if l.name in self.msims]
+            if not _sims_check:
+                return
+            _highest_sdim = max(
+                len(spatial_image_utils.get_spatial_dims_from_sim(s))
+                for s in _sims_check)
+            _candidate_tp = (
+                self.viewer.dims.current_step[-_highest_sdim - 1]
+                if len(self.viewer.dims.current_step) > _highest_sdim
+                else 0)
+            if _candidate_tp == self._last_applied_tp:
+                return
 
         if not len(self.msims): return
 
@@ -290,44 +317,120 @@ class StitcherQWidget(QWidget):
         else:
             transform_key = 'affine_registered'
 
-        for il, l in enumerate(compatible_layers):
+        self._last_applied_tp = curr_tp
+        self._updating_viewer = True
+        try:
+            for il, l in enumerate(compatible_layers):
 
-            try:
-                params = spatial_image_utils.get_affine_from_sim(
-                    sims[il], transform_key=transform_key
-                    )
-            except:
-                # notifications.notification_manager.receive_info(
-                #     'Update transform: %s not available in %s' %(transform_key, l.name))
+                try:
+                    params = spatial_image_utils.get_affine_from_sim(
+                        sims[il], transform_key=transform_key
+                        )
+                except:
+                    continue
+
+                try:
+                    p = np.array(params.sel(t=sims[il].coords['t'][curr_tp])).squeeze()
+                    if np.isnan(p).any():
+                        raise(Exception())
+                except:
+                    notifications.notification_manager.receive_info(
+                        'Timepoint %s: no parameters available, register first.' % curr_tp)
+                    continue
+
+                ndim_layer_data = l.ndim
+
+                # if stitcher sim has more dimensions than layer data (i.e. time)
+                vis_p = p[-(ndim_layer_data + 1):, -(ndim_layer_data + 1):]
+
+                # if layer data has more dimensions than stitcher sim
+                full_vis_p = np.eye(ndim_layer_data + 1)
+                full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
+
+                l.affine = full_vis_p
+        finally:
+            self._updating_viewer = False
+
+
+    def _capture_layer_transforms_to_msims(self):
+        """
+        Capture the current layer affines into affine_metadata in msims.
+        Called before registration/fusion when showing Original transforms, so
+        any manual layer adjustments made by the user are used as the starting point.
+        """
+        for l in self.input_layers:
+            if l.name not in self.msims:
                 continue
+            msim = self.msims[l.name]
+            sim = msi_utils.get_sim_from_msim(msim)
+            ndim = spatial_image_utils.get_ndim_from_sim(sim)
+            affine = np.array(l.affine.affine_matrix)[-(ndim + 1):, -(ndim + 1):]
+            t_coords = sim.coords['t'] if 't' in sim.dims else None
+            affine_xr = param_utils.affine_to_xaffine(affine, t_coords=t_coords)
+            msi_utils.set_affine_transform(msim, affine_xr, transform_key='affine_metadata')
 
+    def _update_registered_param_for_current_tp(self, l):
+        """
+        Update affine_registered for the current timepoint from l.affine.
+        Only the current timepoint is modified; all others remain unchanged.
+        Called live when the user manually transforms a layer while showing Registered.
+        """
+        if l.name not in self.msims:
+            return
+        msim = self.msims[l.name]
+        sim = msi_utils.get_sim_from_msim(msim)
+        ndim = spatial_image_utils.get_ndim_from_sim(sim)
+
+        # Determine current timepoint (mirrors the logic in update_viewer_transformations)
+        sdims = spatial_image_utils.get_spatial_dims_from_sim(sim)
+        if len(self.viewer.dims.current_step) > len(sdims):
+            curr_tp = self.viewer.dims.current_step[-len(sdims) - 1]
+        else:
+            curr_tp = 0
+
+        curr_affine = np.array(l.affine.affine_matrix)[-(ndim + 1):, -(ndim + 1):]
+
+        try:
+            existing_params = spatial_image_utils.get_affine_from_sim(
+                sim, transform_key='affine_registered').copy()
+        except Exception:
+            return  # not registered yet
+
+        if 't' in existing_params.dims:
+            t_val = sim.coords['t'][curr_tp]
+            existing_params.loc[{'t': t_val}] = curr_affine
+        else:
+            existing_params = param_utils.affine_to_xaffine(curr_affine, t_coords=None)
+
+        msi_utils.set_affine_transform(msim, existing_params, transform_key='affine_registered')
+
+    def _promote_registered_to_metadata(self):
+        """
+        Copy affine_registered → affine_metadata for all msims so that a
+        subsequent registration uses the manually corrected positions as its
+        starting point rather than the original metadata positions.
+        """
+        for l_name, msim in self.msims.items():
+            sim = msi_utils.get_sim_from_msim(msim)
             try:
-                p = np.array(params.sel(t=sims[il].coords['t'][curr_tp])).squeeze()
-                if np.isnan(p).any():
-                    raise(Exception())
-            except:
-                notifications.notification_manager.receive_info(
-                    'Timepoint %s: no parameters available, register first.' % curr_tp)
+                registered_params = spatial_image_utils.get_affine_from_sim(
+                    sim, transform_key='affine_registered')
+            except Exception:
                 continue
-
-                # # if curr_tp not available, use nearest available parameter
-                # notifications.notification_manager.receive_info(
-                #     'Timepoint %s: no parameters available, taking nearest available one.' % curr_tp)
-                # p = np.array(params.sel(t=layer_sim.coords['t'][curr_tp], method='nearest')).squeeze()
-
-            ndim_layer_data = l.ndim
-
-            # if stitcher sim has more dimensions than layer data (i.e. time)
-            vis_p = p[-(ndim_layer_data + 1):, -(ndim_layer_data + 1):]
-
-            # if layer data has more dimensions than stitcher sim
-            full_vis_p = np.eye(ndim_layer_data + 1)
-            full_vis_p[-len(vis_p):, -len(vis_p):] = vis_p
-
-            l.affine = full_vis_p
-
+            msi_utils.set_affine_transform(
+                msim, registered_params.copy(), transform_key='affine_metadata')
 
     def run_registration(self):            
+
+        # Promote the current starting-point transforms into affine_metadata so
+        # that registration always uses the most up-to-date positions:
+        #   - Showing Original (or pre-registration): capture layer affines → affine_metadata
+        #   - Showing Registered: copy affine_registered → affine_metadata
+        if (self.visualization_type_rbuttons.enabled and
+                self.visualization_type_rbuttons.value == CHOICE_REGISTERED):
+            self._promote_registered_to_metadata()
+        else:
+            self._capture_layer_transforms_to_msims()
 
         # select layers corresponding to the chosen registration channel
         msims_dict = {_utils.get_str_unique_to_view_from_layer_name(lname): msim
@@ -395,6 +498,10 @@ class StitcherQWidget(QWidget):
         
         self.visualization_type_rbuttons.enabled = True
         self.visualization_type_rbuttons.value = CHOICE_REGISTERED
+        # Always refresh the viewer after registration, even if already showing
+        # CHOICE_REGISTERED (setting the same value doesn't fire a changed event).
+        self._last_applied_tp = None
+        self.update_viewer_transformations()
 
 
     def run_fusion(self):
@@ -402,6 +509,11 @@ class StitcherQWidget(QWidget):
         """
         Split layers into channel groups and fuse each group separately.
         """
+
+        # Capture manual layer adjustments if fusing with original transforms
+        if not (self.visualization_type_rbuttons.enabled and
+                self.visualization_type_rbuttons.value == CHOICE_REGISTERED):
+            self._capture_layer_transforms_to_msims()
 
         channels = self.reg_ch_picker.choices
 
@@ -463,6 +575,7 @@ class StitcherQWidget(QWidget):
         self.times_slider.value = (-1, 0)
         self.input_layers = []
         self.fused_layers = []
+        self._last_applied_tp = None
 
 
     def load_metadata(self):
@@ -563,28 +676,27 @@ class StitcherQWidget(QWidget):
 
     def watch_layer_changes(self, event):
         """
-        Watch changes in layers and warn user or update msims accordingly.
-        I.e. changes in transformations.
+        Watch user-initiated layer transform changes and update stored parameters.
+
+        - Pre-registration or showing Original: do nothing here; transforms are
+          captured at registration/fusion time via _capture_layer_transforms_to_msims.
+        - Post-registration, showing Registered: live-update affine_registered for
+          the current timepoint only, leaving other timepoints unchanged.
         """
-        if event.type in ['affine', 'scale', 'translate']:
-            if not self.visualization_type_rbuttons.enabled:
-                # assume user is modifying transforms before registration
-                # reload layer into stitching widget
-                l = event.source
-                self.msims[l.name] = msi_utils.ensure_dim(
-                    viewer_utils.image_layer_to_msim(l, self.viewer),
-                    't',
-                    )
-            # else:
-            #     # inform user about the consequences of modifying transforms
-            #     if self.visualization_type_rbuttons.value == CHOICE_METADATA:
-            #         notifications.notification_manager.receive_info(
-            #             'Please reload the layers for a new registration.'
-            #             )
-            #     elif self.visualization_type_rbuttons.value == CHOICE_REGISTERED:
-            #         notifications.notification_manager.receive_info(
-            #             'Manual corrections of transforms will be supported soon!'
-            #             )
+        if self._updating_viewer:
+            return
+
+        if event.type not in ['affine', 'scale', 'translate']:
+            return
+
+        l = event.source
+        if l.name not in self.msims:
+            return
+
+        # Post-registration + showing Registered: live update current tp
+        if (self.visualization_type_rbuttons.enabled and
+                self.visualization_type_rbuttons.value == CHOICE_REGISTERED):
+            self._update_registered_param_for_current_tp(l)
 
 
     def link_channel_layers(self, layers, attributes=('contrast_limits', 'visible')):
@@ -636,7 +748,7 @@ class StitcherQWidget(QWidget):
         print('Deleting napari-stitcher widget')
 
         # clean up callbacks
-        self.viewer.dims.events.disconnect(self.update_viewer_transformations)
+        self.viewer.dims.events.current_step.disconnect(self.update_viewer_transformations)
 
         for l in self.viewer.layers:
             if l.name in self.layers_selection.choices:
