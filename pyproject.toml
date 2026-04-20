@@ -2,12 +2,81 @@
 requires = ["setuptools>=42.0.0", "wheel", "setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "napari-stitcher"
+description = "Stitch napari image layers in 2-3D+t"
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+authors = [
+    { name = "Marvin Albert", email = "marvin.albert@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Framework :: napari",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "dask",
+    "magicgui",
+    "multiscale_spatial_image",
+    "multiview-stitcher[czi, itk-elastix] >=0.1.49",
+    "napari",
+    "numpy >=1.18",
+    "qtpy",
+    "spatial_image",
+    "tifffile >=2022.7.28",
+    "tqdm",
+    "xarray",
+]
+dynamic = ["version"]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/multiview-stitcher/napari-stitcher/issues"
+"Documentation" = "https://multiview-stitcher.github.io/napari-stitcher/"
+"Source Code" = "https://github.com/multiview-stitcher/napari-stitcher"
+"User Support" = "https://github.com/multiview-stitcher/napari-stitcher/issues"
+
+[project.optional-dependencies]
+testing_no_gui = [
+    "tox",
+    "multiview-stitcher[czi] >=0.1.47",
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+]
+testing = [
+    "tox",
+    "multiview-stitcher[czi] >=0.1.47",
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "napari",
+    "pyqt5",
+]
+
+[project.entry-points."napari.manifest"]
+"napari-stitcher" = "napari_stitcher:napari.yaml"
+
 [tool.setuptools_scm]
 write_to = "src/napari_stitcher/_version.py"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml"]
+
 [tool.black]
 line-length = 79
-
 
 [tool.isort]
 profile = "black"
