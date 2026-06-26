@@ -52,3 +52,51 @@ def test_mosaic_loading(
         final_poss[:n_cols*n_rows],
         final_poss[-n_cols*n_rows:]
         )
+
+
+def test_mosaic_arrangement_uses_affine_translation(make_napari_viewer):
+    viewer = make_napari_viewer()
+
+    wdg = MosaicQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    for itile in range(2):
+        viewer.add_image(
+            np.ones((10, 10)),
+            name=f'layer_{itile} :: ch0',
+            translate=(5 + itile, 6 + itile),
+            )
+
+    first_affine = np.eye(3)
+    first_affine[:-1, -1] = [25, 40]
+    viewer.layers[0].affine = first_affine
+
+    second_affine = np.eye(3)
+    second_affine[:-1, -1] = [100, 200]
+    viewer.layers[1].affine = second_affine
+
+    tile_step = (
+        viewer.layers[0].extent.world[1, -1]
+        - viewer.layers[0].extent.world[0, -1]
+    )
+
+    wdg.n_col.value = 2
+    wdg.n_row.value = 1
+    wdg.overlap.value = 0
+    wdg.mosaic_arr.value = 'rows first'
+
+    wdg.button_arrange_tiles.clicked()
+
+    expected_anchor = np.array([25, 40]) + np.array([5, 6])
+    expected_positions = np.array([
+        expected_anchor,
+        [expected_anchor[0], expected_anchor[1] + tile_step],
+    ])
+    final_positions = np.array([l.translate[-2:] for l in viewer.layers])
+
+    assert np.allclose(final_positions, expected_positions)
+
+    affine_grid_translations = np.array([
+        l.affine.affine_matrix[:-1, -1][-2:] for l in viewer.layers
+    ])
+    assert np.allclose(affine_grid_translations, 0)

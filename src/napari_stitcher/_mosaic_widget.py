@@ -29,6 +29,33 @@ if TYPE_CHECKING:
     import napari
 
 
+def _get_layer_combined_transform(layer):
+    ndim = len(layer.translate)
+
+    affine = np.array(layer.affine.affine_matrix)
+    affine = affine[-(ndim + 1):, -(ndim + 1):]
+
+    translate = np.eye(ndim + 1)
+    translate[:-1, -1] = layer.translate
+
+    return affine @ translate
+
+
+def _get_layer_translation(layer):
+    return _get_layer_combined_transform(layer)[:-1, -1][-2:].copy()
+
+
+def _clear_layer_affine_translation(layer):
+    affine = np.array(layer.affine.affine_matrix)
+    translation = affine[-3:-1, -1]
+
+    if np.allclose(translation, 0):
+        return
+
+    affine[-3:-1, -1] = 0
+    layer.affine = affine
+
+
 class MosaicQWidget(QWidget):
     # your QWidget.__init__ can optionally request the napari viewer instance
     # in one of two ways:
@@ -151,19 +178,27 @@ class MosaicQWidget(QWidget):
             )
 
         if self.input_order.value == 'forward':
-            l0_translate = self.viewer.layers[0].translate[-2:]
+            l0_translate = _get_layer_translation(self.viewer.layers[0])
         else:
-            l0_translate = self.viewer.layers[-1].translate[-2:]
+            l0_translate = _get_layer_translation(self.viewer.layers[-1])
 
         for l in self.viewer.layers:
             view = _utils.get_str_unique_to_view_from_layer_name(l.name)
             itile = view_order.index(view)
             tile_index = tile_indices[itile]
             # print(f'Layer {l.name} -> tile index: {tile_index}')
-            l.translate[-2:] = [
-                l0_translate[0] + tile_index[1] * tile_w - tile_index[1] * tile_w * self.overlap.value,
-                l0_translate[1] + tile_index[0] * tile_h - tile_index[0] * tile_h * self.overlap.value
+            tile_stride_w = tile_w * (1 - self.overlap.value)
+            tile_stride_h = tile_h * (1 - self.overlap.value)
+            grid_position = [
+                l0_translate[0] + tile_index[1] * tile_stride_w,
+                l0_translate[1] + tile_index[0] * tile_stride_h,
             ]
+
+            _clear_layer_affine_translation(l)
+
+            translate = np.array(l.translate)
+            translate[-2:] = grid_position
+            l.translate = translate
             l.refresh()
         
 
