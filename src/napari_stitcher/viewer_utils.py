@@ -91,7 +91,14 @@ def image_layer_to_msim(l, viewer):
 
     if l.multiscale:
         sims = []
+        # All levels cover the same physical region, so coarser levels have
+        # proportionally larger pixel sizes. Compute the per-level scale from
+        # the shape ratio between the finest (level 0) and each level.
+        finest_spatial_shape = np.array(l.data[0].shape[-len(sdims):], dtype=float)
         for ldata in l.data:
+            level_spatial_shape = np.array(ldata.shape[-len(sdims):], dtype=float)
+            level_scale_factors = finest_spatial_shape / level_spatial_shape
+
             if isinstance(ldata, xr.DataArray):
                 # xarray-backed multiscale (e.g. from napari-aicsimageio)
                 xim_sdims = spatial_image_utils.get_spatial_dims_from_sim(ldata)
@@ -100,8 +107,8 @@ def image_layer_to_msim(l, viewer):
                 sim = spatial_image_utils.get_sim_from_array(
                     ldata,
                     dims=list(ldata.dims),
-                    scale={dim: s for dim, s
-                           in zip(xim_sdims, l.scale[-len(xim_sdims):])},
+                    scale={dim: l.scale[-(len(xim_sdims) - j)] * level_scale_factors[j]
+                           for j, dim in enumerate(xim_sdims)},
                     translation={dim: t for dim, t
                                  in zip(xim_sdims, l.translate[-len(xim_sdims):])},
                     c_coords=[c_coord],
@@ -113,16 +120,19 @@ def image_layer_to_msim(l, viewer):
                 sim = spatial_image_utils.get_sim_from_array(
                     data,
                     dims=dims,
-                    scale={dim: s for dim, s
-                           in zip(sdims, l.scale[-len(sdims):])},
+                    scale={dim: l.scale[-(len(sdims) - j)] * level_scale_factors[j]
+                           for j, dim in enumerate(sdims)},
                     translation={dim: t for dim, t
                                  in zip(sdims, l.translate[-len(sdims):])},
                     c_coords=[ch_name],
                 )
             sims.append(sim)
 
-        # Build multiscale image from the individual resolution levels
+        # Build multiscale image from the individual resolution levels, then
+        # correct the per-level origins for the half-pixel offset introduced
+        # by downsampling (OME-Zarr v0.6 intrinsic coordinate convention).
         msim = msi_utils.get_msim_from_sims(sims)
+        msim = msi_utils.correct_multiscale_origins(msim)
 
     else:
         # Single-scale layer
