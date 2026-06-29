@@ -471,6 +471,7 @@ class StitcherQWidget(QWidget):
 
             params = registration.register(
                 msims,
+                reg_channel=self.reg_ch_picker.value,
                 registration_binning=registration_binning,
                 pairwise_reg_func=pairwise_reg_func,
                 pairwise_reg_func_kwargs=pairwise_reg_func_kwargs,
@@ -508,6 +509,10 @@ class StitcherQWidget(QWidget):
 
         """
         Split layers into channel groups and fuse each group separately.
+
+        If all input napari layers are multiscale, fuses to OME-Zarr (pyramid)
+        and returns a multiscale napari layer.  Otherwise fuses to plain zarr
+        (finest resolution only, cheaper) and returns a single-scale layer.
         """
 
         # Capture manual layer adjustments if fusing with original transforms
@@ -519,55 +524,65 @@ class StitcherQWidget(QWidget):
 
         for _, ch in enumerate(channels):
 
-            msims = [msim for _, msim in self.msims.items()
-                    if ch in msi_utils.get_sim_from_msim(msim).coords['c']]
+            # Select msims for the current channel
+            ch_msims = [msim for _, msim in self.msims.items()
+                        if ch in msi_utils.get_sim_from_msim(msim).coords['c']]
 
-            sims = [msi_utils.get_sim_from_msim(msim) for msim in msims]
-
-            sims = [spatial_image_utils.sim_sel_coords(sim,
-                    {'t': [sim.coords['t'][it]
-                            for it in range(self.times_slider.value[0] + 1,
-                                            self.times_slider.value[1] + 1)]})
-                    for sim in sims]
-
-            fused = fusion.fuse(
-                sims,
-                transform_key='affine_registered'
-                if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
-                else 'affine_metadata',
-            )
-
-            fused = fused.expand_dims({'c': [sims[0].coords['c'].values]})
-
-            mfused = msi_utils.get_msim_from_sim(fused, scale_factors=[])
+            # Select the requested timepoints at the msim level
+            ch_msims = [msi_utils.multiscale_sel_coords(msim,
+                        {'t': [msi_utils.get_sim_from_msim(msim).coords['t'][it]
+                                for it in range(self.times_slider.value[0] + 1,
+                                                self.times_slider.value[1] + 1)]})
+                        for msim in ch_msims]
 
             tmp_fused_path = os.path.join(self.tmpdir.name, 'fused_%s.zarr' %ch)
             if os.path.exists(tmp_fused_path):
                 shutil.rmtree(tmp_fused_path)
 
+            # All-multiscale inputs → OME-Zarr (pyramid written to disk).
+            # Otherwise → plain zarr (fusion.fuse selects only the finest
+            # resolution and writes a single scale, which is cheaper).
+            zarr_options = {'ome_zarr': True} if self.all_layers_multiscale else {}
+
             with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
                 _utils.VisibleActivityDock(self.viewer),\
                 _utils.TqdmCallback(tqdm_class=_utils.progress,
                                     desc='Fusing tiles of channel %s' %ch, bar_format=" "):
-                
-                mfused.to_zarr(tmp_fused_path)
 
-            mfused = msi_utils.multiscale_spatial_image_from_zarr(tmp_fused_path, chunks={})
+                mfused = fusion.fuse(
+                    images=ch_msims,
+                    transform_key='affine_registered'
+                    if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
+                    else 'affine_metadata',
+                    output_zarr_url=tmp_fused_path,
+                    zarr_options=zarr_options,
+                )
 
-            fused_ch_layer_tuple = viewer_utils.create_image_layer_tuples_from_msim(
+            fused_data, fused_kwargs, _ = viewer_utils.create_image_layer_tuples_from_msim(
                 mfused,
                 colormap=None,
                 name_prefix='fused',
             )[0]
 
-            fused_layer = self.viewer.add_image(fused_ch_layer_tuple[0], **fused_ch_layer_tuple[1])
-        
+            if not self.all_layers_multiscale:
+                # Non-multiscale inputs → plain (non-multiscale) output layer.
+                # Squeeze non-spatial size-1 dims (t=1, c=1) so the array shape
+                # matches the spatial-only scale/translate in fused_kwargs.
+                sim = fused_data[0]
+                sdims = spatial_image_utils.get_spatial_dims_from_sim(sim)
+                squeeze_dims = [d for d in sim.dims if d not in sdims and sim.sizes[d] == 1]
+                fused_data = sim.squeeze(dim=squeeze_dims).data
+                fused_kwargs = {**fused_kwargs, 'multiscale': False}
+
+            fused_layer = self.viewer.add_image(fused_data, **fused_kwargs)
+
             self.fused_layers.append(fused_layer)
 
 
     def reset(self):
             
         self.msims = {}
+        self.all_layers_multiscale = True
         self.params = dict()
         self.reg_ch_picker.choices = ()
         self.visualization_type_rbuttons.value = CHOICE_METADATA
@@ -644,7 +659,8 @@ class StitcherQWidget(QWidget):
         for l in self.input_layers:
             msim = viewer_utils.image_layer_to_msim(l, self.viewer)
             
-            if 'c' in msim['scale0/image'].dims:
+            # Reject layers with more than one channel ('c' is always a dim now)
+            if msim['scale0/image'].sizes.get('c', 1) > 1:
                 notifications.notification_manager.receive_info(
                     "Layer '%s' has more than one channel. Consider splitting the stack (right click on layer -> 'Split Stack')." %l.name
                 )
@@ -654,6 +670,9 @@ class StitcherQWidget(QWidget):
             
             msim = msi_utils.ensure_dim(msim, 't')
             self.msims[l.name] = msim
+
+        # Track whether all input layers are multiscale to decide fusion output type
+        self.all_layers_multiscale = all(l.multiscale for l in self.input_layers)
 
         sims = [msi_utils.get_sim_from_msim(msim) for l.name, msim in self.msims.items()]
 

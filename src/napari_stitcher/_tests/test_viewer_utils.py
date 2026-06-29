@@ -43,11 +43,8 @@ def test_create_image_layer_tuples_from_msims(ndim, N_c, N_t, make_napari_viewer
         reg_channel_index=0
         )
     
-    fused = fusion.fuse(
-        [msi_utils.get_sim_from_msim(msim) for msim in msims],
-        transform_key=registered_transform_key)
-    
-    mfused = msi_utils.get_msim_from_sim(fused, scale_factors=[2])
+    # Fuse msims directly so the result is also multiscale
+    mfused = fusion.fuse(images=msims, transform_key=registered_transform_key)
     
     lds = viewer_utils.create_image_layer_tuples_from_msims(
         msims, transform_key=registered_transform_key)

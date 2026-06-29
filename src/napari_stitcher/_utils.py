@@ -44,7 +44,9 @@ def get_str_unique_to_ch_from_layer_name(layer_name):
 
 
 def get_str_unique_to_ch_from_sim_coords(layer_coords):
-    return str(layer_coords['c'].values)
+    # 'c' may be a scalar (0-d) or a length-1 dimensional coordinate;
+    # .flat[0] extracts the single string value in both cases
+    return str(layer_coords['c'].values.flat[0])
 
 
 def get_view_from_layer(layer):

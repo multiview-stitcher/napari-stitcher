@@ -1,4 +1,3 @@
-import os
 import numpy as np
 from pathlib import Path
 import tempfile
@@ -10,7 +9,7 @@ from napari_stitcher import (
     viewer_utils,
 )
 
-from multiview_stitcher import msi_utils, registration, mv_graph, spatial_image_utils
+from multiview_stitcher import msi_utils, mv_graph, spatial_image_utils
 from multiview_stitcher.io import METADATA_TRANSFORM_KEY
 from multiview_stitcher.sample_data import (
     get_mosaic_sample_data_path, generate_tiled_dataset)
@@ -36,9 +35,7 @@ def test_data_loading_while_plugin_open(make_napari_viewer):
 
 
 
-# make_napari_viewer is a pytest fixture that returns a napari viewer object
-# capsys is a pytest fixture that captures stdout and stderr output streams
-def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
+def test_stitcher_q_widget_integrated(make_napari_viewer):
     """
     Integration test covering typical pipeline.
     """
@@ -74,7 +71,7 @@ def test_stitcher_q_widget_integrated(make_napari_viewer, capsys):
     stitcher_widget.visualization_type_rbuttons.value=_stitcher_widget.CHOICE_REGISTERED
 
     # Make sure view 0 is shifted now
-    assert ~np.allclose(
+    assert not np.allclose(
         np.eye(ndim + 1),
         viewer.layers[1].affine.affine_matrix[-(ndim+1):, -(ndim+1):])
 
@@ -434,3 +431,39 @@ def test_manual_transform_show_original_no_msim_update(make_napari_viewer):
     assert np.allclose(
         np.array(updated_metadata), np.array(original_metadata)
     ), "affine_metadata should NOT be updated live when showing Original"
+
+
+@pytest.mark.parametrize("all_multiscale", [True, False])
+def test_fusion_output_scale_matches_input(all_multiscale, make_napari_viewer):
+    """
+    Fused result is multiscale (>1 resolution levels) iff all input layers
+    are multiscale; a single non-multiscale input collapses the output to
+    a single resolution level.
+    """
+    viewer = make_napari_viewer()
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    if all_multiscale:
+        sims = generate_tiled_dataset(
+            ndim=2, N_t=1, N_c=1, tile_size=30,
+            tiles_x=2, tiles_y=1, tiles_z=1, overlap=5, zoom=10, dtype=np.uint8)
+        msims = [msi_utils.get_msim_from_sim(sim, scale_factors=[2]) for sim in sims]
+        layer_tuples = viewer_utils.create_image_layer_tuples_from_msims(
+            msims, transform_key=METADATA_TRANSFORM_KEY)
+        for lt in layer_tuples:
+            viewer.add_image(lt[0], **lt[1])
+    else:
+        # Plain numpy arrays; l.multiscale is False for these layers
+        D = 100
+        arr = np.random.randint(0, 255, (D, D), dtype=np.uint8)
+        viewer.add_image(arr[:, :D//2+D//10], translate=(0, 0), name='im1')
+        viewer.add_image(arr[:, D//2-D//10:], translate=(0, D//2-D//10), name='im2')
+
+    wdg.button_load_layers_all.clicked()
+    assert wdg.all_layers_multiscale == all_multiscale
+
+    wdg.run_fusion()
+    fused_layer = wdg.fused_layers[-1]
+    # Fused layer is multiscale iff all inputs were multiscale
+    assert fused_layer.multiscale == all_multiscale
