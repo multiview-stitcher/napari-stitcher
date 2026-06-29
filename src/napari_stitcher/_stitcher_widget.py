@@ -11,6 +11,11 @@ import os, tempfile, sys, shutil
 from collections.abc import Iterable
 
 import numpy as np
+import napari
+from packaging.version import Version
+
+# locked_data_level (the user-set level lock, None when Auto) was added in 0.7.1
+_NAPARI_HAS_LOCKED_DATA_LEVEL = Version(napari.__version__) >= Version('0.7.1')
 
 from napari.utils import notifications
 
@@ -144,9 +149,19 @@ class StitcherQWidget(QWidget):
                             self.load_layers_box,
                             ]
 
+        self.use_layer_resolution = widgets.CheckBox(
+            value=False,
+            text='Use layer resolution',
+            tooltip='If checked and a multiscale layer has its resolution locked\n'
+                    '(not "Auto") in the napari layer controls, registration uses\n'
+                    'that locked level instead of letting the stitcher choose.\n'
+                    'Layers still showing "Auto" are unaffected.\n'
+                    'Requires napari >= 0.7.1.')
+
         self.reg_config_widgets_basic = [
                             self.times_slider,
                             self.reg_ch_picker,
+                            self.use_layer_resolution,
                             ]
 
         self.reg_config_widgets_advanced = [
@@ -464,6 +479,35 @@ class StitcherQWidget(QWidget):
                                          self.times_slider.value[1] + 1)]})
                   for msim in msims]
 
+        # Optionally collapse each msim to the resolution level the user has
+        # locked in the napari layer controls (locked_data_level).  Layers
+        # showing "Auto" (locked_data_level is None) are passed through
+        # unchanged.  The full msims in self.msims are unmodified; params are
+        # applied to them after registration.
+        if self.use_layer_resolution.value and _NAPARI_HAS_LOCKED_DATA_LEVEL:
+            view_to_layer = {
+                _utils.get_str_unique_to_view_from_layer_name(l.name): l
+                for l in self.input_layers if l.name in self.msims
+            }
+            reg_msims = []
+            for lname, msim in zip(sorted_lnames, msims):
+                l = view_to_layer.get(lname)
+                scale_keys = msi_utils.get_sorted_scale_keys(msim)
+                locked = getattr(l, 'locked_data_level', None) if l is not None else None
+                if l is not None and l.multiscale and len(scale_keys) > 1 and locked is not None:
+                    level = min(locked, len(scale_keys) - 1)
+                    sim = msi_utils.get_sim_from_msim(msim, scale=scale_keys[level])
+                    reg_msim = msi_utils.get_msim_from_sim(sim, scale_factors=[])
+                    msi_utils.set_affine_transform(
+                        reg_msim,
+                        msi_utils.get_transform_from_msim(msim, transform_key='affine_metadata'),
+                        transform_key='affine_metadata')
+                else:
+                    reg_msim = msim
+                reg_msims.append(reg_msim)
+        else:
+            reg_msims = msims
+
         # with _utils.TemporarilyDisabledWidgets([self.container]),\
         with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
             _utils.VisibleActivityDock(self.viewer),\
@@ -486,7 +530,7 @@ class StitcherQWidget(QWidget):
                 groupwise_resolution_kwargs = None
 
             params = registration.register(
-                msims,
+                reg_msims,
                 reg_channel=self.reg_ch_picker.value,
                 registration_binning=registration_binning,
                 pairwise_reg_func=pairwise_reg_func,

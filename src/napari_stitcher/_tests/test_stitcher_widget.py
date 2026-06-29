@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from unittest.mock import patch
 from pathlib import Path
 import tempfile
 import tifffile
@@ -492,3 +493,53 @@ def test_precompute_fusion(precompute, make_napari_viewer):
 
     zarr_written = any(name.endswith('.zarr') for name in os.listdir(wdg.tmpdir.name))
     assert zarr_written == precompute
+
+
+@pytest.mark.parametrize("use_layer_res", [True, False])
+def test_use_layer_resolution(use_layer_res, make_napari_viewer):
+    """
+    When 'Use layer resolution' is enabled, registration receives single-scale
+    msims at the layer's current data_level.  When disabled it receives the
+    full multiscale msims (> 1 scale level).
+    """
+    import multiview_stitcher.registration as mv_reg
+
+    viewer = make_napari_viewer()
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    sims = generate_tiled_dataset(
+        ndim=2, N_t=1, N_c=1, tile_size=30,
+        tiles_x=2, tiles_y=1, tiles_z=1, overlap=5, zoom=10, dtype=np.uint8)
+    msims = [msi_utils.get_msim_from_sim(sim, scale_factors=[2]) for sim in sims]
+    for lt in viewer_utils.create_image_layer_tuples_from_msims(
+            msims, transform_key=METADATA_TRANSFORM_KEY):
+        viewer.add_image(lt[0], **lt[1])
+
+    wdg.button_load_layers_all.clicked()
+
+    # Lock level 0 (finest) on every multiscale layer, simulating the user
+    # choosing a specific resolution in napari's layer controls (not Auto)
+    for l in wdg.input_layers:
+        if l.multiscale:
+            l.locked_data_level = 0
+
+    wdg.use_layer_resolution.value = use_layer_res
+
+    captured = []
+    real_register = mv_reg.register
+
+    def capturing_register(msims_arg, **kwargs):
+        captured.extend(msims_arg)
+        return real_register(msims_arg, **kwargs)
+
+    with patch.object(mv_reg, 'register', side_effect=capturing_register):
+        wdg.run_registration()
+
+    n_scales = [len(msi_utils.get_sorted_scale_keys(m)) for m in captured]
+    if use_layer_res:
+        assert all(n == 1 for n in n_scales), \
+            f"expected single-scale reg inputs, got {n_scales}"
+    else:
+        assert all(n > 1 for n in n_scales), \
+            f"expected multiscale reg inputs, got {n_scales}"
