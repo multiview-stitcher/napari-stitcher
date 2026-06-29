@@ -165,17 +165,32 @@ class StitcherQWidget(QWidget):
 
         self.reg_config_widgets = self.reg_config_widgets_basic + self.reg_config_widgets_advanced + self.reg_config_widgets_method
 
-        # Initialize tab screen 
-        self.reg_config_widgets_tabs = QTabWidget() 
-        self.reg_config_widgets_tabs.resize(300, 200) 
-   
-        # Add tabs 
+        # Registration sub-tabs (Basic / More / Method)
+        self.reg_config_widgets_tabs = QTabWidget()
+        self.reg_config_widgets_tabs.resize(300, 200)
         self.reg_config_widgets_tabs.addTab(
-            widgets.VBox(widgets=self.reg_config_widgets_basic).native, "Basic") 
+            widgets.VBox(widgets=self.reg_config_widgets_basic).native, "Basic")
         self.reg_config_widgets_tabs.addTab(
             widgets.VBox(widgets=self.reg_config_widgets_advanced).native, "More")
         self.reg_config_widgets_tabs.addTab(
             widgets.VBox(widgets=self.reg_config_widgets_method).native, "Method")
+
+        # Fusion settings
+        self.precompute_fusion = widgets.CheckBox(
+            value=True,
+            text='Pre-compute fusion',
+            tooltip='If checked, fusion is computed eagerly and written to a\n'
+                    'temporary (OME-)Zarr store. The resulting napari layer is\n'
+                    'backed by that store.\n'
+                    'If unchecked, the fused image is a lazy dask array (no\n'
+                    'computation until the layer is first rendered).')
+        self.fusion_config_widgets = [self.precompute_fusion]
+
+        # Top-level settings tabs: Registration and Fusion
+        self.settings_tabs = QTabWidget()
+        self.settings_tabs.addTab(self.reg_config_widgets_tabs, "Registration")
+        self.settings_tabs.addTab(
+            widgets.VBox(widgets=self.fusion_config_widgets).native, "Fusion")
 
         self.visualization_widgets = [
                             self.visualization_type_rbuttons,
@@ -184,6 +199,7 @@ class StitcherQWidget(QWidget):
         self.all_widgets = \
             self.loading_widgets +\
             self.reg_config_widgets +\
+            self.fusion_config_widgets +\
             [self.button_stitch] +\
             [self.button_fuse] +\
             self.visualization_widgets
@@ -197,7 +213,7 @@ class StitcherQWidget(QWidget):
             else:
                 self.container.layout().addWidget(w)
 
-        self.container.layout().addWidget(self.reg_config_widgets_tabs)
+        self.container.layout().addWidget(self.settings_tabs)
         self.container.layout().addWidget(self.button_stitch.native)
         self.container.layout().addWidget(self.button_fuse.native)
 
@@ -213,8 +229,8 @@ class StitcherQWidget(QWidget):
         self.layout().addWidget(self.container)
 
         # disable all widgets (apart from loading) until layers are loaded
-        for w in self.reg_config_widgets + self.visualization_widgets +\
-            [self.button_stitch, self.button_fuse]:
+        for w in self.reg_config_widgets + self.fusion_config_widgets + \
+                self.visualization_widgets + [self.button_stitch, self.button_fuse]:
             w.enabled = False
             if isinstance(w, Iterable):
                 for sw in w:
@@ -510,9 +526,14 @@ class StitcherQWidget(QWidget):
         """
         Split layers into channel groups and fuse each group separately.
 
-        If all input napari layers are multiscale, fuses to OME-Zarr (pyramid)
-        and returns a multiscale napari layer.  Otherwise fuses to plain zarr
-        (finest resolution only, cheaper) and returns a single-scale layer.
+        If all input napari layers are multiscale, the fused result is a
+        multiscale napari layer; otherwise it is a plain single-scale layer.
+
+        When "Pre-compute fusion" is enabled (default), the result is written
+        to a temporary (OME-)Zarr store before creating the layer, so the data
+        is fully on disk and rendering is fast.  When disabled, fusion.fuse
+        returns a lazy dask graph and no disk write occurs; computation is
+        deferred until the layer is first rendered.
         """
 
         # Capture manual layer adjustments if fusing with original transforms
@@ -535,28 +556,33 @@ class StitcherQWidget(QWidget):
                                                 self.times_slider.value[1] + 1)]})
                         for msim in ch_msims]
 
-            tmp_fused_path = os.path.join(self.tmpdir.name, 'fused_%s.zarr' %ch)
-            if os.path.exists(tmp_fused_path):
-                shutil.rmtree(tmp_fused_path)
+            transform_key = ('affine_registered'
+                             if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
+                             else 'affine_metadata')
 
-            # All-multiscale inputs → OME-Zarr (pyramid written to disk).
-            # Otherwise → plain zarr (fusion.fuse selects only the finest
-            # resolution and writes a single scale, which is cheaper).
-            zarr_options = {'ome_zarr': True} if self.all_layers_multiscale else {}
+            if self.precompute_fusion.value:
+                # Eager: write fused result to (OME-)Zarr before creating the layer.
+                # All-multiscale inputs → OME-Zarr pyramid; otherwise plain zarr
+                # (fusion.fuse selects only the finest resolution, which is cheaper).
+                tmp_fused_path = os.path.join(self.tmpdir.name, 'fused_%s.zarr' % ch)
+                if os.path.exists(tmp_fused_path):
+                    shutil.rmtree(tmp_fused_path)
+                zarr_options = {'ome_zarr': True} if self.all_layers_multiscale else {}
 
-            with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
-                _utils.VisibleActivityDock(self.viewer),\
-                _utils.TqdmCallback(tqdm_class=_utils.progress,
-                                    desc='Fusing tiles of channel %s' %ch, bar_format=" "):
-
-                mfused = fusion.fuse(
-                    images=ch_msims,
-                    transform_key='affine_registered'
-                    if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
-                    else 'affine_metadata',
-                    output_zarr_url=tmp_fused_path,
-                    zarr_options=zarr_options,
-                )
+                with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
+                    _utils.VisibleActivityDock(self.viewer),\
+                    _utils.TqdmCallback(tqdm_class=_utils.progress,
+                                        desc='Fusing tiles of channel %s' % ch, bar_format=" "):
+                    mfused = fusion.fuse(
+                        images=ch_msims,
+                        transform_key=transform_key,
+                        output_zarr_url=tmp_fused_path,
+                        zarr_options=zarr_options,
+                    )
+            else:
+                # Lazy: return a dask-backed msim with no disk write.
+                # Computation is deferred until the layer is first rendered.
+                mfused = fusion.fuse(images=ch_msims, transform_key=transform_key)
 
             fused_data, fused_kwargs, _ = viewer_utils.create_image_layer_tuples_from_msim(
                 mfused,
@@ -609,7 +635,7 @@ class StitcherQWidget(QWidget):
                 for l_name, msim in self.msims.items()])
             self.reg_ch_picker.value = self.reg_ch_picker.choices[0]
 
-        for w in self.reg_config_widgets + [self.button_stitch, self.button_fuse]:
+        for w in self.reg_config_widgets + self.fusion_config_widgets + [self.button_stitch, self.button_fuse]:
             if isinstance(w, Iterable):
                 for sw in w:
                     sw.enabled = True
