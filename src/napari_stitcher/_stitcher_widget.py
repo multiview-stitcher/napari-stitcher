@@ -126,6 +126,12 @@ class StitcherQWidget(QWidget):
         self.reg_method.changed.connect(self._on_reg_method_changed)
         self._on_reg_method_changed()
 
+        self.custom_reg_binning.changed.connect(self._on_custom_reg_binning_changed)
+        self._on_custom_reg_binning_changed()
+
+        self.do_quality_filter.changed.connect(self._on_do_quality_filter_changed)
+        self._on_do_quality_filter_changed()
+
         self.button_stitch = widgets.Button(text='Register',
             tooltip='Use the overlaps between tiles to determine their relative positions.')
         
@@ -151,7 +157,7 @@ class StitcherQWidget(QWidget):
 
         self.use_layer_resolution = widgets.CheckBox(
             value=False,
-            text='Use layer resolution',
+            text='Use chosen layer resolution',
             tooltip='If checked and a multiscale layer has its resolution locked\n'
                     '(not "Auto") in the napari layer controls, registration uses\n'
                     'that locked level instead of letting the stitcher choose.\n'
@@ -161,7 +167,6 @@ class StitcherQWidget(QWidget):
         self.reg_config_widgets_basic = [
                             self.times_slider,
                             self.reg_ch_picker,
-                            self.use_layer_resolution,
                             ]
 
         self.reg_config_widgets_advanced = [
@@ -171,6 +176,7 @@ class StitcherQWidget(QWidget):
                             self.do_quality_filter,
                             self.quality_threshold,
                             self.pair_pruning_method,
+                            self.use_layer_resolution,
         ]
 
         self.reg_config_widgets_method = [
@@ -280,6 +286,17 @@ class StitcherQWidget(QWidget):
     def _on_reg_method_changed(self, event=None):
         """Show/hide transform type widget based on the selected method."""
         self.antspy_transform_types.visible = self.reg_method.value == 'ITKElastix'
+
+    def _on_custom_reg_binning_changed(self, event=None):
+        """Enable binning sliders only when custom binning is ticked."""
+        on = self.custom_reg_binning.value and self.custom_reg_binning.enabled
+        self.x_reg_binning.enabled = on
+        self.y_reg_binning.enabled = on
+
+    def _on_do_quality_filter_changed(self, event=None):
+        """Enable quality threshold only when quality filtering is ticked."""
+        self.quality_threshold.enabled = (
+            self.do_quality_filter.value and self.do_quality_filter.enabled)
 
     def update_viewer_transformations(self, event=None):
         """
@@ -684,6 +701,12 @@ class StitcherQWidget(QWidget):
                 for sw in w:
                     sw.enabled = True
             w.enabled = True
+
+        # Re-apply conditional enable states that the bulk loop would override
+        self._on_custom_reg_binning_changed()
+        self._on_do_quality_filter_changed()
+        if not _NAPARI_HAS_LOCKED_DATA_LEVEL:
+            self.use_layer_resolution.enabled = False
 
 
     def load_layers_all(self):
