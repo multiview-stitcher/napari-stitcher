@@ -28,7 +28,7 @@ dependencies = [
     "dask",
     "magicgui",
     "multiscale_spatial_image",
-    "multiview-stitcher[czi,itk-elastix]>=0.1.56",
+    "multiview-stitcher[czi,itk-elastix]>=0.1.59",
     "napari",
     "numpy >=1.18",
     "qtpy",
@@ -48,14 +48,12 @@ dynamic = ["version"]
 [project.optional-dependencies]
 testing_no_gui = [
     "tox",
-    "multiview-stitcher[czi] >=0.1.56",
     "pytest",
     "pytest-cov",
     "pytest-qt",
 ]
 testing = [
     "tox",
-    "multiview-stitcher[czi] >=0.1.56",
     "pytest",
     "pytest-cov",
     "pytest-qt",
