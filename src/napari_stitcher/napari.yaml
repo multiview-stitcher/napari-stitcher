@@ -23,6 +23,9 @@ contributions:
     - id: napari-stitcher.timelapse_with_stage_shifts_with_overlap_3d
       python_name: napari_stitcher._sample_data:timelapse_with_stage_shifts_with_overlap_3d
       title: Load sample data from Stitcher
+    - id: napari-stitcher.multiscale_digits
+      python_name: napari_stitcher._sample_data:multiscale_digits
+      title: Load multiscale digits sample data from Stitcher
 
     - id: napari-stitcher.make_qwidget
       python_name: napari_stitcher._stitcher_widget:StitcherQWidget
@@ -48,6 +51,9 @@ contributions:
     - command: napari-stitcher.timelapse_with_stage_shifts_with_overlap_3d
       display_name: 3D timelapse with stage shifts and overlap
       key: unique_id.3
+    - command: napari-stitcher.multiscale_digits
+      display_name: Multiscale digits
+      key: unique_id.4
   widgets:
     - command: napari-stitcher.make_qwidget
       display_name: Stitcher
