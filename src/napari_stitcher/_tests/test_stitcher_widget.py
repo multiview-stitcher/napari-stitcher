@@ -11,7 +11,8 @@ from napari_stitcher import (
     viewer_utils,
 )
 
-from multiview_stitcher import msi_utils, mv_graph, spatial_image_utils
+from multiview_stitcher import (
+    misc_utils, msi_utils, mv_graph, spatial_image_utils)
 from multiview_stitcher.io import METADATA_TRANSFORM_KEY
 from multiview_stitcher.sample_data import (
     get_mosaic_sample_data_path, generate_tiled_dataset)
@@ -488,9 +489,11 @@ def test_precompute_fusion(precompute, make_napari_viewer):
     viewer.add_image(arr[:, D//2-D//10:], translate=(0, D//2-D//10), name='im2')
 
     wdg.button_load_layers_all.clicked()
+    wdg.precompute_fusion_n_jobs.value = 1
     wdg.precompute_fusion.value = precompute
     assert wdg.precompute_fusion_path.mode.value == 'd'
     assert wdg.precompute_fusion_path.enabled == precompute
+    assert wdg.precompute_fusion_n_jobs.enabled == precompute
     wdg.run_fusion()
 
     zarr_written = any(name.endswith('.zarr') for name in os.listdir(wdg.tmpdir.name))
@@ -511,12 +514,31 @@ def test_precompute_fusion_uses_custom_path(tmp_path, make_napari_viewer):
     viewer.add_image(arr[:, D//2-D//10:], translate=(0, D//2-D//10), name='im2')
 
     wdg.button_load_layers_all.clicked()
+    wdg.precompute_fusion_n_jobs.value = 1
     output_path = tmp_path / 'custom_fusion.zarr'
     wdg.precompute_fusion_path.value = output_path
     wdg.run_fusion()
 
     assert output_path.exists()
     assert not any(name.endswith('.zarr') for name in os.listdir(wdg.tmpdir.name))
+
+
+def test_precompute_fusion_job_options(make_napari_viewer):
+    """
+    Pre-computed fusion uses joblib with batches scaled to the job count.
+    """
+    viewer = make_napari_viewer()
+    wdg = StitcherQWidget(viewer)
+
+    assert wdg.precompute_fusion_n_jobs.value == (os.cpu_count() or 1)
+
+    n_jobs = min(3, int(wdg.precompute_fusion_n_jobs.max))
+    wdg.precompute_fusion_n_jobs.value = n_jobs
+    batch_options = wdg._get_precompute_fusion_batch_options()
+
+    assert batch_options['batch_func'] is misc_utils.process_batch_using_joblib
+    assert batch_options['n_batch'] == 5 * n_jobs
+    assert batch_options['batch_func_kwargs']['n_jobs'] == n_jobs
 
 
 @pytest.mark.parametrize("use_layer_res", [True, False])

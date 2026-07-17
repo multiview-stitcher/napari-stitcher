@@ -26,6 +26,7 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     "dask",
+    "joblib",
     "magicgui",
     "multiscale_spatial_image",
     "multiview-stitcher[czi,itk-elastix]>=0.1.59",

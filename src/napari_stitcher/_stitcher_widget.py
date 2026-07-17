@@ -29,6 +29,7 @@ from multiview_stitcher import (
     spatial_image_utils,
     msi_utils,
     param_utils,
+    misc_utils,
     )
 from napari.layers import Image, Labels
 
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
 # define labels for visualization choices
 CHOICE_METADATA = 'Original'
 CHOICE_REGISTERED = 'Registered'
+DEFAULT_FUSION_N_JOBS = os.cpu_count() or 1
 
 
 class StitcherQWidget(QWidget):
@@ -212,12 +214,20 @@ class StitcherQWidget(QWidget):
             label='Fusion OME-Zarr path:',
             tooltip='Optional top-level path for the pre-computed fusion zarr store.\n'
                     'Leave empty to use a temporary store.')
+        self.precompute_fusion_n_jobs = widgets.SpinBox(
+            value=DEFAULT_FUSION_N_JOBS,
+            min=1,
+            max=DEFAULT_FUSION_N_JOBS,
+            label='Fusion jobs:',
+            tooltip='Number of local joblib jobs to use for pre-computed fusion.\n'
+                    'The default is the number of detected CPU cores.')
         self.precompute_fusion.changed.connect(
             self._on_precompute_fusion_changed)
         self._on_precompute_fusion_changed()
         self.fusion_config_widgets = [
             self.precompute_fusion,
             self.precompute_fusion_path,
+            self.precompute_fusion_n_jobs,
         ]
 
         # Top-level settings tabs: Registration and Fusion
@@ -312,9 +322,10 @@ class StitcherQWidget(QWidget):
             self.do_quality_filter.value and self.do_quality_filter.enabled)
 
     def _on_precompute_fusion_changed(self, event=None):
-        """Enable the fusion path chooser only for pre-computed fusion."""
-        self.precompute_fusion_path.enabled = (
-            self.precompute_fusion.value and self.precompute_fusion.enabled)
+        """Enable pre-compute-only fusion controls when pre-compute is active."""
+        enabled = self.precompute_fusion.value and self.precompute_fusion.enabled
+        self.precompute_fusion_path.enabled = enabled
+        self.precompute_fusion_n_jobs.enabled = enabled
 
     def _get_precompute_fusion_path(self, channel, n_channels):
         """
@@ -354,6 +365,23 @@ class StitcherQWidget(QWidget):
         stem, extension = os.path.splitext(filename)
         filename = stem + channel_suffix + extension
         return os.path.join(parent_dir, filename)
+
+    def _get_precompute_fusion_batch_options(self):
+        """
+        Return joblib batch options for direct-to-Zarr fusion.
+
+        multiview-stitcher processes direct Zarr output in block batches.  The
+        joblib batch function parallelizes blocks inside each batch, and a batch
+        size of ``5 * n_jobs`` keeps several blocks queued per worker.
+        """
+        n_jobs = int(self.precompute_fusion_n_jobs.value)
+        return {
+            'batch_func': misc_utils.process_batch_using_joblib,
+            'n_batch': 5 * n_jobs,
+            'batch_func_kwargs': {
+                'n_jobs': n_jobs,
+            },
+        }
 
     def update_viewer_transformations(self, event=None):
         """
@@ -698,6 +726,8 @@ class StitcherQWidget(QWidget):
                         transform_key=transform_key,
                         output_zarr_url=fused_path,
                         zarr_options=zarr_options,
+                        batch_options=(
+                            self._get_precompute_fusion_batch_options()),
                     )
             else:
                 # Lazy: return a dask-backed msim with no disk write.
