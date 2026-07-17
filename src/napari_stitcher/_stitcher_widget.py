@@ -201,11 +201,24 @@ class StitcherQWidget(QWidget):
             value=True,
             text='Pre-compute fusion',
             tooltip='If checked, fusion is computed eagerly and written to a\n'
-                    'temporary (OME-)Zarr store. The resulting napari layer is\n'
+                    '(OME-)Zarr store. The resulting napari layer is\n'
                     'backed by that store.\n'
                     'If unchecked, the fused image is a lazy dask array (no\n'
                     'computation until the layer is first rendered).')
-        self.fusion_config_widgets = [self.precompute_fusion]
+        self.precompute_fusion_path = widgets.FileEdit(
+            mode='d',
+            value=None,
+            nullable=True,
+            label='Fusion OME-Zarr path:',
+            tooltip='Optional top-level path for the pre-computed fusion zarr store.\n'
+                    'Leave empty to use a temporary store.')
+        self.precompute_fusion.changed.connect(
+            self._on_precompute_fusion_changed)
+        self._on_precompute_fusion_changed()
+        self.fusion_config_widgets = [
+            self.precompute_fusion,
+            self.precompute_fusion_path,
+        ]
 
         # Top-level settings tabs: Registration and Fusion
         self.settings_tabs = QTabWidget()
@@ -297,6 +310,50 @@ class StitcherQWidget(QWidget):
         """Enable quality threshold only when quality filtering is ticked."""
         self.quality_threshold.enabled = (
             self.do_quality_filter.value and self.do_quality_filter.enabled)
+
+    def _on_precompute_fusion_changed(self, event=None):
+        """Enable the fusion path chooser only for pre-computed fusion."""
+        self.precompute_fusion_path.enabled = (
+            self.precompute_fusion.value and self.precompute_fusion.enabled)
+
+    def _get_precompute_fusion_path(self, channel, n_channels):
+        """
+        Return the top-level zarr path for a pre-computed fusion result.
+
+        An empty picker value keeps the existing behavior and writes one store
+        per channel to the widget-owned temporary directory.  A user-selected
+        path is used exactly for single-channel fusion.  For multi-channel
+        fusion, this widget still writes one store per channel, so a channel
+        suffix is inserted to avoid overwriting earlier channels.
+        """
+        output_path = self.precompute_fusion_path.value
+        if output_path is None:
+            return os.path.join(self.tmpdir.name, 'fused_%s.zarr' % channel)
+
+        output_path = os.fspath(output_path)
+        if n_channels > 1:
+            output_path = self._append_channel_to_path(output_path, channel)
+
+        parent_dir = os.path.dirname(output_path)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+        return output_path
+
+    @staticmethod
+    def _append_channel_to_path(path, channel):
+        """Insert a channel suffix before the zarr extension in ``path``."""
+        parent_dir, filename = os.path.split(path)
+        channel_suffix = '_%s' % channel
+
+        for extension in ('.ome.zarr', '.zarr'):
+            if filename.endswith(extension):
+                filename = (
+                    filename[:-len(extension)] + channel_suffix + extension)
+                return os.path.join(parent_dir, filename)
+
+        stem, extension = os.path.splitext(filename)
+        filename = stem + channel_suffix + extension
+        return os.path.join(parent_dir, filename)
 
     def update_viewer_transformations(self, event=None):
         """
@@ -591,10 +648,11 @@ class StitcherQWidget(QWidget):
         multiscale napari layer; otherwise it is a plain single-scale layer.
 
         When "Pre-compute fusion" is enabled (default), the result is written
-        to a temporary (OME-)Zarr store before creating the layer, so the data
-        is fully on disk and rendering is fast.  When disabled, fusion.fuse
-        returns a lazy dask graph and no disk write occurs; computation is
-        deferred until the layer is first rendered.
+        to an (OME-)Zarr store before creating the layer, so the data is fully
+        on disk and rendering is fast.  With no user-selected path, that store
+        lives in a temporary directory.  When disabled, fusion.fuse returns a
+        lazy dask graph and no disk write occurs; computation is deferred until
+        the layer is first rendered.
         """
 
         # Capture manual layer adjustments if fusing with original transforms
@@ -625,9 +683,10 @@ class StitcherQWidget(QWidget):
                 # Eager: write fused result to (OME-)Zarr before creating the layer.
                 # All-multiscale inputs → OME-Zarr pyramid; otherwise plain zarr
                 # (fusion.fuse selects only the finest resolution, which is cheaper).
-                tmp_fused_path = os.path.join(self.tmpdir.name, 'fused_%s.zarr' % ch)
-                if os.path.exists(tmp_fused_path):
-                    shutil.rmtree(tmp_fused_path)
+                fused_path = self._get_precompute_fusion_path(
+                    ch, n_channels=len(channels))
+                if os.path.exists(fused_path):
+                    shutil.rmtree(fused_path)
                 zarr_options = {'ome_zarr': True} if self.all_layers_multiscale else {}
 
                 with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
@@ -637,7 +696,7 @@ class StitcherQWidget(QWidget):
                     mfused = fusion.fuse(
                         images=ch_msims,
                         transform_key=transform_key,
-                        output_zarr_url=tmp_fused_path,
+                        output_zarr_url=fused_path,
                         zarr_options=zarr_options,
                     )
             else:
@@ -705,6 +764,7 @@ class StitcherQWidget(QWidget):
         # Re-apply conditional enable states that the bulk loop would override
         self._on_custom_reg_binning_changed()
         self._on_do_quality_filter_changed()
+        self._on_precompute_fusion_changed()
         if not _NAPARI_HAS_LOCKED_DATA_LEVEL:
             self.use_layer_resolution.enabled = False
 
@@ -878,4 +938,3 @@ if __name__ == "__main__":
     
     wdg = StitcherQWidget(viewer)
     viewer.window.add_dock_widget(wdg)
-

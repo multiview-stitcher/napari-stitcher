@@ -489,10 +489,34 @@ def test_precompute_fusion(precompute, make_napari_viewer):
 
     wdg.button_load_layers_all.clicked()
     wdg.precompute_fusion.value = precompute
+    assert wdg.precompute_fusion_path.mode.value == 'd'
+    assert wdg.precompute_fusion_path.enabled == precompute
     wdg.run_fusion()
 
     zarr_written = any(name.endswith('.zarr') for name in os.listdir(wdg.tmpdir.name))
     assert zarr_written == precompute
+
+
+def test_precompute_fusion_uses_custom_path(tmp_path, make_napari_viewer):
+    """
+    User-selected fusion paths are the top-level pre-computed zarr stores.
+    """
+    viewer = make_napari_viewer()
+    wdg = StitcherQWidget(viewer)
+    viewer.window.add_dock_widget(wdg)
+
+    D = 100
+    arr = np.random.randint(0, 255, (D, D), dtype=np.uint8)
+    viewer.add_image(arr[:, :D//2+D//10], translate=(0, 0), name='im1')
+    viewer.add_image(arr[:, D//2-D//10:], translate=(0, D//2-D//10), name='im2')
+
+    wdg.button_load_layers_all.clicked()
+    output_path = tmp_path / 'custom_fusion.zarr'
+    wdg.precompute_fusion_path.value = output_path
+    wdg.run_fusion()
+
+    assert output_path.exists()
+    assert not any(name.endswith('.zarr') for name in os.listdir(wdg.tmpdir.name))
 
 
 @pytest.mark.parametrize("use_layer_res", [True, False])
