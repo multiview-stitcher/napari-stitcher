@@ -61,6 +61,10 @@ testing = [
     "napari",
     "pyqt5",
 ]
+playground = [
+    "napari[all]",
+    "napari-ome-zarr",
+]
 
 [project.entry-points."napari.manifest"]
 "napari-stitcher" = "napari_stitcher:napari.yaml"
