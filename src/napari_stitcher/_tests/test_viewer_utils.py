@@ -17,14 +17,19 @@ import pytest
 from napari_stitcher import viewer_utils, _utils
 
 
-def _write_two_channel_ome_zarr(zarr_path):
+def _two_channel_data():
     shape = (224, 240)
-    data = np.stack([
-        np.full(shape, 2, dtype=np.uint8),
-        np.full(shape, 9, dtype=np.uint8),
+    right_half = np.arange(shape[1]) >= shape[1] // 2
+
+    return np.stack([
+        np.broadcast_to(2 + right_half, shape).astype(np.uint8),
+        np.broadcast_to(9 + right_half, shape).astype(np.uint8),
     ])
+
+
+def _write_two_channel_ome_zarr(zarr_path):
     sim = spatial_image_utils.get_sim_from_array(
-        da.from_array(data, chunks=(1, 112, 120)),
+        da.from_array(_two_channel_data(), chunks=(1, 112, 120)),
         dims=['c', 'y', 'x'],
         scale={'y': 10.0, 'x': 20.0},
         translation={'y': 100.0, 'x': 200.0},
@@ -51,7 +56,10 @@ def test_image_layer_to_msim_reads_actual_napari_ome_zarr(
     layers = viewer.open(str(zarr_path), plugin='napari-ome-zarr')
 
     assert len(layers) == 2
-    assert {layer.name for layer in layers} == {'DAPI', 'GFP'}
+    assert {
+        layer.name.split(': ')[-1]
+        for layer in layers
+    } == {'DAPI', 'GFP'}
     assert all(
         layer.source.reader_plugin == 'napari-ome-zarr'
         for layer in layers
@@ -63,7 +71,8 @@ def test_image_layer_to_msim_reads_actual_napari_ome_zarr(
         for ldata in layer.data
     )
 
-    layer = next(layer for layer in layers if layer.name == 'GFP')
+    layer = next(
+        layer for layer in layers if layer.name.split(': ')[-1] == 'GFP')
     layer.scale = np.asarray((2.0, 3.0))
     layer.translate = np.asarray((5.0, 7.0))
 
@@ -96,7 +105,7 @@ def test_image_layer_to_msim_reads_actual_napari_ome_zarr(
     assert list(sim0.coords['c'].values) == ['GFP']
     np.testing.assert_array_equal(
         np.asarray(sim0.sel(c='GFP').isel(t=0).data),
-        np.full((224, 240), 9, dtype=np.uint8),
+        _two_channel_data()[1],
     )
     assert spatial_image_utils.get_origin_from_sim(sim0) == {
         'y': 5.0,

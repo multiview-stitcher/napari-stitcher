@@ -302,8 +302,13 @@ def try_load_msim_from_napari_ome_zarr(layer, viewer, dims, sdims, c_coord):
             msim = msi_utils.multiscale_sel_coords(
                 msim, {'c': [ome_zarr_c_coord]})
 
+        msim_sdims = [
+            dim for dim in msi_utils.get_spatial_dims(msim) if dim in sdims]
+        if len(msim_sdims) != len(msi_utils.get_spatial_dims(msim)):
+            msim_sdims = msi_utils.get_spatial_dims(msim)
+
         msim = set_msim_c_coord(msim, c_coord)
-        msim = set_msim_spatial_coords_from_layer(msim, layer, sdims)
+        msim = set_msim_spatial_coords_from_layer(msim, layer, msim_sdims)
 
         return msim
 
