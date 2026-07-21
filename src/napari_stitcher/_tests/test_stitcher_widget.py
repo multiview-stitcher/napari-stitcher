@@ -541,6 +541,78 @@ def test_precompute_fusion_job_options(make_napari_viewer):
     assert batch_options['batch_func_kwargs']['n_jobs'] == n_jobs
 
 
+def test_fusion_parameter_tabs(make_napari_viewer):
+    viewer = make_napari_viewer()
+    wdg = StitcherQWidget(viewer)
+
+    assert wdg.fusion_config_widgets_tabs.tabText(0) == 'Output'
+    assert wdg.fusion_config_widgets_tabs.tabText(1) == 'Method'
+    assert wdg.fusion_config_widgets_tabs.tabText(2) == 'Weights'
+
+    assert wdg._get_fusion_func() is _stitcher_widget.fusion.weighted_average_fusion
+
+    wdg.blending_weight_width_x.value = 12.5
+    wdg.blending_weight_width_y.value = 13.5
+    wdg.blending_weight_width_z.value = 4.5
+    assert wdg._get_blending_widths() == {
+        'x': 12.5,
+        'y': 13.5,
+        'z': 4.5,
+    }
+
+    wdg.fusion_method.enabled = True
+    wdg.fusion_method.value = _stitcher_widget.FUSION_METHOD_AVERAGE
+    wdg._on_fusion_method_changed()
+    assert wdg._get_fusion_func() is _stitcher_widget.fusion.simple_average_fusion
+    assert not any(w.enabled for w in wdg.fusion_config_widgets_weights)
+
+    wdg.fusion_method.value = _stitcher_widget.FUSION_METHOD_MAX
+    assert wdg._get_fusion_func() is _stitcher_widget.fusion.max_fusion
+
+    wdg.fusion_method.value = _stitcher_widget.FUSION_METHOD_BLENDING
+    wdg._on_fusion_method_changed()
+    assert all(w.enabled for w in wdg.fusion_config_widgets_weights)
+
+
+def test_run_fusion_forwards_fusion_parameters(make_napari_viewer):
+    viewer = make_napari_viewer()
+    wdg = StitcherQWidget(viewer)
+
+    D = 40
+    arr = np.random.randint(0, 255, (D, D), dtype=np.uint8)
+    viewer.add_image(arr[:, :D//2+D//10], translate=(0, 0), name='im1')
+    viewer.add_image(arr[:, D//2-D//10:], translate=(0, D//2-D//10), name='im2')
+
+    wdg.button_load_layers_all.clicked()
+    wdg.precompute_fusion.value = False
+    wdg.fusion_method.value = _stitcher_widget.FUSION_METHOD_MAX
+    wdg.blending_weight_width_x.value = 11.0
+    wdg.blending_weight_width_y.value = 12.0
+    wdg.blending_weight_width_z.value = 3.0
+
+    captured = []
+    real_fuse = _stitcher_widget.fusion.fuse
+
+    def capturing_fuse(*args, **kwargs):
+        captured.append(kwargs)
+        return real_fuse(*args, **kwargs)
+
+    with patch.object(
+        _stitcher_widget.fusion,
+        'fuse',
+        side_effect=capturing_fuse,
+    ):
+        wdg.run_fusion()
+
+    assert captured
+    assert captured[0]['fusion_func'] is _stitcher_widget.fusion.max_fusion
+    assert captured[0]['blending_widths'] == {
+        'x': 11.0,
+        'y': 12.0,
+        'z': 3.0,
+    }
+
+
 @pytest.mark.parametrize("use_layer_res", [True, False])
 def test_use_layer_resolution(use_layer_res, make_napari_viewer):
     """

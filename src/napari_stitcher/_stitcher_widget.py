@@ -43,6 +43,9 @@ if TYPE_CHECKING:
 CHOICE_METADATA = 'Original'
 CHOICE_REGISTERED = 'Registered'
 DEFAULT_FUSION_N_JOBS = os.cpu_count() or 1
+FUSION_METHOD_BLENDING = 'Blending fusion'
+FUSION_METHOD_AVERAGE = 'Average fusion'
+FUSION_METHOD_MAX = 'Max fusion'
 
 
 class StitcherQWidget(QWidget):
@@ -224,17 +227,76 @@ class StitcherQWidget(QWidget):
         self.precompute_fusion.changed.connect(
             self._on_precompute_fusion_changed)
         self._on_precompute_fusion_changed()
-        self.fusion_config_widgets = [
+
+        self.fusion_method = widgets.ComboBox(
+            choices=[
+                FUSION_METHOD_BLENDING,
+                FUSION_METHOD_AVERAGE,
+                FUSION_METHOD_MAX,
+            ],
+            value=FUSION_METHOD_BLENDING,
+            label='Fusion method:',
+            tooltip='Choose how overlapping pixels are combined.\n'
+                    'Blending fusion uses smooth blending weights.\n'
+                    'Average fusion averages all valid views.\n'
+                    'Max fusion keeps the maximum valid value.')
+
+        self.blending_weight_width_x = widgets.FloatSpinBox(
+            value=10.0,
+            min=0.0,
+            max=1000000.0,
+            label='X width:',
+            tooltip='Physical width used for x-axis blending weights.')
+        self.blending_weight_width_y = widgets.FloatSpinBox(
+            value=10.0,
+            min=0.0,
+            max=1000000.0,
+            label='Y width:',
+            tooltip='Physical width used for y-axis blending weights.')
+        self.blending_weight_width_z = widgets.FloatSpinBox(
+            value=3.0,
+            min=0.0,
+            max=1000000.0,
+            label='Z width:',
+            tooltip='Physical width used for z-axis blending weights.')
+
+        self.fusion_config_widgets_output = [
             self.precompute_fusion,
             self.precompute_fusion_path,
             self.precompute_fusion_n_jobs,
         ]
+        self.fusion_config_widgets_method = [
+            self.fusion_method,
+        ]
+        self.fusion_config_widgets_weights = [
+            self.blending_weight_width_x,
+            self.blending_weight_width_y,
+            self.blending_weight_width_z,
+        ]
+        self.fusion_config_widgets = (
+            self.fusion_config_widgets_output
+            + self.fusion_config_widgets_method
+            + self.fusion_config_widgets_weights
+        )
+        self.fusion_method.changed.connect(self._on_fusion_method_changed)
+        self._on_fusion_method_changed()
+
+        self.fusion_config_widgets_tabs = QTabWidget()
+        self.fusion_config_widgets_tabs.resize(300, 200)
+        self.fusion_config_widgets_tabs.addTab(
+            widgets.VBox(widgets=self.fusion_config_widgets_output).native,
+            "Output")
+        self.fusion_config_widgets_tabs.addTab(
+            widgets.VBox(widgets=self.fusion_config_widgets_method).native,
+            "Method")
+        self.fusion_config_widgets_tabs.addTab(
+            widgets.VBox(widgets=self.fusion_config_widgets_weights).native,
+            "Weights")
 
         # Top-level settings tabs: Registration and Fusion
         self.settings_tabs = QTabWidget()
         self.settings_tabs.addTab(self.reg_config_widgets_tabs, "Registration")
-        self.settings_tabs.addTab(
-            widgets.VBox(widgets=self.fusion_config_widgets).native, "Fusion")
+        self.settings_tabs.addTab(self.fusion_config_widgets_tabs, "Fusion")
 
         self.visualization_widgets = [
                             self.visualization_type_rbuttons,
@@ -326,6 +388,29 @@ class StitcherQWidget(QWidget):
         enabled = self.precompute_fusion.value and self.precompute_fusion.enabled
         self.precompute_fusion_path.enabled = enabled
         self.precompute_fusion_n_jobs.enabled = enabled
+
+    def _on_fusion_method_changed(self, event=None):
+        """Enable blending weights only for blending fusion."""
+        enabled = (
+            self.fusion_method.value == FUSION_METHOD_BLENDING
+            and self.fusion_method.enabled
+        )
+        for widget in self.fusion_config_widgets_weights:
+            widget.enabled = enabled
+
+    def _get_fusion_func(self):
+        return {
+            FUSION_METHOD_BLENDING: fusion.weighted_average_fusion,
+            FUSION_METHOD_AVERAGE: fusion.simple_average_fusion,
+            FUSION_METHOD_MAX: fusion.max_fusion,
+        }[self.fusion_method.value]
+
+    def _get_blending_widths(self):
+        return {
+            'x': float(self.blending_weight_width_x.value),
+            'y': float(self.blending_weight_width_y.value),
+            'z': float(self.blending_weight_width_z.value),
+        }
 
     def _get_precompute_fusion_path(self, channel, n_channels):
         """
@@ -706,6 +791,8 @@ class StitcherQWidget(QWidget):
             transform_key = ('affine_registered'
                              if self.visualization_type_rbuttons.value == CHOICE_REGISTERED
                              else 'affine_metadata')
+            fusion_func = self._get_fusion_func()
+            blending_widths = self._get_blending_widths()
 
             if self.precompute_fusion.value:
                 # Eager: write fused result to (OME-)Zarr before creating the layer.
@@ -724,6 +811,8 @@ class StitcherQWidget(QWidget):
                     mfused = fusion.fuse(
                         images=ch_msims,
                         transform_key=transform_key,
+                        fusion_func=fusion_func,
+                        blending_widths=blending_widths,
                         output_zarr_url=fused_path,
                         zarr_options=zarr_options,
                         batch_options=(
@@ -732,7 +821,12 @@ class StitcherQWidget(QWidget):
             else:
                 # Lazy: return a dask-backed msim with no disk write.
                 # Computation is deferred until the layer is first rendered.
-                mfused = fusion.fuse(images=ch_msims, transform_key=transform_key)
+                mfused = fusion.fuse(
+                    images=ch_msims,
+                    transform_key=transform_key,
+                    fusion_func=fusion_func,
+                    blending_widths=blending_widths,
+                )
 
             fused_data, fused_kwargs, _ = viewer_utils.create_image_layer_tuples_from_msim(
                 mfused,
@@ -795,6 +889,7 @@ class StitcherQWidget(QWidget):
         self._on_custom_reg_binning_changed()
         self._on_do_quality_filter_changed()
         self._on_precompute_fusion_changed()
+        self._on_fusion_method_changed()
         if not _NAPARI_HAS_LOCKED_DATA_LEVEL:
             self.use_layer_resolution.enabled = False
 
