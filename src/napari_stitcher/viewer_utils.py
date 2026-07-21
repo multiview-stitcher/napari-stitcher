@@ -246,11 +246,6 @@ def create_image_layer_tuples_from_msim(
     scale_keys = msi_utils.get_sorted_scale_keys(msim)
     ndim = spatial_image_utils.get_ndim_from_sim(msi_utils.get_sim_from_msim(msim))
 
-    if ndim == 3 and len(scale_keys) > 1:
-        warnings.warn('In 3D, theres a napari bug concerning scale/translate when using multiscale images. Using only a single resolution (the lowest).')
-        msim = msi_utils.get_msim_from_sim(msi_utils.get_sim_from_msim(msim, scale=scale_keys[-1]), scale_factors=[])
-        scale_keys = msi_utils.get_sorted_scale_keys(msim)
-
     sim = msi_utils.get_sim_from_msim(msim)
 
     if contrast_limits is None:
