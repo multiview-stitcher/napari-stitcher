@@ -3,9 +3,15 @@ import xarray as xr
 import dask.array as da
 from dask import compute
 from functools import partial
-import warnings
 
-from multiview_stitcher import mv_graph, spatial_image_utils, msi_utils, param_utils
+from multiview_stitcher import (
+    mv_graph,
+    spatial_image_utils,
+    msi_utils,
+    param_utils,
+)
+
+from . import _utils
 
 from napari.experimental import link_layers
 from napari.utils import notifications
@@ -84,12 +90,17 @@ def image_layer_to_msim(l, viewer):
     dims = get_layer_dims(l, viewer)
     sdims = [dim for dim in dims if dim in ['x', 'y', 'z']]
 
-    # Extract channel name from layer name (format: "tile :: channel").
-    # Layers without this format (e.g. plain user images) share 'default_channel'
-    # so they are treated as a single-channel dataset and can be registered together.
-    ch_name = l.name.split(' :: ')[-1] if ' :: ' in l.name else 'default_channel'
+    ch_name = _utils.get_layer_c_coord(l)
 
-    if l.multiscale:
+    # Loading the layer from OME-Zarr directly
+    # if the layer was read using napari-ome-zarr.
+    # The benefit of this is that msims are backed
+    # by zarr arrays rather than dask arrays,
+    # which is more efficient for large datasets.
+    msim = _utils.try_load_msim_from_napari_ome_zarr(
+        l, viewer, dims, sdims, ch_name)
+
+    if msim is None and l.multiscale:
         sims = []
         # All levels cover the same physical region, so coarser levels have
         # proportionally larger pixel sizes. Compute the per-level scale from
@@ -102,8 +113,7 @@ def image_layer_to_msim(l, viewer):
             if isinstance(ldata, xr.DataArray):
                 # xarray-backed multiscale (e.g. from napari-aicsimageio)
                 xim_sdims = spatial_image_utils.get_spatial_dims_from_sim(ldata)
-                c_coord = str(ldata.coords['c'].values) \
-                    if 'c' in ldata.coords else ch_name
+                c_coord = _utils.get_layer_c_coord(l, ldata)
                 sim = spatial_image_utils.get_sim_from_array(
                     ldata,
                     dims=list(ldata.dims),
@@ -134,7 +144,7 @@ def image_layer_to_msim(l, viewer):
         msim = msi_utils.get_msim_from_sims(sims)
         msim = msi_utils.correct_multiscale_origins(msim)
 
-    else:
+    elif msim is None:
         # Single-scale layer
         ldata = l.data
         data = ldata.data if isinstance(ldata, xr.DataArray) else ldata

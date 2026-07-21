@@ -52,6 +52,7 @@ testing_no_gui = [
     "pytest",
     "pytest-cov",
     "pytest-qt",
+    "napari-ome-zarr",
 ]
 testing = [
     "tox",
@@ -60,6 +61,7 @@ testing = [
     "pytest-qt",
     "napari",
     "pyqt5",
+    "napari-ome-zarr",
 ]
 playground = [
     "napari[all]",

@@ -1,14 +1,115 @@
+import warnings
+
 import numpy as np
 import dask.array as da
-import xarray as xr
 
 from multiview_stitcher.io import METADATA_TRANSFORM_KEY
 from multiview_stitcher import (
-    msi_utils, sample_data, registration, fusion
-    )
+    msi_utils,
+    sample_data,
+    registration,
+    fusion,
+    spatial_image_utils,
+    ngff_utils,
+)
 import pytest
 
-from napari_stitcher import viewer_utils, _reader
+from napari_stitcher import viewer_utils, _utils
+
+
+def _write_two_channel_ome_zarr(zarr_path):
+    shape = (224, 240)
+    data = np.stack([
+        np.full(shape, 2, dtype=np.uint8),
+        np.full(shape, 9, dtype=np.uint8),
+    ])
+    sim = spatial_image_utils.get_sim_from_array(
+        da.from_array(data, chunks=(1, 112, 120)),
+        dims=['c', 'y', 'x'],
+        scale={'y': 10.0, 'x': 20.0},
+        translation={'y': 100.0, 'x': 200.0},
+        c_coords=['DAPI', 'GFP'],
+    )
+
+    ngff_utils.write_sim_to_ome_zarr(
+        sim,
+        zarr_path,
+        overwrite=True,
+        show_progressbar=False,
+    )
+
+
+def test_image_layer_to_msim_reads_actual_napari_ome_zarr(
+    tmp_path,
+    make_napari_viewer,
+    monkeypatch,
+):
+    zarr_path = tmp_path / 'channels.ome.zarr'
+    _write_two_channel_ome_zarr(zarr_path)
+
+    viewer = make_napari_viewer()
+    layers = viewer.open(str(zarr_path), plugin='napari-ome-zarr')
+
+    assert len(layers) == 2
+    assert {layer.name for layer in layers} == {'DAPI', 'GFP'}
+    assert all(
+        layer.source.reader_plugin == 'napari-ome-zarr'
+        for layer in layers
+    )
+    assert all(layer.multiscale for layer in layers)
+    assert all(
+        isinstance(ldata, da.Array)
+        for layer in layers
+        for ldata in layer.data
+    )
+
+    layer = next(layer for layer in layers if layer.name == 'GFP')
+    layer.scale = np.asarray((2.0, 3.0))
+    layer.translate = np.asarray((5.0, 7.0))
+
+    calls = []
+    original_read_msim = _utils.ngff_utils.read_msim_from_ome_zarr
+
+    def read_msim_from_ome_zarr_spy(zarr_path, *args, **kwargs):
+        calls.append(zarr_path)
+        return original_read_msim(zarr_path, *args, **kwargs)
+
+    monkeypatch.setattr(
+        _utils.ngff_utils,
+        'read_msim_from_ome_zarr',
+        read_msim_from_ome_zarr_spy,
+    )
+
+    with warnings.catch_warnings(record=True) as recorded_warnings:
+        warnings.simplefilter('always')
+        msim = viewer_utils.image_layer_to_msim(layer, viewer)
+
+    assert [str(path) for path in calls] == [str(zarr_path)]
+    assert not any(
+        'Could not load napari-ome-zarr layer' in str(warning.message)
+        for warning in recorded_warnings
+    )
+
+    sim0 = msi_utils.get_sim_from_msim(msim, scale='scale0')
+    sim1 = msi_utils.get_sim_from_msim(msim, scale='scale1')
+
+    assert list(sim0.coords['c'].values) == ['GFP']
+    np.testing.assert_array_equal(
+        np.asarray(sim0.sel(c='GFP').isel(t=0).data),
+        np.full((224, 240), 9, dtype=np.uint8),
+    )
+    assert spatial_image_utils.get_origin_from_sim(sim0) == {
+        'y': 5.0,
+        'x': 7.0,
+    }
+    assert spatial_image_utils.get_spacing_from_sim(sim0) == {
+        'y': 2.0,
+        'x': 3.0,
+    }
+    assert spatial_image_utils.get_spacing_from_sim(sim1) == {
+        'y': 4.0,
+        'x': 6.0,
+    }
 
 
 @pytest.mark.parametrize(
