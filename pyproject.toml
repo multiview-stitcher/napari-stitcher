@@ -60,7 +60,7 @@ testing = [
     "pytest-cov",
     "pytest-qt",
     "napari",
-    "pyqt5",
+    "pyqt6",
     "napari-ome-zarr",
 ]
 playground = [
