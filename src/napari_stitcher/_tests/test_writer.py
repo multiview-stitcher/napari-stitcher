@@ -15,7 +15,7 @@ import pytest
 
 
 @pytest.mark.skipif(
-        'win' in sys.platform,
+        sys.platform.startswith('win'),
         reason="Need to fix tempfile related test error on Windows")
 @pytest.mark.parametrize(
     "field_ndim, N_t, N_c", [
