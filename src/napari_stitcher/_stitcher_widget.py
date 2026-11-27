@@ -7,7 +7,7 @@ see: https://napari.org/stable/plugins/guides.html?#widgets
 Replace code below according to your needs.
 """
 from typing import TYPE_CHECKING
-import os, tempfile, sys, shutil
+import os, tempfile, sys
 from collections.abc import Iterable
 
 import numpy as np
@@ -214,9 +214,11 @@ class StitcherQWidget(QWidget):
             mode='d',
             value=None,
             nullable=True,
-            label='Fusion OME-Zarr path:',
-            tooltip='Optional top-level path for the pre-computed fusion zarr store.\n'
-                    'Leave empty to use a temporary store.')
+            label='Fusion output folder:',
+            tooltip='Parent folder for pre-computed fusion results.\n'
+                    'Each run creates a new, uniquely named subfolder.\n'
+                    'Existing data are never overwritten.\n'
+                    'Leave empty to use temporary storage.')
         self.precompute_fusion_n_jobs = widgets.SpinBox(
             value=DEFAULT_FUSION_N_JOBS,
             min=1,
@@ -412,44 +414,39 @@ class StitcherQWidget(QWidget):
             'z': float(self.blending_weight_width_z.value),
         }
 
-    def _get_precompute_fusion_path(self, channel, n_channels):
+    def _get_precompute_fusion_paths(self, channels):
         """
-        Return the top-level zarr path for a pre-computed fusion result.
+        Reserve a unique run directory containing one new store per channel.
 
-        An empty picker value keeps the existing behavior and writes one store
-        per channel to the widget-owned temporary directory.  A user-selected
-        path is used exactly for single-channel fusion.  For multi-channel
-        fusion, this widget still writes one store per channel, so a channel
-        suffix is inserted to avoid overwriting earlier channels.
+        User-selected folders are parents, never output stores themselves.
+        Channel indices keep store names independent of user-supplied labels.
         """
+        if not channels:
+            return {}
+
         output_path = self.precompute_fusion_path.value
         if output_path is None:
-            return os.path.join(self.tmpdir.name, 'fused_%s.zarr' % channel)
+            output_path = self.tmpdir.name
+        else:
+            output_path = os.path.abspath(os.fspath(output_path))
+            if os.path.islink(output_path):
+                raise ValueError(
+                    "Choose a fusion output folder that is not a symbolic link.")
+            if os.path.lexists(output_path) and not os.path.isdir(output_path):
+                raise NotADirectoryError(
+                    f"Fusion output folder is not a directory: '{output_path}'.")
+            os.makedirs(output_path, exist_ok=True)
 
-        output_path = os.fspath(output_path)
-        if n_channels > 1:
-            output_path = self._append_channel_to_path(output_path, channel)
-
-        parent_dir = os.path.dirname(output_path)
-        if parent_dir:
-            os.makedirs(parent_dir, exist_ok=True)
-        return output_path
-
-    @staticmethod
-    def _append_channel_to_path(path, channel):
-        """Insert a channel suffix before the zarr extension in ``path``."""
-        parent_dir, filename = os.path.split(path)
-        channel_suffix = '_%s' % channel
-
-        for extension in ('.ome.zarr', '.zarr'):
-            if filename.endswith(extension):
-                filename = (
-                    filename[:-len(extension)] + channel_suffix + extension)
-                return os.path.join(parent_dir, filename)
-
-        stem, extension = os.path.splitext(filename)
-        filename = stem + channel_suffix + extension
-        return os.path.join(parent_dir, filename)
+        run_path = tempfile.mkdtemp(prefix='fusion_', dir=output_path)
+        extension = '.ome.zarr' if self.all_layers_multiscale else '.zarr'
+        paths = {}
+        for index, channel in enumerate(channels):
+            path = os.path.join(run_path, f'channel_{index}{extension}')
+            os.mkdir(path)
+            paths[channel] = path
+        notifications.notification_manager.receive_info(
+            f"Fusion output folder: {run_path}")
+        return paths
 
     def _get_precompute_fusion_batch_options(self):
         """
@@ -768,12 +765,15 @@ class StitcherQWidget(QWidget):
         the layer is first rendered.
         """
 
+        channels = self.reg_ch_picker.choices
+        fused_paths = {}
+        if self.precompute_fusion.value:
+            fused_paths = self._get_precompute_fusion_paths(channels)
+
         # Capture manual layer adjustments if fusing with original transforms
         if not (self.visualization_type_rbuttons.enabled and
                 self.visualization_type_rbuttons.value == CHOICE_REGISTERED):
             self._capture_layer_transforms_to_msims()
-
-        channels = self.reg_ch_picker.choices
 
         for _, ch in enumerate(channels):
 
@@ -798,11 +798,10 @@ class StitcherQWidget(QWidget):
                 # Eager: write fused result to (OME-)Zarr before creating the layer.
                 # All-multiscale inputs → OME-Zarr pyramid; otherwise plain zarr
                 # (fusion.fuse selects only the finest resolution, which is cheaper).
-                fused_path = self._get_precompute_fusion_path(
-                    ch, n_channels=len(channels))
-                if os.path.exists(fused_path):
-                    shutil.rmtree(fused_path)
-                zarr_options = {'ome_zarr': True} if self.all_layers_multiscale else {}
+                fused_path = fused_paths[ch]
+                zarr_options = {'overwrite': False}
+                if self.all_layers_multiscale:
+                    zarr_options['ome_zarr'] = True
 
                 with _utils.TemporarilyDisabledWidgets(self.all_widgets),\
                     _utils.VisibleActivityDock(self.viewer),\

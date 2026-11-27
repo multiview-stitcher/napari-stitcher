@@ -496,13 +496,13 @@ def test_precompute_fusion(precompute, make_napari_viewer):
     assert wdg.precompute_fusion_n_jobs.enabled == precompute
     wdg.run_fusion()
 
-    zarr_written = any(name.endswith('.zarr') for name in os.listdir(wdg.tmpdir.name))
+    zarr_written = any(Path(wdg.tmpdir.name).rglob('*.zarr'))
     assert zarr_written == precompute
 
 
 def test_precompute_fusion_uses_custom_path(tmp_path, make_napari_viewer):
     """
-    User-selected fusion paths are the top-level pre-computed zarr stores.
+    User-selected folders contain a dedicated run directory and Zarr store.
     """
     viewer = make_napari_viewer()
     wdg = StitcherQWidget(viewer)
@@ -515,12 +515,148 @@ def test_precompute_fusion_uses_custom_path(tmp_path, make_napari_viewer):
 
     wdg.button_load_layers_all.clicked()
     wdg.precompute_fusion_n_jobs.value = 1
-    output_path = tmp_path / 'custom_fusion.zarr'
+    output_path = tmp_path / 'results'
     wdg.precompute_fusion_path.value = output_path
     wdg.run_fusion()
 
+    runs = list(output_path.iterdir())
+    assert len(runs) == 1
+    assert runs[0].name.startswith('fusion_')
+    assert (runs[0] / 'channel_0.zarr').is_dir()
+    assert not any(Path(wdg.tmpdir.name).iterdir())
+
+
+@pytest.mark.parametrize(
+    "destination_kind", ["data_directory", "empty_directory", "file", "zarr"])
+def test_precompute_fusion_preserves_existing_destination(
+        destination_kind, tmp_path, make_napari_viewer):
+    viewer = make_napari_viewer()
+    viewer.add_image(np.ones((8, 8), dtype=np.uint8))
+    wdg = StitcherQWidget(viewer)
+    wdg.load_layers_all()
+
+    output_path = tmp_path / (
+        'existing.zarr' if destination_kind == 'zarr' else 'existing')
+    if destination_kind == 'file':
+        output_path.write_bytes(b'original image data')
+    else:
+        output_path.mkdir()
+        if destination_kind != 'empty_directory':
+            nested = output_path / 'input_images'
+            nested.mkdir()
+            (nested / 'original.czi').write_bytes(b'original image data')
+            if destination_kind == 'zarr':
+                (output_path / '.zgroup').write_text('{"zarr_format": 2}')
+
+    def snapshot():
+        if output_path.is_file():
+            return {output_path.name: output_path.read_bytes()}
+        return {
+            str(path.relative_to(output_path)): path.read_bytes()
+            for path in output_path.rglob('*') if path.is_file()
+        }
+
+    original = snapshot()
+    wdg.precompute_fusion_path.value = output_path
+    wdg.precompute_fusion_n_jobs.value = 1
+    if destination_kind == 'file':
+        with pytest.raises(NotADirectoryError, match='not a directory'):
+            wdg.run_fusion()
+    else:
+        wdg.run_fusion()
+        runs = list(output_path.glob('fusion_*'))
+        assert len(runs) == 1
+        assert (runs[0] / 'channel_0.zarr').is_dir()
+
     assert output_path.exists()
-    assert not any(name.endswith('.zarr') for name in os.listdir(wdg.tmpdir.name))
+    current = snapshot()
+    assert all(current[name] == data for name, data in original.items())
+
+
+def test_precompute_fusion_reserves_channels_inside_unique_run(
+        tmp_path, make_napari_viewer):
+    viewer = make_napari_viewer()
+    viewer.add_image(
+        [np.ones((8, 8), dtype=np.uint8),
+         np.ones((4, 4), dtype=np.uint8)], multiscale=True)
+    wdg = StitcherQWidget(viewer)
+    wdg.load_layers_all()
+    wdg.precompute_fusion_path.value = tmp_path
+    sentinel = tmp_path / 'original.czi'
+    sentinel.write_bytes(b'original image data')
+
+    channels = ('../first', r'C:\second')
+    first = wdg._get_precompute_fusion_paths(channels)
+    second = wdg._get_precompute_fusion_paths(channels)
+    first_run = Path(first[channels[0]]).parent
+    second_run = Path(second[channels[0]]).parent
+
+    assert first_run != second_run
+    assert first_run.parent == second_run.parent == tmp_path
+    for paths in (first, second):
+        run = Path(paths[channels[0]]).parent
+        assert {Path(path).parent for path in paths.values()} == {run}
+        assert {path.name for path in run.iterdir()} == {
+            'channel_0.ome.zarr', 'channel_1.ome.zarr'}
+    assert sentinel.read_bytes() == b'original image data'
+
+
+def test_precompute_fusion_preserves_symlink(tmp_path, make_napari_viewer):
+    wdg = StitcherQWidget(make_napari_viewer())
+    output_path = tmp_path / 'fusion.zarr'
+    target = tmp_path / 'missing_target'
+    try:
+        output_path.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip('Creating directory symlinks is not permitted')
+    wdg.precompute_fusion_path.value = output_path
+
+    with pytest.raises(ValueError, match='symbolic link'):
+        wdg._get_precompute_fusion_paths(('channel',))
+
+    assert output_path.is_symlink()
+    assert not target.exists()
+
+
+@pytest.mark.parametrize("multiscale", [False, True])
+@pytest.mark.parametrize("custom_folder", [False, True])
+def test_precompute_fusion_repeated_runs_preserve_previous_results(
+        multiscale, custom_folder, tmp_path, make_napari_viewer):
+    viewer = make_napari_viewer()
+    image = np.arange(64, dtype=np.uint8).reshape(8, 8)
+    viewer.add_image(
+        [image, image[::2, ::2]] if multiscale else image,
+        multiscale=multiscale)
+    wdg = StitcherQWidget(viewer)
+    wdg.load_layers_all()
+    wdg.precompute_fusion_n_jobs.value = 1
+    if custom_folder:
+        wdg.precompute_fusion_path.value = tmp_path
+
+    with patch.object(
+            _stitcher_widget.fusion, 'fuse',
+            wraps=_stitcher_widget.fusion.fuse) as fuse:
+        wdg.run_fusion()
+        first_path = Path(fuse.call_args.kwargs['output_zarr_url'])
+        first_files = {
+            path.relative_to(first_path): path.read_bytes()
+            for path in first_path.rglob('*') if path.is_file()
+        }
+        wdg.run_fusion()
+        second_path = Path(fuse.call_args.kwargs['output_zarr_url'])
+        assert second_path != first_path
+        assert second_path.parent != first_path.parent
+        parent = tmp_path if custom_folder else Path(wdg.tmpdir.name)
+        assert first_path.parent.parent == second_path.parent.parent == parent
+        assert second_path.exists()
+        assert first_files
+        assert {
+            path.relative_to(first_path): path.read_bytes()
+            for path in first_path.rglob('*') if path.is_file()
+        } == first_files
+        for call in fuse.call_args_list:
+            assert call.kwargs['zarr_options']['overwrite'] is False
+
 
 
 def test_precompute_fusion_job_options(make_napari_viewer):
